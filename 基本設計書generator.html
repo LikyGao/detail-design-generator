@@ -6208,17 +6208,17 @@ var __async = (__this, __arguments, generator) => {
     function utf8CheckExtraBytes(self2, buf, p) {
       if ((buf[0] & 192) !== 128) {
         self2.lastNeed = 0;
-        return "�";
+        return " ";
       }
       if (self2.lastNeed > 1 && buf.length > 1) {
         if ((buf[1] & 192) !== 128) {
           self2.lastNeed = 1;
-          return "�";
+          return " ";
         }
         if (self2.lastNeed > 2 && buf.length > 2) {
           if ((buf[2] & 192) !== 128) {
             self2.lastNeed = 2;
-            return "�";
+            return " ";
           }
         }
       }
@@ -6244,7 +6244,7 @@ var __async = (__this, __arguments, generator) => {
     }
     function utf8End(buf) {
       var r = buf && buf.length ? this.write(buf) : "";
-      if (this.lastNeed) return r + "�";
+      if (this.lastNeed) return r + " ";
       return r;
     }
     function utf16Text(buf, i) {
@@ -23464,7 +23464,8 @@ const DIFY_GEN_API_KEY  = "app-Ilb0xgWFbB02dTN80cckeIHU";  // Stage② 本文生
 
 /* ── docx exports ── */
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-        WidthType, AlignmentType, VerticalAlign, ShadingType, BorderStyle, PageBreak, ImageRun } = docx;
+        WidthType, AlignmentType, VerticalAlign, ShadingType, BorderStyle, PageBreak, ImageRun,
+        TableOfContents, HeadingLevel } = docx;
 
 /* ── State ── */
 const PHASE = { INPUT:'input', EDIT:'edit' };
@@ -24428,11 +24429,14 @@ async function exportDocx(){
       rows:[propRow('版数',cv.version),propRow('発行日',cv.issue_date),propRow('ファイル名',cv.file_name),propRow('プロジェクトNo',cv.project_no)]});
     cover.push(propTable);
     cover.push(new Paragraph({children:[new PageBreak()]}));
-    // toc
-    const toc=[ new Paragraph({spacing:{after:160},children:[mkRun('目次',{size:28,bold:true,gothic:true})]}) ];
-    walkSelected(doc.chapters,n=>{ toc.push(new Paragraph({spacing:{after:40},indent:{left:(n.level-1)*360},children:[mkRun((n.level===1?'■ ':'')+n.display_number+'　'+(n.title||'(無題)'),{bold:n.level===1})]})); });
+    // toc（Word のフィールドを使った正式な目次。本文見出し Heading1〜3 を参照）
     const media=collectMedia();
-    if(media.tables.length){ toc.push(new Paragraph({spacing:{before:160,after:80},children:[mkRun('表目次',{size:22,bold:true,gothic:true})]}));
+    const toc=[
+      new Paragraph({spacing:{after:160},children:[mkRun('目次',{size:28,bold:true,gothic:true})]}),
+      new TableOfContents('目次', { hyperlink:true, headingStyleRange:'1-3' })
+    ];
+    // 図目次・表目次は現時点では通常テキストとして出力（図表番号の自動フィールド化は別対応）
+    if(media.tables.length){ toc.push(new Paragraph({spacing:{before:220,after:80},children:[mkRun('表目次',{size:22,bold:true,gothic:true})]}));
       media.tables.forEach(t=>toc.push(new Paragraph({spacing:{after:30},indent:{left:360},children:[mkRun('【'+t.ref+'：'+(t.caption||'')+'】')]}))); }
     if(media.figures.length){ toc.push(new Paragraph({spacing:{before:160,after:80},children:[mkRun('図目次',{size:22,bold:true,gothic:true})]}));
       media.figures.forEach(f=>toc.push(new Paragraph({spacing:{after:30},indent:{left:360},children:[mkRun('【'+f.ref+'：'+(f.caption||'')+'】')]}))); }
@@ -24441,8 +24445,12 @@ async function exportDocx(){
     const bodyCh=[];
     walkSelected(doc.chapters,n=>{
       const size = n.level===1?30:n.level===2?24:21;
-      bodyCh.push(new Paragraph({spacing:{before:n.level===1?240:160,after:100},border:n.level===1?{bottom:{style:BorderStyle.SINGLE,size:12,color:'333333',space:4}}:undefined,
-        children:[mkRun(n.display_number+'　'+(n.title||'(無題)'),{size,bold:true,gothic:true})]}));
+      bodyCh.push(new Paragraph({
+        heading:n.level===1?HeadingLevel.HEADING_1:(n.level===2?HeadingLevel.HEADING_2:HeadingLevel.HEADING_3),
+        spacing:{before:n.level===1?240:160,after:100},
+        border:n.level===1?{bottom:{style:BorderStyle.SINGLE,size:12,color:'333333',space:4}}:undefined,
+        children:[mkRun(n.display_number+'　'+(n.title||'(無題)'),{size,bold:true,gothic:true})]
+      }));
       (n.blocks||[]).forEach(b=>{
         if(b.type==='paragraph'){
           String(b.text||'').split('\n').map(l=>l.trim()).filter(Boolean).forEach(l=>bodyCh.push(para(l,{indent:200})));
@@ -24460,8 +24468,11 @@ async function exportDocx(){
         }
       });
     });
-    const document2=new Document({ styles:{default:{document:{run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}}}},
-      sections:[{ properties:{page:{margin:{top:1134,bottom:1134,left:1134,right:1134}}}, children:[...cover,...toc,...bodyCh] }] });
+    const document2=new Document({
+      features:{updateFields:true},
+      styles:{default:{document:{run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}}}},
+      sections:[{ properties:{page:{margin:{top:1134,bottom:1134,left:1134,right:1134}}}, children:[...cover,...toc,...bodyCh] }]
+    });
     const blob=await Packer.toBlob(document2);
     const url=URL.createObjectURL(blob); const a=document.createElement('a');
     const d=new Date(); const fn=(cv.file_name&&cv.file_name.trim())||('基本設計書_'+d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate())+'.docx');
