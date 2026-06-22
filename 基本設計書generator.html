@@ -157,8 +157,10 @@
   .word-prop{margin-top:auto;margin-bottom:50px;border-collapse:collapse;font-size:11px;width:80%}
   .word-prop td{border:1px solid #fff;background:#f2f2f2;padding:6px 10px}
   .word-prop td:first-child{width:34%;font-weight:700}
-  .word-h-toc{font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif;font-size:20px;font-weight:700;line-height:1.6;color:#000;border-bottom:2px solid #000;padding-bottom:5px;margin:24px 0 16px;letter-spacing:.04em}
-  .word-toc-row{display:flex;align-items:baseline;gap:6px;padding:3px 0;font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif;font-size:13px;line-height:1.9;color:#000}
+  #previewContent .word-index-page .word-h-toc, #previewContent .word-index-page .word-toc-row, #previewContent .word-index-page .word-toc-name, #previewContent .word-index-page .word-toc-page{font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif !important}
+  .word-h-toc{font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif !important;font-size:20px;font-weight:700;line-height:1.6;color:#000;border-bottom:2px solid #000;padding-bottom:5px;margin:24px 0 16px;letter-spacing:.04em}
+  .word-sub-toc{margin-top:18px;font-size:15px}
+  .word-toc-row{display:flex;align-items:baseline;gap:6px;padding:3px 0;font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif !important;font-size:13px;line-height:1.9;color:#000}
   .word-toc-row.l1{font-size:13.5px;font-weight:700;margin-top:8px}
   .word-toc-row.l2{padding-left:22px;font-size:13px;color:#111}
   .word-toc-row.l3{padding-left:44px;font-size:12.5px;color:#222}
@@ -24270,6 +24272,51 @@ function mediaTocLabel(item){
   const caption=String((item&&item.caption)||'').replace(/^\s*[：:]+\s*/,'').trim();
   return ref+(caption?'　'+caption:'');
 }
+function normalizeIndexText(text){
+  return String(text||'').replace(/[【】]/g,'').replace(/\s+/g,' ').trim();
+}
+function parseMediaHeading(text){
+  const m=/^(表|図)\s*([0-9０-９]+[-－―][0-9０-９]+)(?:\s*[：:]\s*|\s+|　+)?(.+)?$/.exec(normalizeIndexText(text));
+  if(!m) return null;
+  const title=String(m[3]||'').replace(/^\s*[：:]\s*/,'').trim();
+  return {type:m[1], ref:m[1]+' '+m[2], caption:title};
+}
+function collectMediaFromDocument(root){
+  const scope=root || document;
+  const tables=[], figures=[];
+  const nodes=Array.from(scope.querySelectorAll('.word-body .word-cap, .word-body p, .word-body .wpref'));
+  nodes.forEach(el=>{
+    if(el.closest('.word-index-page')) return;
+    const item=parseMediaHeading(el.textContent);
+    if(!item) return;
+    (item.type==='表'?tables:figures).push(item);
+  });
+  return {tables,figures};
+}
+function renderMediaIndexRows(container, items){
+  if(!container) return;
+  if(!items.length){ container.innerHTML='<div class="word-empty">該当なし</div>'; return; }
+  container.innerHTML=items.map(item=>'<div class="word-toc-row l2"><span class="word-toc-name">'+escH(mediaTocLabel(item))+'</span><span class="word-toc-dots"></span><span class="word-toc-page">-</span></div>').join('');
+}
+function updateTableOfTables(root){
+  const scope=root || document;
+  renderMediaIndexRows(scope.querySelector('.word-table-toc-entries'), collectMediaFromDocument(scope).tables);
+}
+function updateTableOfFigures(root){
+  const scope=root || document;
+  renderMediaIndexRows(scope.querySelector('.word-figure-toc-entries'), collectMediaFromDocument(scope).figures);
+}
+function updateTOC(root){ return root; }
+function updateDocumentIndexes(root){
+  updateTOC(root);
+  updateTableOfTables(root);
+  updateTableOfFigures(root);
+}
+function collectRenderedMediaForExport(){
+  const tmp=document.createElement('div');
+  tmp.innerHTML=buildPreviewHtml();
+  return collectMediaFromDocument(tmp);
+}
 function blocksToHtml(blocks){
   return (blocks||[]).map(b=>{
     try{
@@ -24306,17 +24353,14 @@ function buildPreviewHtml(){
     '<table class="word-prop"><tbody>'+props.map(r=>'<tr><td>'+escH(r[0])+'</td><td>'+escH(r[1]||'')+'</td></tr>').join('')+'</tbody></table>'+
     '</div>';
   // toc
-  let toc='<div class="word-page"><div class="word-h-toc">目次</div>';
+  let toc='<div class="word-page word-index-page"><div class="word-main-toc"><div class="word-h-toc">目次</div>';
   let any=false;
   walkSelected(doc.chapters,n=>{ any=true;
     toc+='<div class="word-toc-row l'+n.level+'"><span class="word-toc-name">'+escH(n.display_number)+'　'+escH(n.title||'(無題)')+'</span><span class="word-toc-dots"></span><span class="word-toc-page">-</span></div>';
   });
   if(!any) toc+='<div class="word-empty">章節がありません。</div>';
-  const media=collectMedia();
-  if(media.tables.length){ toc+='<div class="word-h-toc" style="margin-top:18px;font-size:15px;">表目次</div>';
-    media.tables.forEach(t=>toc+='<div class="word-toc-row l2"><span class="word-toc-name">'+escH(mediaTocLabel(t))+'</span><span class="word-toc-dots"></span><span class="word-toc-page">-</span></div>'); }
-  if(media.figures.length){ toc+='<div class="word-h-toc" style="margin-top:18px;font-size:15px;">図目次</div>';
-    media.figures.forEach(f=>toc+='<div class="word-toc-row l2"><span class="word-toc-name">'+escH(mediaTocLabel(f))+'</span><span class="word-toc-dots"></span><span class="word-toc-page">-</span></div>'); }
+  toc+='</div><div class="word-table-toc"><div class="word-h-toc word-sub-toc">表目次</div><div class="word-table-toc-entries"></div></div>';
+  toc+='<div class="word-figure-toc"><div class="word-h-toc word-sub-toc">図目次</div><div class="word-figure-toc-entries"></div></div>';
   toc+='</div>';
   // body
   let body='<div class="word-page word-body">';
@@ -24329,7 +24373,7 @@ function buildPreviewHtml(){
   body+='</div>';
   return coverHtml+toc+body;
 }
-function buildPreview(){ document.getElementById('previewContent').innerHTML=buildPreviewHtml(); }
+function buildPreview(){ const preview=document.getElementById('previewContent'); preview.innerHTML=buildPreviewHtml(); updateDocumentIndexes(preview); }
 
 /* 印刷 / PDF：プレビューの体裁でそのまま印刷（別ウィンドウ） */
 const PRINT_CSS = `
@@ -24345,8 +24389,10 @@ body{margin:0;background:#fff;color:#000;font-family:'MS Mincho','Noto Serif JP'
 .word-prop{margin-top:auto;margin-bottom:30mm;border-collapse:collapse;font-size:10pt;width:75%}
 .word-prop td{border:1px solid #888;background:#f2f2f2;padding:5px 12px}
 .word-prop td:first-child{width:34%;font-weight:700}
-.word-h-toc{font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif;font-size:18pt;font-weight:700;line-height:1.6;color:#000;border-bottom:2px solid #000;padding-bottom:5px;margin:22px 0 16px;letter-spacing:.04em}
-.word-toc-row{display:flex;align-items:baseline;gap:6px;padding:3px 0;font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif;font-size:11pt;line-height:1.9;color:#000}
+.word-index-page .word-h-toc,.word-index-page .word-toc-row,.word-index-page .word-toc-name,.word-index-page .word-toc-page{font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif !important}
+.word-h-toc{font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif !important;font-size:18pt;font-weight:700;line-height:1.6;color:#000;border-bottom:2px solid #000;padding-bottom:5px;margin:22px 0 16px;letter-spacing:.04em}
+.word-sub-toc{margin-top:18px;font-size:15pt}
+.word-toc-row{display:flex;align-items:baseline;gap:6px;padding:3px 0;font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif !important;font-size:11pt;line-height:1.9;color:#000}
 .word-toc-row.l1{font-size:11.5pt;font-weight:700;margin-top:8px}
 .word-toc-row.l2{padding-left:7mm;font-size:11pt;color:#111}
 .word-toc-row.l3{padding-left:14mm;font-size:10.5pt;color:#222}
@@ -24367,7 +24413,7 @@ body{margin:0;background:#fff;color:#000;font-family:'MS Mincho','Noto Serif JP'
 `;
 function printPreview(){
   if(!doc.chapters.length && !doc.cover.client_name && !doc.cover.project_name){ showToast('印刷する内容がありません。',true); return; }
-  let html; try{ html=buildPreviewHtml(); }catch(e){ console.error(e); showToast('プレビュー生成に失敗しました。',true); return; }
+  let html; try{ const tmp=document.createElement('div'); tmp.innerHTML=buildPreviewHtml(); updateDocumentIndexes(tmp); html=tmp.innerHTML; }catch(e){ console.error(e); showToast('プレビュー生成に失敗しました。',true); return; }
   const w=window.open('','_blank');
   if(!w){ showToast('ポップアップがブロックされました。ブラウザで許可してください。',true); return; }
   const title=(doc.cover.file_name||'基本設計書').replace(/\.docx$/i,'');
@@ -24436,7 +24482,8 @@ async function exportDocx(){
     cover.push(propTable);
     cover.push(new Paragraph({children:[new PageBreak()]}));
     // toc（Word のフィールドを使った正式な目次。本文見出し Heading1〜3 を参照）
-    const media=collectMedia();
+    if(_previewOpen) updateDocumentIndexes(document.getElementById('previewContent'));
+    const media=collectRenderedMediaForExport();
     const toc=[
       new Paragraph({spacing:{after:160},children:[mkRun('目次',{size:28,bold:true})]}),
       new TableOfContents('目次', { hyperlink:true, headingStyleRange:'1-3' })
