@@ -23467,7 +23467,7 @@ const DIFY_GEN_API_KEY  = "app-Ilb0xgWFbB02dTN80cckeIHU";  // Stage② 本文生
 /* ── docx exports ── */
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         WidthType, AlignmentType, VerticalAlign, ShadingType, BorderStyle, PageBreak, ImageRun,
-        TableOfContents, HeadingLevel } = docx;
+        TableOfContents, HeadingLevel, SimpleField } = docx;
 
 /* ── State ── */
 const PHASE = { INPUT:'input', EDIT:'edit' };
@@ -24458,12 +24458,24 @@ function buildDocxImage(b){
 function captionLabel(b,typeLabel){
   return (b._ref||typeLabel)+(b.caption?'　'+b.caption:'');
 }
+function captionFieldFallbackNumber(b){
+  const ref=String((b&&b._ref)||'');
+  const m=ref.match(/(\d+)$/);
+  return m?m[1]:'1';
+}
 function captionParagraph(b,typeLabel,spacing){
+  const children=[mkRun(typeLabel+' ',{bold:true})];
+  if(SimpleField){
+    children.push(new SimpleField(' SEQ '+typeLabel+' \\* ARABIC ', captionFieldFallbackNumber(b)));
+  } else {
+    children.push(mkRun(captionFieldFallbackNumber(b),{bold:true}));
+  }
+  if(b.caption){ children.push(mkRun('　'+b.caption,{bold:true})); }
   return new Paragraph({
     style:'Caption',
     spacing:spacing,
     alignment:AlignmentType.CENTER,
-    children:[mkRun(captionLabel(b,typeLabel),{bold:true})]
+    children:children
   });
 }
 
