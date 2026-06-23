@@ -24459,21 +24459,32 @@ function buildDocxImage(b){
 function captionLabel(b,typeLabel){
   return (b._ref||typeLabel)+(b.caption?'　'+b.caption:'');
 }
+function captionPartsFromRef(b,typeLabel){
+  const ref=String((b&&b._ref)||'').trim();
+  const escapedLabel=String(typeLabel).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const m=ref.match(new RegExp('^'+escapedLabel+'\\s*([0-9０-９]+)[-－—―]([0-9０-９]+)$'));
+  return {
+    chapter:m?m[1]:'',
+    seq:m?m[2]:'1'
+  };
+}
 function captionDisplayText(b,typeLabel){
-  const ref=String((b&&b._ref)||typeLabel).trim() || typeLabel;
+  const parts=captionPartsFromRef(b,typeLabel);
   const caption=String((b&&b.caption)||'').trim();
-  return ref+(caption?'　'+caption:'');
+  return '【'+typeLabel+' '+(parts.chapter?parts.chapter+'-':'')+parts.seq+(caption?'：'+caption:'')+'】';
 }
 function captionParagraph(b,typeLabel,spacing){
-  // 表/図の本文表示は HTML 側で採番済みの b._ref（例: 表 1-1 / 図 2-1）を正とする。
-  // Word の SEQ 更新で「章番号-連番」が単純な連番へ崩れないよう、表示テキストとは分離して
-  // 非表示 SEQ フィールドを補助的に残す（将来 STYLEREF 連携へ拡張するための足場）。
-  const children=[mkRun(captionDisplayText(b,typeLabel),{bold:true})];
-  if(SimpleField){
-    children.push(new SimpleField(' SEQ '+typeLabel+' \\h '));
-  }
+  // Word の図表目次（TOC \c）から認識できるよう、本文タイトルには非表示ではない SEQ フィールドを配置する。
+  // 章番号は現行採番済みの b._ref から取り出し、章内の連番は Word の SEQ フィールドに委ねる。
+  const parts=captionPartsFromRef(b,typeLabel);
+  const caption=String((b&&b.caption)||'').trim();
+  const children=[
+    mkRun('【'+typeLabel+' '+(parts.chapter?parts.chapter+'-':''),{bold:true}),
+    new SimpleField('SEQ '+typeLabel+' \\* ARABIC \\s 1', parts.seq),
+    mkRun((caption?'：'+caption:'')+'】',{bold:true})
+  ];
   return new Paragraph({
-    style:'FigureTableNumber',
+    style:'Caption',
     spacing:spacing,
     alignment:AlignmentType.CENTER,
     children:children
@@ -24553,7 +24564,7 @@ async function exportDocx(){
           {id:'TOC1',name:'toc 1',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}},
           {id:'TOC2',name:'toc 2',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}},
           {id:'TOC3',name:'toc 3',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}},
-          {id:'FigureTableNumber',name:'図表番号',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21,bold:true},paragraph:{spacing:{after:40}}}
+          {id:'Caption',name:'caption',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21,bold:true},paragraph:{spacing:{after:40}}}
         ]
       },
       sections:[{ properties:{page:{margin:{top:1134,bottom:1134,left:1134,right:1134}}}, children:[...cover,...toc,...bodyCh] }]
