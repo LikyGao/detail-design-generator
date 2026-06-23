@@ -24455,6 +24455,17 @@ function buildDocxImage(b){
     return new Paragraph({alignment:AlignmentType.CENTER,children:[ new ImageRun({ type:docxImgType(b.imageData), data:dataUrlToBytes(b.imageData), transformation:{width:w,height:h} }) ]});
   }catch(e){ console.error(e); return new Paragraph({alignment:AlignmentType.CENTER,children:[mkRun('（画像の埋め込みに失敗）',{size:18,color:'888888'})]}); }
 }
+function captionLabel(b,typeLabel){
+  return (b._ref||typeLabel)+(b.caption?'　'+b.caption:'');
+}
+function captionParagraph(b,typeLabel,spacing){
+  return new Paragraph({
+    style:'Caption',
+    spacing:spacing,
+    alignment:AlignmentType.CENTER,
+    children:[mkRun(captionLabel(b,typeLabel),{bold:true})]
+  });
+}
 
 async function exportDocx(){
   const btn=document.getElementById('exportBtn'); const old=btn.innerHTML;
@@ -24523,15 +24534,15 @@ async function exportDocx(){
         if(b.type==='paragraph'){
           String(b.text||'').split('\n').map(l=>l.trim()).filter(Boolean).forEach(l=>bodyCh.push(para(l,{indent:200})));
         } else if(b.type==='table'){
-          bodyCh.push(new Paragraph({spacing:{before:120,after:40},alignment:AlignmentType.CENTER,children:[mkRun('【'+(b._ref||'')+(b.caption?'：'+b.caption:'')+'】',{bold:true})]}));
+          bodyCh.push(captionParagraph(b,'表',{before:120,after:40}));
           bodyCh.push(buildDocxTable(b));
           bodyCh.push(new Paragraph({spacing:{after:80},children:[mkRun('')]}));
         } else if(b.type==='figure'){
-          bodyCh.push(new Paragraph({spacing:{before:120,after:40},alignment:AlignmentType.CENTER,children:[mkRun('【'+(b._ref||'')+(b.caption?'：'+b.caption:'')+'】',{bold:true})]}));
+          bodyCh.push(captionParagraph(b,'図',{before:120,after:40}));
           bodyCh.push(buildDocxImage(b));
           bodyCh.push(new Paragraph({spacing:{after:80},children:[mkRun('')]}));
         } else {
-          bodyCh.push(new Paragraph({spacing:{before:80,after:40},alignment:AlignmentType.CENTER,children:[mkRun('【'+(b._ref||'')+(b.caption?'：'+b.caption:'')+'】',{bold:true})]}));
+          bodyCh.push(captionParagraph(b,b.type==='table_placeholder'?'表':'図',{before:80,after:40}));
           bodyCh.push(new Paragraph({spacing:{after:120},alignment:AlignmentType.CENTER,children:[mkRun(b.type==='table_placeholder'?'（表は別途作成）':'（図は別途作成）',{size:18,color:'888888'})]}));
         }
       });
@@ -24544,7 +24555,8 @@ async function exportDocx(){
           {id:'TOCHeading',name:'TOC Heading',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:28,bold:true}},
           {id:'TOC1',name:'toc 1',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}},
           {id:'TOC2',name:'toc 2',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}},
-          {id:'TOC3',name:'toc 3',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}}
+          {id:'TOC3',name:'toc 3',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}},
+          {id:'Caption',name:'Caption',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21,bold:true},paragraph:{spacing:{after:40}}}
         ]
       },
       sections:[{ properties:{page:{margin:{top:1134,bottom:1134,left:1134,right:1134}}}, children:[...cover,...toc,...bodyCh] }]
