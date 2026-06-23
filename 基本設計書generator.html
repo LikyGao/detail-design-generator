@@ -24458,19 +24458,19 @@ function buildDocxImage(b){
 function captionLabel(b,typeLabel){
   return (b._ref||typeLabel)+(b.caption?'　'+b.caption:'');
 }
-function captionFieldFallbackNumber(b){
-  const ref=String((b&&b._ref)||'');
-  const m=ref.match(/(\d+)$/);
-  return m?m[1]:'1';
+function captionDisplayText(b,typeLabel){
+  const ref=String((b&&b._ref)||typeLabel).trim() || typeLabel;
+  const caption=String((b&&b.caption)||'').trim();
+  return ref+(caption?'　'+caption:'');
 }
 function captionParagraph(b,typeLabel,spacing){
-  const children=[mkRun(typeLabel+' ',{bold:true})];
+  // 表/図の本文表示は HTML 側で採番済みの b._ref（例: 表 1-1 / 図 2-1）を正とする。
+  // Word の SEQ 更新で「章番号-連番」が単純な連番へ崩れないよう、表示テキストとは分離して
+  // 非表示 SEQ フィールドを補助的に残す（将来 STYLEREF 連携へ拡張するための足場）。
+  const children=[mkRun(captionDisplayText(b,typeLabel),{bold:true})];
   if(SimpleField){
-    children.push(new SimpleField(' SEQ '+typeLabel+' \\* ARABIC ', captionFieldFallbackNumber(b)));
-  } else {
-    children.push(mkRun(captionFieldFallbackNumber(b),{bold:true}));
+    children.push(new SimpleField(' SEQ '+typeLabel+' \\h '));
   }
-  if(b.caption){ children.push(mkRun('　'+b.caption,{bold:true})); }
   return new Paragraph({
     style:'Caption',
     spacing:spacing,
