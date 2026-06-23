@@ -24268,17 +24268,18 @@ function togglePreview(){
 function debouncePreview(){ if(!_previewOpen) return; clearTimeout(_previewTimer); _previewTimer=setTimeout(buildPreview,500); }
 function escH(s){ return esc(s); }
 function mediaTocLabel(item){
-  const ref=String((item&&item.ref)||'').replace(/[：:]+\s*$/,'').trim();
-  const caption=String((item&&item.caption)||'').replace(/^\s*[：:]+\s*/,'').trim();
-  return ref+(caption?'　'+caption:'');
+  const ref=String((item&&item.ref)||'').trim();
+  const caption=String((item&&item.caption)||'').trim();
+  if(!caption) return ref;
+  return ref+(/^[：:]/.test(caption)?caption:'　'+caption);
 }
 function normalizeIndexText(text){
   return String(text||'').replace(/[【】]/g,'').replace(/\s+/g,' ').trim();
 }
 function parseMediaHeading(text){
-  const m=/^(表|図)\s*([0-9０-９]+[-－―][0-9０-９]+)(?:\s*[：:]\s*|\s+|　+)?(.+)?$/.exec(normalizeIndexText(text));
+  const m=/^(表|図)\s*([0-9０-９]+[-－―][0-9０-９]+)(.*)?$/.exec(normalizeIndexText(text));
   if(!m) return null;
-  const title=String(m[3]||'').replace(/^\s*[：:]\s*/,'').trim();
+  const title=String(m[3]||'').replace(/^\s+/,'').trim();
   return {type:m[1], ref:m[1]+' '+m[2], caption:title};
 }
 function collectMediaFromDocument(root){
@@ -24472,7 +24473,7 @@ function captionParagraph(b,typeLabel,spacing){
     children.push(new SimpleField(' SEQ '+typeLabel+' \\h '));
   }
   return new Paragraph({
-    style:'Caption',
+    style:'FigureTableNumber',
     spacing:spacing,
     alignment:AlignmentType.CENTER,
     children:children
@@ -24568,7 +24569,7 @@ async function exportDocx(){
           {id:'TOC1',name:'toc 1',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}},
           {id:'TOC2',name:'toc 2',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}},
           {id:'TOC3',name:'toc 3',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21}},
-          {id:'Caption',name:'Caption',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21,bold:true},paragraph:{spacing:{after:40}}}
+          {id:'FigureTableNumber',name:'図表番号',basedOn:'Normal',next:'Normal',run:{font:{ascii:FONT_ASCII,eastAsia:FONT_JA},size:21,bold:true},paragraph:{spacing:{after:40}}}
         ]
       },
       sections:[{ properties:{page:{margin:{top:1134,bottom:1134,left:1134,right:1134}}}, children:[...cover,...toc,...bodyCh] }]
