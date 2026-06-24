@@ -18,6 +18,8 @@
   /* ── App shell ── */
   .app-shell{display:grid;grid-template-columns:240px 1fr;grid-template-rows:56px 1fr;grid-template-areas:"hd hd" "sb mn";height:100vh;overflow:hidden}
   .app-shell.preview-open{grid-template-columns:240px 1fr 45%;grid-template-areas:"hd hd hd" "sb mn pv"}
+  .app-shell.chapter-select-mode{grid-template-columns:1fr;grid-template-areas:"hd" "mn"}
+  .app-shell.chapter-select-mode .sidebar{display:none}
   header{grid-area:hd;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 18px;gap:14px;z-index:10}
   .hlogo{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;letter-spacing:.05em}
   .licon{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px}
@@ -23542,6 +23544,25 @@ function normalizeBlock(raw){
 }
 function normalizeBlocks(arr){ return Array.isArray(arr) ? arr.map(normalizeBlock) : []; }
 
+function deriveSelectedFromAi(raw){
+  if(typeof raw.selected === 'boolean') return raw.selected;
+
+  const app = String(raw.applicability || raw.recommendation || '').toLowerCase();
+
+  if(
+    app === 'not_applicable' ||
+    app === 'excluded' ||
+    app === 'unnecessary' ||
+    app === 'not_required' ||
+    app === '不採用' ||
+    app === '対象外'
+  ){
+    return false;
+  }
+
+  return true;
+}
+
 function normalizeNode(raw, depth){
   const stn  = raw.source_template_number || '';
   const level = raw.level || (stn ? stn.split('-').length : depth) || 1;
@@ -23550,8 +23571,8 @@ function normalizeNode(raw, depth){
     source_template_number: stn,
     title: raw.title || '',
     level: Math.min(level,3),
-    selected: raw.selected !== false,        // default true
-    applicability: raw.applicability || 'applicable',
+    selected: deriveSelectedFromAi(raw),
+    applicability: raw.applicability || '',
     generation_policy: raw.generation_policy || raw.generation_hint || '',
     manual_note: raw.manual_note || '',
     confirmed: !!raw.confirmed,
@@ -23694,6 +23715,8 @@ function setPhase(p){
   document.getElementById('phase-edit').hidden   = p!==PHASE.EDIT;
   document.getElementById('exportBtn').disabled  = p!==PHASE.EDIT;
   document.getElementById('navAddChapter').style.display = p===PHASE.CHAPTERS ? '' : 'none';
+  const shell=document.getElementById('appShell');
+  if(shell) shell.classList.toggle('chapter-select-mode', p===PHASE.CHAPTERS);
   const cur = p===PHASE.INPUT ? 1 : (p===PHASE.CHAPTERS ? 2 : 3);
   [1,2,3].forEach(i=>{
     const el=document.getElementById('step-'+i);
@@ -23833,7 +23856,6 @@ function applyPlan(data){
   doc.chapters = ing.chapters;
   walkAll(doc.chapters, n => {
     n.blocks = n.blocks || [];
-    if(n.selected === undefined){ n.selected = true; }
   });
   if(ing.cover) Object.assign(doc.cover, cleanObj(ing.cover));
   if(ing.document_plan && ing.document_plan.summary) doc.document_plan.summary = ing.document_plan.summary;
@@ -23970,19 +23992,16 @@ function buildChapterSelectCard(n, parent){
   const card=document.createElement('div'); card.className='card'; card.dataset.nodeid=n.id;
   const h=document.createElement('div'); h.className='cardh';
   const chk=document.createElement('input'); chk.type='checkbox'; chk.checked=n.selected!==false; chk.style.marginRight='8px';
-  chk.addEventListener('change',()=>{
-    if(chk.checked){ n.selected=true; ensureParentsSelected(n.id); }
-    else { setNodeSelectedWithChildren(n,false); }
-    renumber(); renderChapterSelector(); renderNav(); pushHistoryDebounced();
-  });
   const num=document.createElement('span'); num.className='cnum lv'+n.level; num.textContent=n.display_number || '-';
   const lab=document.createElement('span'); lab.className='clabel'; lab.textContent=levelName(n.level)+(n.source_template_number?'（テンプレ '+n.source_template_number+'）':'');
   h.appendChild(chk); h.appendChild(num); h.appendChild(lab);
   if(n.source==='ai_added'){ const tag=document.createElement('span'); tag.className='bref'; tag.textContent='AI追加'; h.appendChild(tag); }
+  if(n.source==='manual_added'){ const tag=document.createElement('span'); tag.className='bref'; tag.textContent='手動追加'; h.appendChild(tag); }
   const acts=document.createElement('div'); acts.className='rev-actions'; acts.style.marginLeft='auto';
   if(n.level<3){ const a=document.createElement('button'); a.textContent='＋ '+(n.level===1?'節':'小節'); a.addEventListener('click',()=>addChildNode(n)); acts.appendChild(a); }
   if(n.level!==1){ const d=document.createElement('button'); d.className='rev-del'; d.textContent='🗑'; d.title='この章節を削除'; d.addEventListener('click',()=>deleteNode(n)); acts.appendChild(d); }
   h.appendChild(acts); card.appendChild(h);
+
   const body=document.createElement('div'); body.className='cbody';
   const fgT=document.createElement('div'); fgT.className='fg'; fgT.innerHTML='<div class="flabel">タイトル</div>';
   const twp=document.createElement('div'); twp.className='twp';
@@ -23990,12 +24009,46 @@ function buildChapterSelectCard(n, parent){
   const tin=document.createElement('input'); tin.type='text'; tin.className='toi'; tin.value=n.title; tin.placeholder='タイトル';
   tin.addEventListener('input',()=>{ n.title=tin.value; renderNav(); pushHistoryDebounced(); });
   twp.appendChild(pfx); twp.appendChild(tin); fgT.appendChild(twp); body.appendChild(fgT);
-  const meta=document.createElement('div'); meta.className='fg';
-  meta.innerHTML='<div class="flabel">AI建议・判断理由・本文生成方針</div>'+
-    '<div class="hint">AI建议：'+(n.selected!==false?'採用':'不採用')+'</div>'+
-    '<div class="hint">理由：'+esc(n.reason||'')+'</div>'+
-    '<div class="hint">生成方針：'+esc(n.selected===false?'未選択時は本文生成に渡されません。':(n.generation_policy||''))+'</div>';
-  body.appendChild(meta);
+
+  const appBox=document.createElement('div'); appBox.className='fg';
+  appBox.innerHTML='<div class="flabel">適用性・生成方針</div>';
+  const sel=document.createElement('select'); sel.className='ci-input';
+  sel.innerHTML=`
+    <option value="applicable">適用：本文を生成する</option>
+    <option value="not_applicable">対象外：本文を生成しない</option>
+    <option value="missing">情報不足：確認事項として扱う</option>
+    <option value="confirm">要確認：ユーザー確認事項として扱う</option>
+  `;
+  sel.value=n.applicability || (n.selected===false ? 'not_applicable' : 'applicable');
+  sel.addEventListener('change',()=>{
+    n.applicability=sel.value;
+    if(sel.value==='not_applicable') setNodeSelectedWithChildren(n,false);
+    else if(n.selected===false) n.selected=true;
+    renumber(); renderChapterSelector(); renderNav(); pushHistoryDebounced();
+  });
+  appBox.appendChild(sel);
+
+  const reason=document.createElement('textarea'); reason.className='ci-input'; reason.rows=2; reason.placeholder='判断理由'; reason.value=n.reason || '';
+  reason.addEventListener('input',()=>{ n.reason=reason.value; pushHistoryDebounced(); });
+  appBox.appendChild(reason);
+
+  const policy=document.createElement('textarea'); policy.className='ci-input'; policy.rows=2; policy.placeholder='本文生成方針'; policy.value=n.generation_policy || '';
+  policy.addEventListener('input',()=>{ n.generation_policy=policy.value; pushHistoryDebounced(); });
+  appBox.appendChild(policy);
+  body.appendChild(appBox);
+
+  chk.addEventListener('change',()=>{
+    if(chk.checked){
+      n.selected=true;
+      ensureParentsSelected(n.id);
+      if(!n.applicability || n.applicability==='not_applicable') n.applicability='applicable';
+    } else {
+      setNodeSelectedWithChildren(n,false);
+      n.applicability='not_applicable';
+    }
+    renumber(); renderChapterSelector(); renderNav(); pushHistoryDebounced();
+  });
+
   if(n.children&&n.children.length){ const childWrap=document.createElement('div'); childWrap.className='blocks'; n.children.forEach(ch=>childWrap.appendChild(buildChapterSelectCard(ch,n))); body.appendChild(childWrap); }
   card.appendChild(body); return card;
 }
@@ -24338,7 +24391,7 @@ function selectedTreeForGenerate(scopeNode){
 function buildGenPayload(scopeNode){
   const tree = selectedTreeForGenerate(scopeNode);
   return {
-    stage: 'generate',
+    stage: scopeNode ? 'node_fix' : 'generate',
     cover: doc.cover,
     document_plan: { summary: doc.document_plan.summary || '' },
     confirmed_chapter_tree: tree,
@@ -24364,7 +24417,10 @@ async function runGenerate(scopeNode,btn,status,enterEditAfter){
   if(btn){ btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 生成中...'; }
   if(status){ status.style.color='var(--text-muted)'; status.textContent='本文を生成中です...'; }
   try{
-    const data=await difyCall(DIFY_GEN_API_KEY,{ input_json: JSON.stringify(buildGenPayload(scopeNode)) });
+    const payload = buildGenPayload(scopeNode);
+    console.log('[Dify Generate payload]', payload);
+    const data=await difyCall(DIFY_GEN_API_KEY,{ input_json: JSON.stringify(payload) });
+    console.log('[Dify Generate response]', data);
     applyGenerated(data);
     if(enterEditAfter){ enterEdit(false); }
     if(status){ status.style.color='var(--green)'; status.textContent='✓ 本文を反映しました'; }
@@ -24381,7 +24437,16 @@ function importGenJson(){
   applyGenerated(data); showToast('✓ 本文を反映しました');
 }
 function applyGenerated(data){
-  const ing=ingestPayload(data);   // also tolerates legacy
+  console.log('[applyGenerated input]', data);
+  if(!data || !Array.isArray(data.chapters) || !data.chapters.length){
+    showToast('本文生成結果に chapters[] がありません。Dify の出力形式を確認してください。', true);
+    throw new Error('本文生成結果に chapters[] がありません。Dify の出力形式を確認してください。');
+  }
+  const ing=ingestPayload(data);
+  if(!Array.isArray(ing.chapters) || !ing.chapters.length){
+    showToast('本文生成結果に chapters[] がありません。Dify の出力形式を確認してください。', true);
+    throw new Error('本文生成結果に chapters[] がありません。Dify の出力形式を確認してください。');
+  }
   if(ing.cover) { Object.assign(doc.cover, cleanObj(ing.cover)); fillCoverInputs(); }
   // index incoming by id and by source_template_number
   const byId={}, byStn={};
@@ -24417,6 +24482,7 @@ async function difyCall(apiKey, inputs){
   });
   if(!res.ok) throw new Error('HTTP '+res.status);
   const response=await res.json();
+  console.log('[Dify raw response]', response);
   let raw=null; const o=response && response.data && response.data.outputs;
   if(o) raw = o.result_json ?? o.text ?? o.output ?? o.answer ?? null;
   if(raw===null) raw = (response && response.data) ?? null;
