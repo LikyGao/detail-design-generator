@@ -245,9 +245,11 @@
     <div class="hbadge">全章生成</div>
     <div class="hdiv"></div>
     <div class="stepper" id="stepper">
-      <div class="step active" id="step-1"><span class="sdot">1</span>案件情報</div>
+      <div class="step active" id="step-1"><span class="sdot">1</span>案件入力</div>
       <span class="step-arrow">▶</span>
-      <div class="step" id="step-2"><span class="sdot">2</span>章節構成・本文編集</div>
+      <div class="step" id="step-2"><span class="sdot">2</span>章節確認</div>
+      <span class="step-arrow">▶</span>
+      <div class="step" id="step-3"><span class="sdot">3</span>本文編集</div>
     </div>
     <button class="ebtn ghost icon" id="undoBtn" onclick="undo()" disabled title="元に戻す">↶</button>
     <button class="ebtn ghost icon" id="redoBtn" onclick="redo()" disabled title="やり直し">↷</button>
@@ -291,7 +293,7 @@
           <div class="form-error" id="planError"></div>
           <div class="dify-actions">
             <button class="dify-btn" id="planBtn" onclick="callDifyPlan()">🚀 標準章節構成を作成</button>
-            <button class="dify-btn sample" onclick="loadSamplePlan()">📂 旧サンプルを読み込む</button>
+            <button class="dify-btn sample" onclick="loadSamplePlan()">📂 サンプル章節構成を読み込む</button>
           </div>
           <div class="status muted" id="planStatus"></div>
         </div>
@@ -312,17 +314,37 @@
       </details>
     </section>
 
-    <!-- ════ PHASE 2: EDIT (章節構成・本文編集) ════ -->
-    <section id="phase-edit" hidden>
+    <!-- ════ PHASE 2: CHAPTERS (章節確認) ════ -->
+    <section id="phase-chapters" hidden>
       <div class="phase-head">
         <div class="pnum">2</div>
-        <div><div class="plabel">Step 2</div><div class="ptitle">章節構成・本文編集</div></div>
+        <div>
+          <div class="plabel">Step 2</div>
+          <div class="ptitle">章節構成を確認</div>
+        </div>
       </div>
-      <div class="phase-desc" id="planSummary">章節ツリーです。13個の大章は固定表示し、左ナビや各カードで節・小節を追加／削除できます。番号は並び順から自動採番。構成が固まったら本文を生成し、各節で手入力・AI 修正できます。</div>
+
+      <div class="phase-desc">
+        AI が標準テンプレートの章節ごとに採用要否を提案します。
+        最終的に文書へ出力する章節を選択してください。
+      </div>
 
       <div class="rev-toolbar">
         <button class="ebtn ghost" onclick="backToInput()">← 案件情報に戻る</button>
+        <button class="ebtn" id="chapterGenerateBtn" onclick="generateFromConfirmedChapters()">🚀 この章節構成で本文を生成</button>
       </div>
+
+      <div class="status muted" id="chapterStatus"></div>
+      <div id="chapterSelectContainer"></div>
+    </section>
+
+    <!-- ════ PHASE 3: EDIT (本文編集) ════ -->
+    <section id="phase-edit" hidden>
+      <div class="phase-head">
+        <div class="pnum">3</div>
+        <div><div class="plabel">Step 3</div><div class="ptitle">本文編集・出力</div></div>
+      </div>
+      <div class="phase-desc" id="planSummary">確定した章節構成に本文を流し込みます。各節で手入力・AI 修正を行い、Word 風プレビューや Word 出力を確認できます。</div>
 
       <div class="dify-card">
         <div class="dify-cardh"><span class="dify-icon">✍️</span><span class="dify-title">本文を一括生成（Stage ②）</span><span class="dify-desc">章節ツリーに本文を流し込みます</span></div>
@@ -23455,7 +23477,7 @@ var __async = (__this, __arguments, generator) => {
 /* ============================================================
    要件定義書ジェネレーター（動的章節 PoC）
    - HTML が章節ツリー / 採番 / 目次 / プレビュー / 出力を担当
-   - Dify は ①候補判断 ②本文生成 のみを担当（最終番号は持たない）
+   - Dify は ①章節確認 ②本文生成 のみを担当（最終番号は持たない）
    ============================================================ */
 
 /* ── Dify config（実運用ではキー/URLを差し替え） ───────────── */
@@ -23469,7 +23491,7 @@ const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         TableOfContents, HeadingLevel, SimpleField } = docx;
 
 /* ── State ── */
-const PHASE = { INPUT:'input', EDIT:'edit' };
+const PHASE = { INPUT:'input', CHAPTERS:'chapters', EDIT:'edit' };
 let phase = PHASE.INPUT;
 let doc = emptyDoc();
 let _previewOpen = false, _previewTimer = null;
@@ -23536,7 +23558,8 @@ function normalizeNode(raw, depth){
     source: raw.source || 'standard',
     reason: raw.reason || '',
     point: raw.point || '',
-    ai_instruction: raw.ai_instruction || raw.generation_policy || raw.generation_hint || '',
+    ai_instruction: raw.ai_instruction || '',
+    revision_instruction: raw.revision_instruction || '',
     blocks: normalizeBlocks(raw.blocks),
     children: (raw.children || []).map(c=>normalizeNode(c, (level||1)+1)),
     display_number: null
@@ -23653,7 +23676,7 @@ function restoreHistory(){
   _restoring=true;
   try{
     doc=JSON.parse(JSON.stringify(_hist[_histIdx]));
-    renumber(); fillCoverInputs(); renderNav(); renderEditor(); renderMissing();
+    renumber(); fillCoverInputs(); renderNav(); renderChapterSelector(); renderEditor(); renderMissing();
     if(_previewOpen) buildPreview();
   }finally{ _restoring=false; }
   updateHistButtons();
@@ -23667,22 +23690,23 @@ function updateHistButtons(){
 function setPhase(p){
   phase=p;
   document.getElementById('phase-input').hidden  = p!==PHASE.INPUT;
+  document.getElementById('phase-chapters').hidden = p!==PHASE.CHAPTERS;
   document.getElementById('phase-edit').hidden   = p!==PHASE.EDIT;
   document.getElementById('exportBtn').disabled  = p!==PHASE.EDIT;
-  document.getElementById('navAddChapter').style.display = p===PHASE.EDIT ? '' : 'none';
-  const cur = p===PHASE.INPUT ? 1 : 2;
-  [1,2].forEach(i=>{
+  document.getElementById('navAddChapter').style.display = p===PHASE.CHAPTERS ? '' : 'none';
+  const cur = p===PHASE.INPUT ? 1 : (p===PHASE.CHAPTERS ? 2 : 3);
+  [1,2,3].forEach(i=>{
     const el=document.getElementById('step-'+i);
     el.className='step'+(i<cur?' done':'')+(i===cur?' active':'');
   });
-  if(p!==PHASE.EDIT){
+  if(p===PHASE.INPUT){
     document.getElementById('navTree').innerHTML='<div class="nav-empty">案件情報を入力して<br>章節を生成してください。</div>';
   }
   document.getElementById('mainArea').scrollTop=0;
 }
 
 /* ============================================================
-   STAGE ① — PLAN (候補判断)
+   STAGE ① — PLAN (章節確認)
    ============================================================ */
 /* ── Step1 案件情報フォーム定義（表示順）── */
 const PLAN_FIELDS = [
@@ -23782,7 +23806,7 @@ async function callDifyPlan(){
   doc.document_plan.summary = input;
   if(DIFY_PLAN_API_KEY.includes('REPLACE')){
     status.style.color='var(--amber)';
-    status.textContent='⚠ Plan用 Dify APIキー未設定。「サンプル候補を読み込む」で動作確認できます。';
+    status.textContent='⚠ Plan用 Dify APIキー未設定。「サンプル章節構成を読み込む」で動作確認できます。';
     return;
   }
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 生成中...';
@@ -23790,7 +23814,7 @@ async function callDifyPlan(){
   try{
     const data=await difyCall(DIFY_PLAN_API_KEY,{ input_json: input });
     applyPlan(data);
-    status.style.color='var(--green)'; status.textContent='✓ 候補を生成しました。内容を確認してください。';
+    status.style.color='var(--green)'; status.textContent='✓ 章節構成案を作成しました。内容を確認してください。';
   }catch(e){
     status.style.color='var(--red)'; status.textContent='⚠ Dify(Plan)呼び出しに失敗：'+e.message;
     console.error(e);
@@ -23806,15 +23830,16 @@ function importPlanJson(){
 function applyPlan(data){
   const ing=ingestPayload(data);
   if(!ing.chapters){ showToast('chapters[] が見つかりません。',true); return; }
-  doc.chapters = normalizePlanTree(ing.chapters);
+  doc.chapters = ing.chapters;
   walkAll(doc.chapters, n => {
     n.blocks = n.blocks || [];
+    if(n.selected === undefined){ n.selected = true; }
   });
   if(ing.cover) Object.assign(doc.cover, cleanObj(ing.cover));
   if(ing.document_plan && ing.document_plan.summary) doc.document_plan.summary = ing.document_plan.summary;
   doc.document_plan.note = (ing.document_plan && ing.document_plan.note) || doc.document_plan.note || '';
-  enterEdit(true);
-  showToast('✓ 標準章節構成を作成しました。節・小節を確認してください。');
+  enterChapters(true);
+  showToast('✓ 章節構成案を作成しました。採用する章節を確認してください。');
 }
 function normalizePlanTree(chapters){
   const roots = Array.isArray(chapters) ? chapters : [];
@@ -23840,6 +23865,15 @@ function pruneUnselectedChildren(nodes){
 }
 function cleanObj(o){ const r={}; Object.keys(o||{}).forEach(k=>{ if(o[k]!=null && o[k]!=='') r[k]=o[k]; }); return r; }
 
+function enterChapters(fresh){
+  renumber();
+  setPhase(PHASE.CHAPTERS);
+  renderChapterSelector();
+  renderNav();
+  renderMissing();
+  if(fresh) resetHistory();
+}
+
 /* 編集フェーズへ。fresh=true のときは履歴を初期化（新しい編集セッション）。 */
 function enterEdit(fresh){
   renumber();
@@ -23852,17 +23886,30 @@ function enterEdit(fresh){
 
 /* ── 章節ツリーの追加・削除（INPUT/EDIT 共通の操作）── */
 function newNode(level){
-  return { id:uid(), source_template_number:'', title:'', level:level, selected:true,
-    reason:'（手動追加）', point:'', ai_instruction:'', blocks:[], children:[], display_number:null };
+  return {
+    id: uid(),
+    source_template_number: '',
+    title: '',
+    level,
+    selected: true,
+    reason: '（手動追加）',
+    generation_policy: '',
+    ai_instruction: '',
+    revision_instruction: '',
+    source: 'manual_added',
+    blocks: [],
+    children: [],
+    display_number: null
+  };
 }
-function afterStructureChange(){ renumber(); renderNav(); renderEditor(); refreshPreview(); pushHistory(); }
+function afterStructureChange(){ renumber(); renderNav(); renderChapterSelector(); renderEditor(); refreshPreview(); pushHistory(); }
 function addChapterNode(){
-  if(phase!==PHASE.EDIT){ setPhase(PHASE.EDIT); bindCover(); fillCoverInputs(); }
   doc.chapters.push(newNode(1)); afterStructureChange();
   showToast('章を追加しました。タイトルを入力してください。');
 }
 function addChildNode(parent){
   parent.selected=true;
+  ensureParentsSelected(parent.id);
   parent.children.push(newNode(Math.min(parent.level+1,3)));
   afterStructureChange();
 }
@@ -23907,6 +23954,64 @@ function scrollToNode(id,navEl){
   if(card) card.scrollIntoView({behavior:'smooth',block:'start'});
   document.querySelectorAll('.navi.active').forEach(e=>e.classList.remove('active'));
   if(navEl) navEl.classList.add('active');
+}
+
+function renderChapterSelector(){
+  const c = document.getElementById('chapterSelectContainer');
+  if(!c) return;
+  c.innerHTML = '';
+  if(!doc.chapters.length){
+    c.innerHTML = '<div class="nav-empty">章節がありません。</div>';
+    return;
+  }
+  doc.chapters.forEach(n => c.appendChild(buildChapterSelectCard(n, null)));
+}
+function buildChapterSelectCard(n, parent){
+  const card=document.createElement('div'); card.className='card'; card.dataset.nodeid=n.id;
+  const h=document.createElement('div'); h.className='cardh';
+  const chk=document.createElement('input'); chk.type='checkbox'; chk.checked=n.selected!==false; chk.style.marginRight='8px';
+  chk.addEventListener('change',()=>{
+    if(chk.checked){ n.selected=true; ensureParentsSelected(n.id); }
+    else { setNodeSelectedWithChildren(n,false); }
+    renumber(); renderChapterSelector(); renderNav(); pushHistoryDebounced();
+  });
+  const num=document.createElement('span'); num.className='cnum lv'+n.level; num.textContent=n.display_number || '-';
+  const lab=document.createElement('span'); lab.className='clabel'; lab.textContent=levelName(n.level)+(n.source_template_number?'（テンプレ '+n.source_template_number+'）':'');
+  h.appendChild(chk); h.appendChild(num); h.appendChild(lab);
+  if(n.source==='ai_added'){ const tag=document.createElement('span'); tag.className='bref'; tag.textContent='AI追加'; h.appendChild(tag); }
+  const acts=document.createElement('div'); acts.className='rev-actions'; acts.style.marginLeft='auto';
+  if(n.level<3){ const a=document.createElement('button'); a.textContent='＋ '+(n.level===1?'節':'小節'); a.addEventListener('click',()=>addChildNode(n)); acts.appendChild(a); }
+  if(n.level!==1){ const d=document.createElement('button'); d.className='rev-del'; d.textContent='🗑'; d.title='この章節を削除'; d.addEventListener('click',()=>deleteNode(n)); acts.appendChild(d); }
+  h.appendChild(acts); card.appendChild(h);
+  const body=document.createElement('div'); body.className='cbody';
+  const fgT=document.createElement('div'); fgT.className='fg'; fgT.innerHTML='<div class="flabel">タイトル</div>';
+  const twp=document.createElement('div'); twp.className='twp';
+  const pfx=document.createElement('span'); pfx.className='pfx'; pfx.textContent=(n.display_number || '-')+'　';
+  const tin=document.createElement('input'); tin.type='text'; tin.className='toi'; tin.value=n.title; tin.placeholder='タイトル';
+  tin.addEventListener('input',()=>{ n.title=tin.value; renderNav(); pushHistoryDebounced(); });
+  twp.appendChild(pfx); twp.appendChild(tin); fgT.appendChild(twp); body.appendChild(fgT);
+  const meta=document.createElement('div'); meta.className='fg';
+  meta.innerHTML='<div class="flabel">AI建议・判断理由・本文生成方針</div>'+
+    '<div class="hint">AI建议：'+(n.selected!==false?'採用':'不採用')+'</div>'+
+    '<div class="hint">理由：'+esc(n.reason||'')+'</div>'+
+    '<div class="hint">生成方針：'+esc(n.selected===false?'未選択時は本文生成に渡されません。':(n.generation_policy||''))+'</div>';
+  body.appendChild(meta);
+  if(n.children&&n.children.length){ const childWrap=document.createElement('div'); childWrap.className='blocks'; n.children.forEach(ch=>childWrap.appendChild(buildChapterSelectCard(ch,n))); body.appendChild(childWrap); }
+  card.appendChild(body); return card;
+}
+function setNodeSelectedWithChildren(n, checked){
+  n.selected = checked;
+  walkAll([n], x => { x.selected = checked; });
+}
+function ensureParentsSelected(targetId){
+  function walk(nodes, parents){
+    for(const n of nodes){
+      if(n.id === targetId){ parents.forEach(p => p.selected = true); return true; }
+      if(walk(n.children || [], parents.concat(n))) return true;
+    }
+    return false;
+  }
+  walk(doc.chapters, []);
 }
 
 function renderEditor(){
@@ -23989,7 +24094,6 @@ function buildNodeCard(n){
   const hint=document.createElement('div'); hint.className='hint'; hint.textContent='※ 番号「'+n.display_number+'」は章節ツリーから自動採番されます。';
   fgT.appendChild(hint);
   body.appendChild(fgT);
-  body.appendChild(buildApplicabilityEditor(n));
   // blocks
   const fgB=document.createElement('div'); fgB.className='fg';
   fgB.innerHTML='<div class="flabel">本文ブロック</div>';
@@ -24183,9 +24287,9 @@ function buildAiFix(n){
   const wrap=document.createElement('div'); wrap.className='aifix';
   wrap.innerHTML='<div class="aifix-label">🪄 AI 修正指示（この節を再生成）</div>';
   const row=document.createElement('div'); row.className='aifix-row';
-  const inp=document.createElement('input'); inp.type='text'; inp.value=n.ai_instruction||'';
+  const inp=document.createElement('input'); inp.type='text'; inp.value=n.revision_instruction||'';
   inp.placeholder='例：UPS と冗長構成の方針をもう少し具体的に。1文1方針で。';
-  inp.addEventListener('input',()=>{ n.ai_instruction=inp.value; });
+  inp.addEventListener('input',()=>{ n.revision_instruction=inp.value; pushHistoryDebounced(); });
   const btn=document.createElement('button'); btn.className='aifix-btn'; btn.textContent='🤖 この指示で修正';
   btn.addEventListener('click',()=>callNodeFix(n,btn));
   row.appendChild(inp); row.appendChild(btn); wrap.appendChild(row);
@@ -24212,7 +24316,7 @@ document.addEventListener('click',(e)=>{ if(_pointEl && !_pointEl.contains(e.tar
 /* ============================================================
    STAGE ② — GENERATE (本文生成) + 単節修正
    ============================================================ */
-function confirmedTreeForDify(scopeNode){
+function selectedTreeForGenerate(scopeNode){
   function mapNode(n){
     return {
       id: n.id,
@@ -24220,21 +24324,19 @@ function confirmedTreeForDify(scopeNode){
       title: n.title,
       level: n.level,
       display_number: n.display_number,
-      applicability: n.applicability || 'applicable',
       reason: n.reason || '',
       generation_policy: n.generation_policy || '',
-      ai_instruction: n.ai_instruction || '',
-      manual_note: n.manual_note || '',
+      ai_instruction: scopeNode ? (n.revision_instruction || n.generation_policy || '') : (n.generation_policy || ''),
       source: n.source || 'standard',
       children: (n.children || []).filter(c => c.selected !== false).map(mapNode)
     };
   }
 
-  const roots = scopeNode ? [scopeNode] : doc.chapters;
+  const roots = scopeNode ? [scopeNode] : doc.chapters.filter(c => c.selected !== false);
   return roots.map(mapNode);
 }
 function buildGenPayload(scopeNode){
-  const tree = confirmedTreeForDify(scopeNode);
+  const tree = selectedTreeForGenerate(scopeNode);
   return {
     stage: 'generate',
     cover: doc.cover,
@@ -24243,14 +24345,17 @@ function buildGenPayload(scopeNode){
     chapters: tree
   };
 }
-async function callDifyGenerate(){ await runGenerate(null,document.getElementById('genBtn'),document.getElementById('genStatus')); }
+async function callDifyGenerate(){ await runGenerate(null,document.getElementById('genBtn'),document.getElementById('genStatus'), false); }
+async function generateFromConfirmedChapters(){
+  await runGenerate(null, document.getElementById('chapterGenerateBtn'), document.getElementById('chapterStatus'), true);
+}
 async function callNodeFix(n,btn){
   const old=btn.textContent; btn.disabled=true; btn.textContent='生成中...';
-  try{ await runGenerate(n,null,null); showToast('✓ 「'+n.display_number+'」を更新しました'); }
+  try{ await runGenerate(n,null,null,false); showToast('✓ 「'+n.display_number+'」を更新しました'); }
   catch(e){ showToast('修正に失敗：'+e.message,true); }
   finally{ btn.disabled=false; btn.textContent=old; }
 }
-async function runGenerate(scopeNode,btn,status){
+async function runGenerate(scopeNode,btn,status,enterEditAfter){
   if(DIFY_GEN_API_KEY.includes('REPLACE')){
     if(status){ status.style.color='var(--amber)'; status.textContent='⚠ Generate用 Dify APIキー未設定。「サンプル本文を読み込む」で動作確認できます。'; }
     else throw new Error('Generate APIキー未設定');
@@ -24261,12 +24366,13 @@ async function runGenerate(scopeNode,btn,status){
   try{
     const data=await difyCall(DIFY_GEN_API_KEY,{ input_json: JSON.stringify(buildGenPayload(scopeNode)) });
     applyGenerated(data);
+    if(enterEditAfter){ enterEdit(false); }
     if(status){ status.style.color='var(--green)'; status.textContent='✓ 本文を反映しました'; }
   }catch(e){
     if(status){ status.style.color='var(--red)'; status.textContent='⚠ Dify(Generate)呼び出しに失敗：'+e.message; }
     else throw e;
     console.error(e);
-  }finally{ if(btn){ btn.disabled=false; btn.innerHTML='🚀 確定章節の本文を生成'; } }
+  }finally{ if(btn){ btn.disabled=false; btn.innerHTML=enterEditAfter?'🚀 この章節構成で本文を生成':'🚀 確定章節の本文を生成'; } }
 }
 function importGenJson(){
   const raw=document.getElementById('genJsonInput').value.trim();
@@ -24665,13 +24771,13 @@ async function exportDocx(){
 
 /* ============================================================
    SAMPLE DATA（Dify 未接続でも動作確認できるPoCデモ用）
-   - 候補プール（標準テンプレ）からの抜粋。一部 selected:false で
+   - 章節構成（標準テンプレ）からの抜粋。一部 selected:false で
      「採用しない変体」を表現（Hyper-V 等）。
    ============================================================ */
 const SAMPLE_PLAN={
   status:'success',
   cover:{ client_name:'株式会社〇〇 様', project_name:'基幹システム更新・集約プロジェクト', version:'1.0', issue_date:'2026/04/01', file_name:'基本設計書_1.0.docx', project_no:'PJ-2026-001' },
-  document_plan:{ summary:'老朽化した基幹システムの更新と集約。HCI仮想化基盤、VMware vSphere、Windows中心＋一部Linux、移行あり、ZABBIX監視、外部保守委託。', note:'ハイパーバイザーは vSphere を採用と判断。Hyper-V / AHV は候補外として提示。' },
+  document_plan:{ summary:'老朽化した基幹システムの更新と集約。HCI仮想化基盤、VMware vSphere、Windows中心＋一部Linux、移行あり、ZABBIX監視、外部保守委託。', note:'ハイパーバイザーは vSphere を採用と判断。Hyper-V / AHV は章節構成外として提示。' },
   chapters:[
     { chapter_id:'c1', source_template_number:'1', title:'はじめに', level:1, selected:true, reason:'文書の位置づけ・用語定義は必須。', children:[
       { section_id:'s1-1', source_template_number:'1-1', title:'本書の位置づけ', level:2, selected:true, reason:'設計書の前提として必要。' },
@@ -24700,7 +24806,7 @@ const SAMPLE_PLAN={
         { section_id:'s6-5-1', source_template_number:'6-5-1', title:'概要', level:3, selected:true, reason:'vSphere構成概要。' },
         { section_id:'s6-5-3', source_template_number:'6-5-3', title:'データストア構成', level:3, selected:true, reason:'データストア設計が必要。' }
       ]},
-      { section_id:'s6-4', source_template_number:'6-4', title:'ハイパーバイザー[Hyper-V]', level:2, selected:false, reason:'Hyper-V は採用されないため候補外（必要なら選択可）。' },
+      { section_id:'s6-4', source_template_number:'6-4', title:'ハイパーバイザー[Hyper-V]', level:2, selected:false, reason:'Hyper-V は採用されないため章節構成外（必要なら選択可）。' },
       { section_id:'s6-7', source_template_number:'6-7', title:'OS[Windows]', level:2, selected:true, reason:'Windows Server 中心のため。' },
       { section_id:'s6-8', source_template_number:'6-8', title:'OS[Linux]', level:2, selected:true, reason:'一部 Linux ありのため。' }
     ]}
@@ -24757,7 +24863,7 @@ function loadSamplePlan(){
   doc.cover.client_name=SAMPLE_FORM.client; doc.cover.project_name=SAMPLE_FORM.project;
   doc.document_plan.summary=assemblePlanText(SAMPLE_FORM);
   applyPlan(SAMPLE_PLAN);
-  const st=document.getElementById('planStatus'); st.style.color='var(--green)'; st.textContent='✓ サンプル候補を読み込みました。';
+  const st=document.getElementById('planStatus'); st.style.color='var(--green)'; st.textContent='✓ サンプル章節構成を読み込みました。';
 }
 function loadSampleGenerated(){
   // build a generate-style payload from SAMPLE_GEN keyed by source_template_number
