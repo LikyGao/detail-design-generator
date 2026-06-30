@@ -24475,23 +24475,66 @@ function renderMissing(){
 
 /* shared Dify fetch */
 async function difyCall(apiKey, inputs){
-  const res=await fetch(DIFY_API_URL,{
-    method:'POST',
-    headers:{ 'Authorization':'Bearer '+apiKey, 'Content-Type':'application/json' },
-    body: JSON.stringify({ inputs, response_mode:'blocking', user:'html-editor-user' })
+  const res = await fetch(DIFY_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      inputs,
+      response_mode: 'blocking',
+      user: 'html-editor-user'
+    })
   });
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  const response=await res.json();
+
+  let response;
+  try {
+    response = await res.json();
+  } catch(e) {
+    throw new Error('Dify response JSON解析に失敗しました: ' + e.message);
+  }
+
   console.log('[Dify raw response]', response);
-  let raw=null; const o=response && response.data && response.data.outputs;
-  if(o) raw = o.result_json ?? o.text ?? o.output ?? o.answer ?? null;
-  if(raw===null) raw = (response && response.data) ?? null;
-  if(raw===null) throw new Error('output_not_found');
-  let parsed;
-  if(typeof raw==='string') parsed=JSON.parse(raw);
-  else if(raw && typeof raw==='object' && typeof raw.text==='string') parsed=JSON.parse(raw.text);
-  else parsed=raw;
-  return parsed;
+
+  if(!res.ok){
+    const msg = response?.message || response?.error || ('HTTP ' + res.status);
+    throw new Error(msg);
+  }
+
+  if(response?.data?.status === 'failed'){
+    const err = response.data.error || 'Dify workflow failed';
+    throw new Error(err);
+  }
+
+  const o = response?.data?.outputs;
+  if(!o){
+    throw new Error('Dify output_not_found: response.data.outputs がありません');
+  }
+
+  let raw = o.result_json ?? o.text ?? o.output ?? o.answer ?? null;
+  if(raw === null){
+    throw new Error('Dify output_not_found: outputs.result_json / text / output / answer がありません');
+  }
+
+  try {
+    if(typeof raw === 'string'){
+      return JSON.parse(raw);
+    }
+
+    if(raw && typeof raw === 'object' && typeof raw.text === 'string'){
+      return JSON.parse(raw.text);
+    }
+
+    if(raw && typeof raw === 'object'){
+      return raw;
+    }
+
+    throw new Error('unsupported output type: ' + typeof raw);
+  } catch(e) {
+    console.error('[Dify output parse error]', raw);
+    throw new Error('Dify output JSON解析に失敗しました: ' + e.message);
+  }
 }
 
 /* ============================================================
