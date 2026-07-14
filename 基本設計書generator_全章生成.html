@@ -346,19 +346,10 @@
         <div class="pnum">3</div>
         <div><div class="plabel">Step 3</div><div class="ptitle">本文編集・出力</div></div>
       </div>
-      <div class="phase-desc" id="planSummary">確定した章節構成に本文を流し込みます。各節で手入力・AI 修正を行い、Word 風プレビューや Word 出力を確認できます。</div>
+      <div class="phase-desc" id="planSummary">確定した本文を手入力で調整し、段落単位の AI 修正、Word 風プレビューや Word 出力を確認できます。</div>
 
-      <div class="dify-card">
-        <div class="dify-cardh"><span class="dify-icon">✍️</span><span class="dify-title">本文を一括生成（Stage ②）</span><span class="dify-desc">章節ツリーに本文を流し込みます</span></div>
-        <div class="dify-body">
-          <div class="dify-actions">
-            <button class="dify-btn" id="genBtn" onclick="callDifyGenerate()">🚀 確定章節の本文を生成</button>
-            <button class="dify-btn sample" onclick="loadSampleGenerated()">📂 サンプル本文を読み込む</button>
-          </div>
-          <div class="status muted" id="genStatus"></div>
-          <div class="dify-missing" id="missingBox"></div>
-        </div>
-      </div>
+      <div class="status muted" id="genStatus" hidden></div>
+      <div class="dify-missing" id="missingBox" hidden></div>
 
       <details>
         <summary><span>🛠</span><span>開発者向け：本文 JSON を手動導入（Stage ② 出力）</span></summary>
@@ -23540,7 +23531,7 @@ function normalizeBlock(raw){
   if(t==='figure'){
     return { id: raw.id||uid(), type:'figure', caption: raw.caption||'', imageData: raw.imageData||'', fileName: raw.fileName||'', _w: raw._w||0, _h: raw._h||0 };
   }
-  return { id: raw.id||uid(), type:'paragraph', text: raw.text||raw.content||'', caption:'' };
+  return { id: raw.id||uid(), type:'paragraph', text: raw.text||raw.content||'', caption:'', revision_instruction: raw.revision_instruction||'', revision_history: Array.isArray(raw.revision_history) ? raw.revision_history.slice(0,2) : [] };
 }
 function normalizeBlocks(arr){ return Array.isArray(arr) ? arr.map(normalizeBlock) : []; }
 
@@ -24159,13 +24150,11 @@ function buildNodeCard(n){
   add.appendChild(mkAddBtn('＋ 表を追加', ()=>addTableBlock(n)));
   add.appendChild(mkAddBtn('＋ 画像を追加', ()=>addFigureBlock(n)));
   fgB.appendChild(add); body.appendChild(fgB);
-  // AI fix
-  body.appendChild(buildAiFix(n));
   card.appendChild(body);
   return card;
 }
 function mkAddBtn(label,fn){ const b=document.createElement('button'); b.textContent=label; b.addEventListener('click',fn); return b; }
-function addBlock(n,type){ n.blocks.push(normalizeBlock({type, text:'', caption:''})); afterStructureChange(); }
+function addBlock(n,type){ n.blocks.push(normalizeBlock(type==='paragraph' ? {type:'paragraph', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''})); afterStructureChange(); }
 function addTableBlock(n){ n.blocks.push(normalizeBlock({type:'table', caption:'', headers:['項目','内容','備考'], rows:[['','','']]})); afterStructureChange(); }
 function addFigureBlock(n){ n.blocks.push(normalizeBlock({type:'figure', caption:''})); afterStructureChange(); }
 function delBlock(n,b){ n.blocks=n.blocks.filter(x=>x!==b); afterStructureChange(); }
@@ -24184,10 +24173,13 @@ function buildBlock(n,b){
   const bb=document.createElement('div'); bb.className='block-body';
 
   if(b.type==='paragraph'){
+    b.revision_instruction = b.revision_instruction || '';
+    b.revision_history = Array.isArray(b.revision_history) ? b.revision_history : [];
     const ta=document.createElement('textarea'); ta.className='ci-input'; ta.rows=3; ta.value=b.text;
     ta.placeholder='本文（改行で段落区切り）';
     ta.addEventListener('input',()=>{ b.text=ta.value; debouncePreview(); pushHistoryDebounced(); });
     bb.appendChild(ta);
+    bb.appendChild(buildParagraphAiFix(n,b));
 
   } else if(b.type==='table'){
     buildTableEditor(n,b,bb);
@@ -24336,6 +24328,41 @@ function convertPlaceholder(n,b){
   afterStructureChange();
 }
 
+function buildParagraphAiFix(n,b){
+  const wrap=document.createElement('div'); wrap.className='aifix paragraph-aifix';
+  const toggle=document.createElement('button'); toggle.type='button'; toggle.className='aifix-btn'; toggle.textContent='🤖 AI修正';
+  const panel=document.createElement('div'); panel.className='aifix-panel'; panel.hidden=true;
+  const label=document.createElement('div'); label.className='aifix-label'; label.textContent='AI修正指示';
+  const row=document.createElement('div'); row.className='aifix-row';
+  const inp=document.createElement('input'); inp.type='text'; inp.value=b.revision_instruction||'';
+  inp.placeholder='例：より簡潔に、表現を丁寧に、要件を具体化する。';
+  inp.addEventListener('input',()=>{ b.revision_instruction=inp.value; pushHistoryDebounced(); });
+  row.appendChild(inp);
+  const actions=document.createElement('div'); actions.className='aifix-row';
+  const fix=document.createElement('button'); fix.type='button'; fix.className='aifix-btn'; fix.textContent='🤖 この段落を修正';
+  fix.addEventListener('click',()=>fixParagraphWithAi(n,b,fix));
+  const close=document.createElement('button'); close.type='button'; close.textContent='閉じる';
+  close.addEventListener('click',()=>{ panel.hidden=true; toggle.hidden=false; });
+  actions.appendChild(fix); actions.appendChild(close);
+  panel.appendChild(label); panel.appendChild(row); panel.appendChild(actions);
+  if(b.revision_history && b.revision_history.length > 0){
+    const undo=document.createElement('button'); undo.type='button'; undo.textContent='↶ 前の文に戻す';
+    undo.addEventListener('click',()=>{
+      const prev = b.revision_history.shift();
+      if(prev !== undefined){
+        b.text = prev;
+        renderEditor();
+        if(_previewOpen) buildPreview();
+        pushHistory();
+      }
+    });
+    panel.appendChild(undo);
+  }
+  toggle.addEventListener('click',()=>{ panel.hidden=false; toggle.hidden=true; });
+  wrap.appendChild(toggle); wrap.appendChild(panel);
+  return wrap;
+}
+
 function buildAiFix(n){
   const wrap=document.createElement('div'); wrap.className='aifix';
   wrap.innerHTML='<div class="aifix-label">🪄 AI 修正指示（この節を再生成）</div>';
@@ -24388,6 +24415,60 @@ function selectedTreeForGenerate(scopeNode){
   const roots = scopeNode ? [scopeNode] : doc.chapters.filter(c => c.selected !== false);
   return roots.map(mapNode);
 }
+function buildSectionContext(node){
+  return (node.blocks||[]).map(b=>{
+    if(b.type==='paragraph') return { type:'paragraph', text:b.text||'' };
+    if(b.type==='table') return { type:'table', caption:b.caption||'' };
+    if(b.type==='figure') return { type:'figure', caption:b.caption||'' };
+    if(b.type==='table_placeholder') return { type:'table_placeholder', caption:b.caption||'' };
+    if(b.type==='figure_placeholder') return { type:'figure_placeholder', caption:b.caption||'' };
+    return { type:b.type||'', text:b.text||'', caption:b.caption||'' };
+  });
+}
+function buildParagraphFixPayload(node, block){
+  return {
+    stage: 'paragraph_fix',
+    target_block_id: block.id || '',
+    paragraph_text: block.text || '',
+    instruction: block.revision_instruction || '',
+    section_title: node.title || '',
+    section_number: node.display_number || '',
+    source_template_number: node.source_template_number || '',
+    generation_policy: node.generation_policy || '',
+    project_summary: doc.document_plan.summary || '',
+    section_context: buildSectionContext(node)
+  };
+}
+async function fixParagraphWithAi(node, block, btn){
+  if(!(block.text||'').trim()){ showToast('修正対象の段落本文がありません。', true); return; }
+  if(!(block.revision_instruction||'').trim()){ showToast('AI修正指示を入力してください。', true); return; }
+  if(DIFY_GEN_API_KEY.includes('REPLACE')){ showToast('Generate用 Dify APIキー未設定です。', true); return; }
+  const old=btn.textContent; btn.disabled=true; btn.textContent='修正中...';
+  try{
+    const data = await difyCall(DIFY_GEN_API_KEY, {
+      input_json: JSON.stringify(buildParagraphFixPayload(node, block))
+    });
+    if(!data || data.stage !== 'paragraph_fix' || !data.text){
+      throw new Error('段落修正結果に text がありません。');
+    }
+    block.revision_history = block.revision_history || [];
+    block.revision_history.unshift(block.text);
+    block.revision_history = block.revision_history.slice(0, 2);
+    block.text = data.text;
+    renderEditor();
+    renderNav();
+    renderMissing();
+    if(_previewOpen) buildPreview();
+    pushHistory();
+    showToast('✓ 段落を修正しました');
+  }catch(e){
+    showToast('段落修正に失敗：'+e.message, true);
+    console.error(e);
+  }finally{
+    btn.disabled=false; btn.textContent=old;
+  }
+}
+
 function buildGenPayload(scopeNode){
   const tree = selectedTreeForGenerate(scopeNode);
   return {
