@@ -18,8 +18,8 @@
   /* ── App shell ── */
   .app-shell{display:grid;grid-template-columns:240px 1fr;grid-template-rows:56px 1fr;grid-template-areas:"hd hd" "sb mn";height:100vh;overflow:hidden}
   .app-shell.preview-open{grid-template-columns:240px 1fr 45%;grid-template-areas:"hd hd hd" "sb mn pv"}
-  .app-shell.chapter-select-mode{grid-template-columns:1fr;grid-template-areas:"hd" "mn"}
-  .app-shell.chapter-select-mode .sidebar{display:none}
+  .app-shell.chapter-select-mode{grid-template-columns:280px 1fr;grid-template-areas:"hd hd" "sb mn"}
+  .app-shell.chapter-select-mode .sidebar{display:block}
   header{grid-area:hd;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 18px;gap:14px;z-index:10}
   .hlogo{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;letter-spacing:.05em}
   .licon{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px}
@@ -47,6 +47,15 @@
   .navi.lv3{padding-left:40px;font-size:11px;color:var(--text-faint)}
   .navi .nnum{background:var(--number-badge);color:var(--text-muted);font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:4px;min-width:34px;text-align:center;font-family:monospace;flex-shrink:0}
   .navi .ntxt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .navi .nstat{font-size:11px;flex-shrink:0;color:var(--green)}
+  .navi .nstat.off{color:var(--text-faint)}
+  .ai-decision-line,.ai-reason-line{font-size:12.5px;color:var(--text-muted);line-height:1.7}
+  .ai-decision-badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;border:1px solid var(--border);font-size:12px;font-weight:700;margin-left:6px}
+  .ai-decision-badge.applicable{color:var(--green);border-color:rgba(67,217,162,.45);background:rgba(67,217,162,.08)}
+  .ai-decision-badge.not-applicable{color:var(--red);border-color:rgba(255,107,107,.45);background:rgba(255,107,107,.08)}
+  .ai-decision-badge.missing{color:var(--amber);border-color:rgba(247,201,72,.45);background:rgba(247,201,72,.08)}
+  .ai-decision-badge.confirm{color:var(--heading2);border-color:rgba(167,139,250,.45);background:rgba(167,139,250,.08)}
+  .ai-decision-badge.unknown{color:var(--text-faint)}
   /* ── Main ── */
   main{grid-area:mn;overflow-y:auto;padding:24px 28px;background:var(--bg);border-right:1px solid var(--border)}
   .phase-head{display:flex;align-items:center;gap:16px;margin-bottom:8px}
@@ -57,6 +66,7 @@
   /* cards */
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:18px;overflow:hidden;transition:border-color var(--tr)}
   .card:focus-within{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-glow)}
+  .card.jump-highlight{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-glow)}
   .cardh{background:var(--surface2);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:12px}
   .cnum{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:5px;white-space:nowrap;font-family:monospace}
   .cnum.lv1{font-size:13px;padding:4px 14px}
@@ -136,7 +146,10 @@
   .aifix-label{font-size:11px;color:var(--heading2);font-weight:700;display:flex;align-items:center;gap:6px}
   .aifix-row{display:flex;gap:8px}
   .aifix-row input{flex:1}
-  .aifix-btn{background:linear-gradient(135deg,#7c5cfc,#a78bfa);color:#fff;border:none;padding:0 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit}
+  .aifix-btn{background:linear-gradient(135deg,#7c5cfc,#a78bfa);color:#fff;border:none;padding:0 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;width:auto;align-self:center}
+  .aifix-btn.compact{padding:5px 12px;font-size:11.5px;line-height:1.4;flex:0 0 auto}
+  .paragraph-aifix .aifix-row{align-items:center}
+  .paragraph-aifix .aifix-actions{justify-content:flex-end}
   .aifix-btn:hover{opacity:.9}
   /* Point popup */
   .point-btn{margin-left:auto;background:rgba(247,201,72,.12);border:1px solid rgba(247,201,72,.4);color:var(--amber);font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:5px;cursor:pointer}
@@ -295,7 +308,6 @@
           <div class="form-error" id="planError"></div>
           <div class="dify-actions">
             <button class="dify-btn" id="planBtn" onclick="callDifyPlan()">🚀 標準章節構成を作成</button>
-            <button class="dify-btn sample" onclick="loadSamplePlan()">📂 サンプル章節構成を読み込む</button>
           </div>
           <div class="status muted" id="planStatus"></div>
         </div>
@@ -23665,29 +23677,54 @@ function collectMedia(){
    PHASE control
    ============================================================ */
 /* ============================================================
-   Undo / Redo 履歴（直近 30 状態を保持）
+   Undo / Redo 履歴（現在の Step 内で直近 20 操作を保持）
    ============================================================ */
-const HIST_MAX=30;
-let _hist=[], _histIdx=-1, _histTimer=null, _restoring=false;
+const MAX_HISTORY=20;
+let _hist=[], _histIdx=-1, _histTimer=null, _pendingHistLabel='変更', _restoring=false, _histPhase=null;
 function cloneDoc(){ return JSON.parse(JSON.stringify(doc)); }
-function resetHistory(){ _hist=[cloneDoc()]; _histIdx=0; updateHistButtons(); }
-function pushHistory(){
+function resetHistory(){
+  clearTimeout(_histTimer);
+  _hist=[{snapshot:cloneDoc(), label:'開始状態'}];
+  _histIdx=0;
+  _histPhase=phase;
+  updateHistButtons();
+}
+function pushHistory(label='変更'){
   if(_restoring) return;
   clearTimeout(_histTimer);
-  if(!_hist.length){ resetHistory(); return; }
+  if(_histPhase!==phase || !_hist.length){ resetHistory(); }
   _hist=_hist.slice(0,_histIdx+1);
-  _hist.push(cloneDoc());
-  if(_hist.length>HIST_MAX) _hist.shift();
+  _hist.push({snapshot:cloneDoc(), label:label || '変更'});
+  while(_hist.length>MAX_HISTORY+1) _hist.shift();
   _histIdx=_hist.length-1;
   updateHistButtons();
 }
-function pushHistoryDebounced(){ if(_restoring) return; clearTimeout(_histTimer); _histTimer=setTimeout(pushHistory,700); }
-function undo(){ if(_histIdx<=0) return; clearTimeout(_histTimer); _histIdx--; restoreHistory(); showToast('↶ 元に戻しました'); }
-function redo(){ if(_histIdx>=_hist.length-1) return; _histIdx++; restoreHistory(); showToast('↷ やり直しました'); }
+function pushHistoryDebounced(label='変更'){
+  if(_restoring) return;
+  _pendingHistLabel=label || _pendingHistLabel || '変更';
+  clearTimeout(_histTimer);
+  _histTimer=setTimeout(()=>pushHistory(_pendingHistLabel),700);
+}
+function undo(){
+  if(_histIdx<=0) return;
+  clearTimeout(_histTimer);
+  const label=_hist[_histIdx]?.label || '変更';
+  _histIdx--;
+  restoreHistory();
+  showToast('↶ 元に戻しました：'+label);
+}
+function redo(){
+  if(_histIdx>=_hist.length-1) return;
+  clearTimeout(_histTimer);
+  _histIdx++;
+  const label=_hist[_histIdx]?.label || '変更';
+  restoreHistory();
+  showToast('↷ やり直しました：'+label);
+}
 function restoreHistory(){
   _restoring=true;
   try{
-    doc=JSON.parse(JSON.stringify(_hist[_histIdx]));
+    doc=JSON.parse(JSON.stringify(_hist[_histIdx].snapshot));
     renumber(); fillCoverInputs(); renderNav(); renderChapterSelector(); renderEditor(); renderMissing();
     if(_previewOpen) buildPreview();
   }finally{ _restoring=false; }
@@ -23695,8 +23732,10 @@ function restoreHistory(){
 }
 function updateHistButtons(){
   const u=document.getElementById('undoBtn'), r=document.getElementById('redoBtn');
-  if(u) u.disabled=_histIdx<=0;
-  if(r) r.disabled=_histIdx>=_hist.length-1;
+  const undoLabel=_histIdx>0 ? (_hist[_histIdx]?.label || '変更') : '';
+  const redoLabel=_histIdx<_hist.length-1 ? (_hist[_histIdx+1]?.label || '変更') : '';
+  if(u){ u.disabled=_histIdx<=0; u.title=undoLabel ? '元に戻す：'+undoLabel : '元に戻す操作はありません'; }
+  if(r){ r.disabled=_histIdx>=_hist.length-1; r.title=redoLabel ? 'やり直す：'+redoLabel : 'やり直す操作はありません'; }
 }
 
 function setPhase(p){
@@ -23717,6 +23756,7 @@ function setPhase(p){
     document.getElementById('navTree').innerHTML='<div class="nav-empty">案件情報を入力して<br>章節を生成してください。</div>';
   }
   document.getElementById('mainArea').scrollTop=0;
+  resetHistory();
 }
 
 /* ============================================================
@@ -23820,7 +23860,7 @@ async function callDifyPlan(){
   doc.document_plan.summary = input;
   if(DIFY_PLAN_API_KEY.includes('REPLACE')){
     status.style.color='var(--amber)';
-    status.textContent='⚠ Plan用 Dify APIキー未設定。「サンプル章節構成を読み込む」で動作確認できます。';
+    status.textContent='⚠ Plan用 Dify APIキー未設定。APIキーを設定してください。';
     return;
   }
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 生成中...';
@@ -23915,16 +23955,16 @@ function newNode(level){
     display_number: null
   };
 }
-function afterStructureChange(){ renumber(); renderNav(); renderChapterSelector(); renderEditor(); refreshPreview(); pushHistory(); }
+function afterStructureChange(label='変更'){ renumber(); renderNav(); renderChapterSelector(); renderEditor(); refreshPreview(); pushHistory(label); }
 function addChapterNode(){
-  doc.chapters.push(newNode(1)); afterStructureChange();
+  doc.chapters.push(newNode(1)); afterStructureChange('章節を追加');
   showToast('章を追加しました。タイトルを入力してください。');
 }
 function addChildNode(parent){
   parent.selected=true;
   ensureParentsSelected(parent.id);
   parent.children.push(newNode(Math.min(parent.level+1,3)));
-  afterStructureChange();
+  afterStructureChange('章節を追加');
 }
 function removeNodeById(nodes,id){
   for(let i=0;i<nodes.length;i++){
@@ -23939,32 +23979,60 @@ function deleteNode(n){
   const label = (n.title||'(無題)');
   if(hasContent && !confirm('「'+label+'」'+(n.children.length?'（子章節を含む）':'')+'を削除しますか？')) return;
   removeNodeById(doc.chapters,n.id);
-  afterStructureChange();
+  afterStructureChange('章節を削除');
 }
 
 /* ============================================================
    EDIT — nav + editor cards
    ============================================================ */
+function aiDecisionLabel(value){
+  switch(value){
+    case 'applicable': return '適用';
+    case 'not_applicable': return '対象外';
+    case 'missing': return '情報不足';
+    case 'confirm': return '要確認';
+    default: return '未判定';
+  }
+}
+function aiDecisionClass(value){
+  switch(value){
+    case 'applicable': return 'applicable';
+    case 'not_applicable': return 'not-applicable';
+    case 'missing': return 'missing';
+    case 'confirm': return 'confirm';
+    default: return 'unknown';
+  }
+}
+
 function renderNav(){
   const el=document.getElementById('navTree');
   if(!doc.chapters.length){ el.innerHTML='<div class="nav-empty">章節がありません。</div>'; return; }
   el.innerHTML='';
-  walkSelected(doc.chapters,n=>{
+  const nodes = phase===PHASE.CHAPTERS ? doc.chapters : doc.chapters.filter(n=>n.selected!==false);
+  const walker = phase===PHASE.CHAPTERS ? walkAll : walkSelected;
+  walker(nodes,n=>{
     const d=document.createElement('div'); d.className='navi lv'+n.level;
-    const num=document.createElement('span'); num.className='nnum'; num.textContent=n.display_number;
+    const stat=document.createElement('span'); stat.className='nstat'+(n.selected===false?' off':''); stat.textContent=n.selected===false?'☐':'☑';
+    const num=document.createElement('span'); num.className='nnum'; num.textContent=n.display_number || '-';
     const txt=document.createElement('span'); txt.className='ntxt'; txt.textContent=n.title||'(無題)';
-    num.addEventListener('click',()=>scrollToNode(n.id,d));
-    txt.addEventListener('click',()=>scrollToNode(n.id,d));
-    const ctrl=document.createElement('span'); ctrl.className='nav-ctrl';
-    if(n.level<3){ const a=document.createElement('button'); a.textContent='＋'; a.title=(n.level===1?'節':'小節')+'を追加'; a.addEventListener('click',(e)=>{e.stopPropagation();addChildNode(n);}); ctrl.appendChild(a); }
-    if(n.level !== 1){ const x=document.createElement('button'); x.className='nd'; x.textContent='×'; x.title='削除'; x.addEventListener('click',(e)=>{e.stopPropagation();deleteNode(n);}); ctrl.appendChild(x); }
-    d.appendChild(num); d.appendChild(txt); d.appendChild(ctrl);
+    d.addEventListener('click',()=>scrollToNode(n.id,d));
+    d.appendChild(stat); d.appendChild(num); d.appendChild(txt);
+    if(phase!==PHASE.CHAPTERS){
+      const ctrl=document.createElement('span'); ctrl.className='nav-ctrl';
+      if(n.level<3){ const a=document.createElement('button'); a.textContent='＋'; a.title=(n.level===1?'節':'小節')+'を追加'; a.addEventListener('click',(e)=>{e.stopPropagation();addChildNode(n);}); ctrl.appendChild(a); }
+      if(n.level !== 1){ const x=document.createElement('button'); x.className='nd'; x.textContent='×'; x.title='削除'; x.addEventListener('click',(e)=>{e.stopPropagation();deleteNode(n);}); ctrl.appendChild(x); }
+      d.appendChild(ctrl);
+    }
     el.appendChild(d);
   });
 }
 function scrollToNode(id,navEl){
   const card=document.querySelector('[data-nodeid="'+id+'"]');
-  if(card) card.scrollIntoView({behavior:'smooth',block:'start'});
+  if(card){
+    card.scrollIntoView({behavior:'smooth',block:'start'});
+    card.classList.add('jump-highlight');
+    setTimeout(()=>card.classList.remove('jump-highlight'),900);
+  }
   document.querySelectorAll('.navi.active').forEach(e=>e.classList.remove('active'));
   if(navEl) navEl.classList.add('active');
 }
@@ -23998,46 +24066,28 @@ function buildChapterSelectCard(n, parent){
   const twp=document.createElement('div'); twp.className='twp';
   const pfx=document.createElement('span'); pfx.className='pfx'; pfx.textContent=(n.display_number || '-')+'　';
   const tin=document.createElement('input'); tin.type='text'; tin.className='toi'; tin.value=n.title; tin.placeholder='タイトル';
-  tin.addEventListener('input',()=>{ n.title=tin.value; renderNav(); pushHistoryDebounced(); });
+  tin.addEventListener('input',()=>{ n.title=tin.value; renderNav(); pushHistoryDebounced('章節タイトルを編集'); });
   twp.appendChild(pfx); twp.appendChild(tin); fgT.appendChild(twp); body.appendChild(fgT);
 
   const appBox=document.createElement('div'); appBox.className='fg';
-  appBox.innerHTML='<div class="flabel">適用性・生成方針</div>';
-  const sel=document.createElement('select'); sel.className='ci-input';
-  sel.innerHTML=`
-    <option value="applicable">適用：本文を生成する</option>
-    <option value="not_applicable">対象外：本文を生成しない</option>
-    <option value="missing">情報不足：確認事項として扱う</option>
-    <option value="confirm">要確認：ユーザー確認事項として扱う</option>
-  `;
-  sel.value=n.applicability || (n.selected===false ? 'not_applicable' : 'applicable');
-  sel.addEventListener('change',()=>{
-    n.applicability=sel.value;
-    if(sel.value==='not_applicable') setNodeSelectedWithChildren(n,false);
-    else if(n.selected===false) n.selected=true;
-    renumber(); renderChapterSelector(); renderNav(); pushHistoryDebounced();
-  });
-  appBox.appendChild(sel);
-
-  const reason=document.createElement('textarea'); reason.className='ci-input'; reason.rows=2; reason.placeholder='判断理由'; reason.value=n.reason || '';
-  reason.addEventListener('input',()=>{ n.reason=reason.value; pushHistoryDebounced(); });
+  appBox.innerHTML='<div class="flabel">AI判定</div>';
+  const decision=document.createElement('div'); decision.className='ai-decision-line';
+  decision.appendChild(document.createTextNode('AI判定'));
+  const badge=document.createElement('span'); badge.className='ai-decision-badge '+aiDecisionClass(n.applicability); badge.textContent=aiDecisionLabel(n.applicability);
+  decision.appendChild(badge);
+  const reason=document.createElement('div'); reason.className='ai-reason-line'; reason.textContent='AI判断理由：'+(n.reason || '—');
+  appBox.appendChild(decision);
   appBox.appendChild(reason);
-
-  const policy=document.createElement('textarea'); policy.className='ci-input'; policy.rows=2; policy.placeholder='本文生成方針'; policy.value=n.generation_policy || '';
-  policy.addEventListener('input',()=>{ n.generation_policy=policy.value; pushHistoryDebounced(); });
-  appBox.appendChild(policy);
   body.appendChild(appBox);
 
   chk.addEventListener('change',()=>{
     if(chk.checked){
       n.selected=true;
       ensureParentsSelected(n.id);
-      if(!n.applicability || n.applicability==='not_applicable') n.applicability='applicable';
     } else {
       setNodeSelectedWithChildren(n,false);
-      n.applicability='not_applicable';
     }
-    renumber(); renderChapterSelector(); renderNav(); pushHistoryDebounced();
+    renumber(); renderChapterSelector(); renderNav(); pushHistoryDebounced('章節の採用状態を変更');
   });
 
   if(n.children&&n.children.length){ const childWrap=document.createElement('div'); childWrap.className='blocks'; n.children.forEach(ch=>childWrap.appendChild(buildChapterSelectCard(ch,n))); body.appendChild(childWrap); }
@@ -24079,7 +24129,7 @@ function buildApplicabilityEditor(n){
   sel.addEventListener('change', () => {
     n.applicability = sel.value;
     debouncePreview();
-    pushHistoryDebounced();
+    pushHistoryDebounced('変更');
   });
 
   const reason = document.createElement('textarea');
@@ -24089,7 +24139,7 @@ function buildApplicabilityEditor(n){
   reason.value = n.reason || '';
   reason.addEventListener('input', () => {
     n.reason = reason.value;
-    pushHistoryDebounced();
+    pushHistoryDebounced('変更');
   });
 
   const policy = document.createElement('textarea');
@@ -24100,7 +24150,7 @@ function buildApplicabilityEditor(n){
   policy.addEventListener('input', () => {
     n.ai_instruction = policy.value;
     n.generation_policy = policy.value;
-    pushHistoryDebounced();
+    pushHistoryDebounced('変更');
   });
 
   box.appendChild(sel);
@@ -24133,7 +24183,7 @@ function buildNodeCard(n){
   const twp=document.createElement('div'); twp.className='twp';
   const pfx=document.createElement('span'); pfx.className='pfx'; pfx.textContent=n.display_number+'　';
   const tin=document.createElement('input'); tin.type='text'; tin.className='toi'; tin.value=n.title; tin.placeholder='タイトル';
-  tin.addEventListener('input',()=>{ n.title=tin.value; renderNav(); debouncePreview(); pushHistoryDebounced(); });
+  tin.addEventListener('input',()=>{ n.title=tin.value; renderNav(); debouncePreview(); pushHistoryDebounced('章節タイトルを編集'); });
   twp.appendChild(pfx); twp.appendChild(tin); fgT.appendChild(twp);
   const hint=document.createElement('div'); hint.className='hint'; hint.textContent='※ 番号「'+n.display_number+'」は章節ツリーから自動採番されます。';
   fgT.appendChild(hint);
@@ -24154,10 +24204,10 @@ function buildNodeCard(n){
   return card;
 }
 function mkAddBtn(label,fn){ const b=document.createElement('button'); b.textContent=label; b.addEventListener('click',fn); return b; }
-function addBlock(n,type){ n.blocks.push(normalizeBlock(type==='paragraph' ? {type:'paragraph', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''})); afterStructureChange(); }
-function addTableBlock(n){ n.blocks.push(normalizeBlock({type:'table', caption:'', headers:['項目','内容','備考'], rows:[['','','']]})); afterStructureChange(); }
-function addFigureBlock(n){ n.blocks.push(normalizeBlock({type:'figure', caption:''})); afterStructureChange(); }
-function delBlock(n,b){ n.blocks=n.blocks.filter(x=>x!==b); afterStructureChange(); }
+function addBlock(n,type){ n.blocks.push(normalizeBlock(type==='paragraph' ? {type:'paragraph', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''})); afterStructureChange('段落を追加'); }
+function addTableBlock(n){ n.blocks.push(normalizeBlock({type:'table', caption:'', headers:['項目','内容','備考'], rows:[['','','']]})); afterStructureChange('表を追加'); }
+function addFigureBlock(n){ n.blocks.push(normalizeBlock({type:'figure', caption:''})); afterStructureChange('画像を追加'); }
+function delBlock(n,b){ n.blocks=n.blocks.filter(x=>x!==b); afterStructureChange('段落を削除'); }
 
 function buildBlock(n,b){
   const el=document.createElement('div'); el.className='block';
@@ -24177,7 +24227,7 @@ function buildBlock(n,b){
     b.revision_history = Array.isArray(b.revision_history) ? b.revision_history : [];
     const ta=document.createElement('textarea'); ta.className='ci-input'; ta.rows=3; ta.value=b.text;
     ta.placeholder='本文（改行で段落区切り）';
-    ta.addEventListener('input',()=>{ b.text=ta.value; debouncePreview(); pushHistoryDebounced(); });
+    ta.addEventListener('input',()=>{ b.text=ta.value; debouncePreview(); pushHistoryDebounced('段落を編集'); });
     bb.appendChild(ta);
     bb.appendChild(buildParagraphAiFix(n,b));
 
@@ -24192,7 +24242,7 @@ function buildBlock(n,b){
     const box=document.createElement('div'); box.className='ph-box';
     box.innerHTML='<span class="ph-tag">【'+esc(b._ref||(b.type==='table_placeholder'?'表 -':'図 -'))+'】</span>';
     const cap=document.createElement('input'); cap.type='text'; cap.value=b.caption; cap.placeholder='キャプション（例：対象機器一覧）';
-    cap.addEventListener('input',()=>{ b.caption=cap.value; debouncePreview(); pushHistoryDebounced(); });
+    cap.addEventListener('input',()=>{ b.caption=cap.value; debouncePreview(); pushHistoryDebounced('変更'); });
     const note=document.createElement('div'); note.className='ph-note';
     note.textContent='占位ブロックです。下のボタンで編集可能な'+(b.type==='table_placeholder'?'表':'画像')+'に変換できます。';
     const conv=document.createElement('button'); conv.className='fig-remove';
@@ -24207,7 +24257,7 @@ function buildBlock(n,b){
 function buildTableEditor(n,b,bb){
   const cap=document.createElement('input'); cap.type='text'; cap.className='tbl-cap'; cap.value=b.caption;
   cap.placeholder='表タイトル / caption（例：対象機器一覧）';
-  cap.addEventListener('input',()=>{ b.caption=cap.value; debouncePreview(); pushHistoryDebounced(); });
+  cap.addEventListener('input',()=>{ b.caption=cap.value; debouncePreview(); pushHistoryDebounced('変更'); });
   bb.appendChild(cap);
 
   const wrap=document.createElement('div'); wrap.className='tbl-wrap';
@@ -24218,9 +24268,9 @@ function buildTableEditor(n,b,bb){
     const th=document.createElement('th');
     const cell=document.createElement('div'); cell.className='tbl-colh';
     const inp=document.createElement('input'); inp.type='text'; inp.value=h; inp.placeholder='列名';
-    inp.addEventListener('input',()=>{ b.headers[ci]=inp.value; debouncePreview(); pushHistoryDebounced(); });
+    inp.addEventListener('input',()=>{ b.headers[ci]=inp.value; debouncePreview(); pushHistoryDebounced('変更'); });
     const x=document.createElement('button'); x.className='coldel'; x.textContent='×'; x.title='列を削除';
-    x.addEventListener('click',()=>{ if(b.headers.length<=1){showToast('最低1列必要です。',true);return;} b.headers.splice(ci,1); b.rows.forEach(r=>r.splice(ci,1)); afterStructureChange(); });
+    x.addEventListener('click',()=>{ if(b.headers.length<=1){showToast('最低1列必要です。',true);return;} b.headers.splice(ci,1); b.rows.forEach(r=>r.splice(ci,1)); afterStructureChange('表を編集'); });
     cell.appendChild(inp); cell.appendChild(x); th.appendChild(cell); htr.appendChild(th);
   });
   htr.appendChild(document.createElement('th')); // corner for row-delete column
@@ -24232,21 +24282,21 @@ function buildTableEditor(n,b,bb){
     row.forEach((val,ci)=>{
       const td=document.createElement('td');
       const inp=document.createElement('input'); inp.type='text'; inp.value=val;
-      inp.addEventListener('input',()=>{ b.rows[ri][ci]=inp.value; debouncePreview(); pushHistoryDebounced(); });
+      inp.addEventListener('input',()=>{ b.rows[ri][ci]=inp.value; debouncePreview(); pushHistoryDebounced('変更'); });
       td.appendChild(inp); tr.appendChild(td);
     });
     const tdDel=document.createElement('td'); tdDel.className='tbl-rowdel-cell';
     const rdel=document.createElement('button'); rdel.className='tbl-rowdel'; rdel.textContent='✕'; rdel.title='行を削除';
-    rdel.addEventListener('click',()=>{ if(b.rows.length<=1){showToast('最低1行必要です。',true);return;} b.rows.splice(ri,1); afterStructureChange(); });
+    rdel.addEventListener('click',()=>{ if(b.rows.length<=1){showToast('最低1行必要です。',true);return;} b.rows.splice(ri,1); afterStructureChange('表を編集'); });
     tdDel.appendChild(rdel); tr.appendChild(tdDel); tbody.appendChild(tr);
   });
   table.appendChild(tbody); wrap.appendChild(table); bb.appendChild(wrap);
 
   const acts=document.createElement('div'); acts.className='tbl-actions';
   const addRow=document.createElement('button'); addRow.textContent='＋ 行を追加';
-  addRow.addEventListener('click',()=>{ b.rows.push(b.headers.map(()=> '')); afterStructureChange(); });
+  addRow.addEventListener('click',()=>{ b.rows.push(b.headers.map(()=> '')); afterStructureChange('表を編集'); });
   const addCol=document.createElement('button'); addCol.textContent='＋ 列を追加';
-  addCol.addEventListener('click',()=>{ b.headers.push('列'+(b.headers.length+1)); b.rows.forEach(r=>r.push('')); afterStructureChange(); });
+  addCol.addEventListener('click',()=>{ b.headers.push('列'+(b.headers.length+1)); b.rows.forEach(r=>r.push('')); afterStructureChange('表を編集'); });
   acts.appendChild(addRow); acts.appendChild(addCol); bb.appendChild(acts);
 
   // paste import (Excel / TSV / CSV)
@@ -24261,7 +24311,7 @@ function buildTableEditor(n,b,bb){
     const parsed=parseTabular(pta.value);
     if(!parsed){ showToast('取り込めるデータがありません。',true); return; }
     b.headers=parsed.headers; b.rows=parsed.rows;
-    afterStructureChange(); showToast('✓ 表を取り込みました（'+parsed.rows.length+'行 × '+parsed.headers.length+'列）');
+    afterStructureChange('表を編集'); showToast('✓ 表を取り込みました（'+parsed.rows.length+'行 × '+parsed.headers.length+'列）');
   });
   const pclr=document.createElement('button'); pclr.textContent='クリア'; pclr.addEventListener('click',()=>{pta.value='';});
   prow.appendChild(pbtn); prow.appendChild(pclr);
@@ -24287,7 +24337,7 @@ function buildFigureEditor(n,b,bb){
   const box=document.createElement('div'); box.className='fig-box';
   const cap=document.createElement('input'); cap.type='text'; cap.value=b.caption;
   cap.placeholder='画像タイトル / caption（例：システム構成図）';
-  cap.addEventListener('input',()=>{ b.caption=cap.value; debouncePreview(); pushHistoryDebounced(); });
+  cap.addEventListener('input',()=>{ b.caption=cap.value; debouncePreview(); pushHistoryDebounced('変更'); });
   box.appendChild(cap);
 
   if(b.imageData){
@@ -24295,7 +24345,7 @@ function buildFigureEditor(n,b,bb){
     const meta=document.createElement('div'); meta.className='fig-meta';
     const name=document.createElement('span'); name.textContent='📎 '+(b.fileName||'画像')+(b._w?'（'+b._w+'×'+b._h+'）':'');
     const rm=document.createElement('button'); rm.className='fig-remove'; rm.textContent='画像を削除';
-    rm.addEventListener('click',()=>{ b.imageData=''; b.fileName=''; b._w=0; b._h=0; afterStructureChange(); });
+    rm.addEventListener('click',()=>{ b.imageData=''; b.fileName=''; b._w=0; b._h=0; afterStructureChange('画像を削除'); });
     meta.appendChild(name); meta.appendChild(rm); box.appendChild(meta);
   } else {
     const drop=document.createElement('div'); drop.className='fig-drop';
@@ -24311,8 +24361,8 @@ function onPickImage(e,n,b){
   r.onload=()=>{
     b.imageData=r.result; b.fileName=f.name;
     const im=new Image();
-    im.onload=()=>{ b._w=im.naturalWidth; b._h=im.naturalHeight; afterStructureChange(); };
-    im.onerror=()=>{ b._w=0; b._h=0; afterStructureChange(); };
+    im.onload=()=>{ b._w=im.naturalWidth; b._h=im.naturalHeight; afterStructureChange('画像を追加'); };
+    im.onerror=()=>{ b._w=0; b._h=0; afterStructureChange('画像を追加'); };
     im.src=r.result;
   };
   r.readAsDataURL(f);
@@ -24325,7 +24375,7 @@ function convertPlaceholder(n,b){
   } else {
     n.blocks[idx]=normalizeBlock({type:'figure', caption:b.caption});
   }
-  afterStructureChange();
+  afterStructureChange('変更');
 }
 
 function buildParagraphAiFix(n,b){
@@ -24336,28 +24386,15 @@ function buildParagraphAiFix(n,b){
   const row=document.createElement('div'); row.className='aifix-row';
   const inp=document.createElement('input'); inp.type='text'; inp.value=b.revision_instruction||'';
   inp.placeholder='例：より簡潔に、表現を丁寧に、要件を具体化する。';
-  inp.addEventListener('input',()=>{ b.revision_instruction=inp.value; pushHistoryDebounced(); });
+  inp.addEventListener('input',()=>{ b.revision_instruction=inp.value; pushHistoryDebounced('段落を編集'); });
   row.appendChild(inp);
-  const actions=document.createElement('div'); actions.className='aifix-row';
-  const fix=document.createElement('button'); fix.type='button'; fix.className='aifix-btn'; fix.textContent='🤖 この段落を修正';
+  const actions=document.createElement('div'); actions.className='aifix-row aifix-actions';
+  const fix=document.createElement('button'); fix.type='button'; fix.className='aifix-btn compact'; fix.textContent='AI修正';
   fix.addEventListener('click',()=>fixParagraphWithAi(n,b,fix));
   const close=document.createElement('button'); close.type='button'; close.textContent='閉じる';
   close.addEventListener('click',()=>{ panel.hidden=true; toggle.hidden=false; });
   actions.appendChild(fix); actions.appendChild(close);
   panel.appendChild(label); panel.appendChild(row); panel.appendChild(actions);
-  if(b.revision_history && b.revision_history.length > 0){
-    const undo=document.createElement('button'); undo.type='button'; undo.textContent='↶ 前の文に戻す';
-    undo.addEventListener('click',()=>{
-      const prev = b.revision_history.shift();
-      if(prev !== undefined){
-        b.text = prev;
-        renderEditor();
-        if(_previewOpen) buildPreview();
-        pushHistory();
-      }
-    });
-    panel.appendChild(undo);
-  }
   toggle.addEventListener('click',()=>{ panel.hidden=false; toggle.hidden=true; });
   wrap.appendChild(toggle); wrap.appendChild(panel);
   return wrap;
@@ -24369,8 +24406,8 @@ function buildAiFix(n){
   const row=document.createElement('div'); row.className='aifix-row';
   const inp=document.createElement('input'); inp.type='text'; inp.value=n.revision_instruction||'';
   inp.placeholder='例：UPS と冗長構成の方針をもう少し具体的に。1文1方針で。';
-  inp.addEventListener('input',()=>{ n.revision_instruction=inp.value; pushHistoryDebounced(); });
-  const btn=document.createElement('button'); btn.className='aifix-btn'; btn.textContent='🤖 この指示で修正';
+  inp.addEventListener('input',()=>{ n.revision_instruction=inp.value; pushHistoryDebounced('変更'); });
+  const btn=document.createElement('button'); btn.className='aifix-btn compact'; btn.textContent='AI修正';
   btn.addEventListener('click',()=>callNodeFix(n,btn));
   row.appendChild(inp); row.appendChild(btn); wrap.appendChild(row);
   return wrap;
@@ -24459,7 +24496,7 @@ async function fixParagraphWithAi(node, block, btn){
     renderNav();
     renderMissing();
     if(_previewOpen) buildPreview();
-    pushHistory();
+    pushHistory('段落をAI修正');
     showToast('✓ 段落を修正しました');
   }catch(e){
     showToast('段落修正に失敗：'+e.message, true);
@@ -24491,7 +24528,7 @@ async function callNodeFix(n,btn){
 }
 async function runGenerate(scopeNode,btn,status,enterEditAfter){
   if(DIFY_GEN_API_KEY.includes('REPLACE')){
-    if(status){ status.style.color='var(--amber)'; status.textContent='⚠ Generate用 Dify APIキー未設定。「サンプル本文を読み込む」で動作確認できます。'; }
+    if(status){ status.style.color='var(--amber)'; status.textContent='⚠ Generate用 Dify APIキー未設定。APIキーを設定してください。'; }
     else throw new Error('Generate APIキー未設定');
     return;
   }
@@ -24543,7 +24580,7 @@ function applyGenerated(data){
   if(ing.missing_items.length) doc.missing_items = ing.missing_items;
   renumber(); renderEditor(); renderNav(); renderMissing();
   if(_previewOpen) buildPreview();
-  pushHistory();
+  pushHistory('本文を生成');
 }
 function renderMissing(){
   const box=document.getElementById('missingBox');
