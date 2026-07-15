@@ -24012,11 +24012,14 @@ function renderNav(){
   const walker = phase===PHASE.CHAPTERS ? walkAll : walkSelected;
   walker(nodes,n=>{
     const d=document.createElement('div'); d.className='navi lv'+n.level;
-    const stat=document.createElement('span'); stat.className='nstat'+(n.selected===false?' off':''); stat.textContent=n.selected===false?'☐':'☑';
     const num=document.createElement('span'); num.className='nnum'; num.textContent=n.display_number || '-';
     const txt=document.createElement('span'); txt.className='ntxt'; txt.textContent=n.title||'(無題)';
     d.addEventListener('click',()=>scrollToNode(n.id,d));
-    d.appendChild(stat); d.appendChild(num); d.appendChild(txt);
+    if(phase===PHASE.CHAPTERS){
+      const stat=document.createElement('span'); stat.className='nstat'+(n.selected===false?' off':''); stat.textContent=n.selected===false?'☐':'☑';
+      d.appendChild(stat);
+    }
+    d.appendChild(num); d.appendChild(txt);
     if(phase!==PHASE.CHAPTERS){
       const ctrl=document.createElement('span'); ctrl.className='nav-ctrl';
       if(n.level<3){ const a=document.createElement('button'); a.textContent='＋'; a.title=(n.level===1?'節':'小節')+'を追加'; a.addEventListener('click',(e)=>{e.stopPropagation();addChildNode(n);}); ctrl.appendChild(a); }
@@ -24031,7 +24034,7 @@ function scrollToNode(id,navEl){
   if(card){
     card.scrollIntoView({behavior:'smooth',block:'start'});
     card.classList.add('jump-highlight');
-    setTimeout(()=>card.classList.remove('jump-highlight'),900);
+    setTimeout(()=>card.classList.remove('jump-highlight'),1200);
   }
   document.querySelectorAll('.navi.active').forEach(e=>e.classList.remove('active'));
   if(navEl) navEl.classList.add('active');
