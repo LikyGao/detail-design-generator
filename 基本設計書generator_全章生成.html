@@ -23547,8 +23547,26 @@ function normalizeBlock(raw){
 }
 function normalizeBlocks(arr){ return Array.isArray(arr) ? arr.map(normalizeBlock) : []; }
 
-function deriveSelectedFromAi(raw){
-  if(typeof raw.selected === 'boolean') return raw.selected;
+function deriveSelectedFromAi(raw, level, opts){
+  opts = opts || {};
+
+  // Dify Plan 初回導入時：大章は必ず残す
+  if(opts.forceSelectTopLevel && level === 1){
+    return true;
+  }
+
+  // 明示 selected がある場合はユーザー操作後の状態として尊重
+  if(typeof raw.selected === 'boolean'){
+    return raw.selected;
+  }
+
+  const app = String(raw.applicability || raw.recommendation || '').toLowerCase();
+
+  // 節・小節は対象外なら初期未選択
+  if(app === 'not_applicable' || app === 'excluded' || app === 'unnecessary' || app === 'not_required' || app === '不採用' || app === '対象外'){
+    return false;
+  }
+
   return true;
 }
 
@@ -23556,7 +23574,7 @@ function normalizeNode(raw, depth, opts){
   opts = opts || {};
   const stn  = raw.source_template_number || '';
   const level = raw.level || (stn ? stn.split('-').length : depth) || 1;
-  const selected = opts.forceSelectAllStandard ? true : deriveSelectedFromAi(raw);
+  const selected = deriveSelectedFromAi(raw, Math.min(level,3), opts);
   return {
     id: raw.id || raw.chapter_id || raw.section_id || uid(),
     source_template_number: stn,
@@ -23871,7 +23889,7 @@ function importPlanJson(){
   applyPlan(data); showToast('✓ 章節確認 JSON を導入しました');
 }
 function applyPlan(data){
-  const ing=ingestPayload(data, { forceSelectAllStandard: true });
+  const ing=ingestPayload(data, { forceSelectTopLevel: true });
   if(!ing.chapters){ showToast('chapters[] が見つかりません。',true); return; }
   doc.chapters = ing.chapters;
   walkAll(doc.chapters, n => {
