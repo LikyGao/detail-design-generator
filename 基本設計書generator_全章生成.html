@@ -23549,32 +23549,20 @@ function normalizeBlocks(arr){ return Array.isArray(arr) ? arr.map(normalizeBloc
 
 function deriveSelectedFromAi(raw){
   if(typeof raw.selected === 'boolean') return raw.selected;
-
-  const app = String(raw.applicability || raw.recommendation || '').toLowerCase();
-
-  if(
-    app === 'not_applicable' ||
-    app === 'excluded' ||
-    app === 'unnecessary' ||
-    app === 'not_required' ||
-    app === '不採用' ||
-    app === '対象外'
-  ){
-    return false;
-  }
-
   return true;
 }
 
-function normalizeNode(raw, depth){
+function normalizeNode(raw, depth, opts){
+  opts = opts || {};
   const stn  = raw.source_template_number || '';
   const level = raw.level || (stn ? stn.split('-').length : depth) || 1;
+  const selected = opts.forceSelectAllStandard ? true : deriveSelectedFromAi(raw);
   return {
     id: raw.id || raw.chapter_id || raw.section_id || uid(),
     source_template_number: stn,
     title: raw.title || '',
     level: Math.min(level,3),
-    selected: deriveSelectedFromAi(raw),
+    selected: selected,
     applicability: raw.applicability || '',
     generation_policy: raw.generation_policy || raw.generation_hint || '',
     manual_note: raw.manual_note || '',
@@ -23585,7 +23573,7 @@ function normalizeNode(raw, depth){
     ai_instruction: raw.ai_instruction || '',
     revision_instruction: raw.revision_instruction || '',
     blocks: normalizeBlocks(raw.blocks),
-    children: (raw.children || []).map(c=>normalizeNode(c, (level||1)+1)),
+    children: (raw.children || []).map(c=>normalizeNode(c, (level||1)+1, opts)),
     display_number: null
   };
 }
@@ -23615,7 +23603,8 @@ function legacyToChapters(data){
 }
 
 /* Accepts plan OR generate OR legacy payloads, returns {cover, document_plan, chapters, missing_items} */
-function ingestPayload(data){
+function ingestPayload(data, opts){
+  opts = opts || {};
   const out = {
     cover: data.cover || {},
     document_plan: data.document_plan || {},
@@ -23623,7 +23612,7 @@ function ingestPayload(data){
     chapters: null
   };
   if(Array.isArray(data.chapters)){
-    out.chapters = data.chapters.map(c=>normalizeNode(c,1));
+    out.chapters = data.chapters.map(c=>normalizeNode(c,1,opts));
   } else if(data.chapter || data.sections){
     out.chapters = legacyToChapters(data);   // backward compatible
   }
@@ -23882,7 +23871,7 @@ function importPlanJson(){
   applyPlan(data); showToast('✓ 章節確認 JSON を導入しました');
 }
 function applyPlan(data){
-  const ing=ingestPayload(data);
+  const ing=ingestPayload(data, { forceSelectAllStandard: true });
   if(!ing.chapters){ showToast('chapters[] が見つかりません。',true); return; }
   doc.chapters = ing.chapters;
   walkAll(doc.chapters, n => {
