@@ -23524,6 +23524,20 @@ function walkAll(nodes, cb){ (nodes||[]).forEach(n=>{ cb(n); walkAll(n.children,
 function walkSelected(nodes, cb){ (nodes||[]).forEach(n=>{ if(n.selected){ cb(n); walkSelected(n.children,cb); } }); }
 function findNode(id){ let r=null; walkAll(doc.chapters,n=>{ if(n.id===id) r=n; }); return r; }
 function hasSelected(){ return doc.chapters.some(n=>n.selected); }
+function normalizeSelectionHierarchy(nodes){
+  function fixDown(n){
+    if(n.selected === false){
+      (n.children || []).forEach(ch=>{
+        ch.selected = false;
+        fixDown(ch);
+      });
+      return;
+    }
+    (n.children || []).forEach(fixDown);
+  }
+
+  (nodes || []).forEach(fixDown);
+}
 
 /* ============================================================
    NORMALIZATION（Dify/手動入力 → 内部モデル）＋旧形式互換
@@ -23892,6 +23906,7 @@ function applyPlan(data){
   const ing=ingestPayload(data, { forceSelectTopLevel: true });
   if(!ing.chapters){ showToast('chapters[] が見つかりません。',true); return; }
   doc.chapters = ing.chapters;
+  normalizeSelectionHierarchy(doc.chapters);
   walkAll(doc.chapters, n => {
     n.blocks = n.blocks || [];
   });
@@ -23962,7 +23977,7 @@ function newNode(level){
     display_number: null
   };
 }
-function afterStructureChange(label='変更'){ renumber(); renderNav(); renderChapterSelector(); renderEditor(); refreshPreview(); pushHistory(label); }
+function afterStructureChange(label='変更'){ normalizeSelectionHierarchy(doc.chapters); renumber(); renderNav(); renderChapterSelector(); renderEditor(); refreshPreview(); pushHistory(label); }
 function addChapterNode(){
   doc.chapters.push(newNode(1)); afterStructureChange('章節を追加');
   showToast('章を追加しました。タイトルを入力してください。');
@@ -24097,7 +24112,11 @@ function buildChapterSelectCard(n, parent){
     } else {
       setNodeSelectedWithChildren(n,false);
     }
-    renumber(); renderChapterSelector(); renderNav(); pushHistoryDebounced('章節の採用状態を変更');
+    normalizeSelectionHierarchy(doc.chapters);
+    renumber();
+    renderChapterSelector();
+    renderNav();
+    pushHistoryDebounced('章節の採用状態を変更');
   });
 
   if(n.children&&n.children.length){ const childWrap=document.createElement('div'); childWrap.className='blocks'; n.children.forEach(ch=>childWrap.appendChild(buildChapterSelectCard(ch,n))); body.appendChild(childWrap); }
