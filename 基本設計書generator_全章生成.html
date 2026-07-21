@@ -252,7 +252,7 @@
   .word-fig-img{max-width:100%;max-height:300px;display:block;margin:4px auto;border:1px solid #ccc}
   [hidden]{display:none !important}
   /* ── Enterprise document workspace refresh ── */
-  :root{--bg:#f5f6f8;--surface:#fff;--surface2:#f8f9fb;--border:#d7dce3;--accent:#1769aa;--accent2:#1769aa;--accent-glow:rgba(23,105,170,.10);--text:#20252b;--text-muted:#5f6975;--text-faint:#7a8490;--green:#197a52;--red:#b42318;--amber:#9a6700;--number-badge:#e8edf3;--heading1:#1c4f78;--heading2:#2f5f82;--heading3:#486777;--radius:4px;--tr:.15s ease}
+  :root{--bg:#f5f6f8;--surface:#fff;--surface2:#f8f9fb;--border:#d7dce3;--accent:#1769aa;--accent2:#1769aa;--accent-glow:rgba(23,105,170,.10);--text-main:#20252b;--text-secondary:#4f5b67;--text-muted:#5f6975;--text-faint:#6c7783;--text-disabled:#7a8490;--text:var(--text-main);--green:#197a52;--red:#b42318;--amber:#9a6700;--number-badge:#e8edf3;--heading1:#1c4f78;--heading2:#2f5f82;--heading3:#486777;--radius:4px;--tr:.15s ease}
   body{background:var(--bg);font-size:13px;line-height:1.55;letter-spacing:.01em}.app-shell{grid-template-columns:220px 1fr;grid-template-rows:52px 1fr}.app-shell.preview-open{grid-template-columns:220px minmax(460px,1fr) minmax(380px,42%)}.app-shell.chapter-select-mode{grid-template-columns:250px 1fr}
   header{padding:0 14px;gap:9px;background:#fff;box-shadow:none}.hlogo{gap:8px;font-size:13px;color:#1f2933;letter-spacing:.03em}.licon{width:26px;height:26px;background:#1769aa;border-radius:3px;font-size:13px}.hbadge{background:#eef3f7;border-color:#d3dde6;color:#466174;border-radius:3px;padding:2px 7px}.stepper{gap:4px;color:var(--text-faint)}.step{gap:5px;padding:3px 8px;border-radius:3px;background:transparent;border-color:transparent}.step .sdot{width:17px;height:17px;background:#e5e9ee;color:#66717d}.step.active{border-color:#aac4d8;background:#f1f7fb;color:#1c4f78}.step.active .sdot{background:var(--accent);color:#fff}.step.done .sdot{background:#2d7b5c;color:#fff}.step-arrow{color:#a5adb7}
   .ebtn,.dify-btn{min-height:30px;background:#1769aa;border:1px solid #1769aa;border-radius:4px;padding:5px 11px;font-size:12px;box-shadow:none;transform:none!important}.ebtn:hover,.dify-btn:hover{background:#12588f;border-color:#12588f;opacity:1}.ebtn.ghost,.dify-btn.clear,.dify-btn.sample{background:#fff;border-color:#c7cfd8;color:#364452}.ebtn.ghost:hover,.dify-btn.clear:hover,.dify-btn.sample:hover{background:#f2f5f7;border-color:#9eabb7;color:#1f2933}.ebtn.icon{min-height:30px;padding:5px 9px;font-size:14px}
@@ -262,7 +262,10 @@
   .rev-node{border-radius:4px;margin-bottom:6px}.rev-node.lv2{margin-left:16px}.rev-node.lv3{margin-left:32px}.rev-row{gap:8px;padding:8px 10px}.rev-title-in{font-size:12.5px}.rev-actions{gap:4px}.rev-actions button{border-radius:3px;padding:3px 7px;background:#fff}.rev-lvtag,.rev-src{border-radius:3px}.blocks{gap:8px}.block{border-radius:4px}.block-h{padding:5px 8px;background:#f6f8fa}.block-body{padding:8px}.ph-box,.fig-drop,.tbl-wrap{border-radius:4px}.addblock{gap:6px}.addblock button,.tbl-actions button{border-radius:3px;background:#fff;padding:4px 8px}.aifix{padding-top:8px}.aifix-label{color:#2f5f82}.aifix-btn{background:#1769aa;border:1px solid #1769aa;border-radius:4px;min-height:30px;padding:4px 10px;font-size:12px}.aifix-btn:hover{background:#12588f;opacity:1}.point-btn{border-radius:3px;background:#fff8e6;color:#8a5a00;padding:2px 7px}.point-popup{border-radius:6px;box-shadow:0 8px 22px rgba(20,32,45,.18)}
   #previewArea{background:#e5e7eb}.preview-pane-header{background:#fff;color:#465563;padding:7px 12px}#previewContent{padding:16px;gap:14px}.word-page{box-shadow:0 2px 10px rgba(0,0,0,.18)}.toast{border-radius:5px;box-shadow:0 6px 18px rgba(20,32,45,.18);padding:9px 14px}
   @media (max-width:900px){.app-shell,.app-shell.chapter-select-mode{grid-template-columns:185px 1fr}.app-shell.preview-open{grid-template-columns:185px minmax(380px,1fr) minmax(330px,40%)}header{padding:0 9px}.hbadge,.step-arrow{display:none}.step{padding:3px 5px}.stepper{gap:1px}main{padding:14px}}@media (max-width:680px){.app-shell,.app-shell.chapter-select-mode{grid-template-columns:160px 1fr}.app-shell.preview-open{grid-template-columns:160px minmax(330px,1fr) minmax(300px,42%)}.hlogo{font-size:11px}.stepper{display:none}.cover-grid,.plan-form{grid-template-columns:1fr}.pf.wide{grid-column:auto}main{padding:12px}.phase-desc{font-size:11.5px}}
-  @media (prefers-color-scheme: dark){:root{--bg:#1f242a;--surface:#282e35;--surface2:#303740;--border:#46505b;--accent:#5aa5dd;--accent2:#5aa5dd;--accent-glow:rgba(90,165,221,.16);--text:#edf1f4;--text-muted:#b5bec7;--text-faint:#8f9aa5;--green:#69c39a;--red:#ff9b93;--amber:#f0c36e;--number-badge:#3a444e;--heading1:#a6d4f2;--heading2:#b7d2e5;--heading3:#b5ceda}header,.sidebar,.card,.dify-card,details>summary,.ebtn.ghost,.dify-btn.clear,.dify-btn.sample,.rev-actions button,.addblock button,.tbl-actions button{background:var(--surface)}main{background:var(--bg)}.cardh,.dify-cardh,.block-h{background:var(--surface2)}.hlogo{color:var(--text)}.hbadge{background:#34414c;border-color:#50606d;color:#c5d2dc}.step.active{background:#253d4e;border-color:#4c7999}.navi:hover{background:#303b45}.navi.active{background:#294455}.navi .nnum{background:#3b4651;color:#c5d0d9}input[type=text],textarea,.ci-input,.pf input,.pf textarea{background:#20262c;border-color:#596570;color:var(--text)}.ebtn.ghost:hover,.dify-btn.clear:hover,.dify-btn.sample:hover{background:#37414b;color:#fff}.nav-add,.nav-ctrl button{background:#303840;border-color:#596570;color:#d2dbe2}#previewArea{background:#3b4148}}
+  /* Keep paragraph AI actions in the block footer, with a stable right-aligned entry. */
+  .paragraph-aifix{gap:6px}.paragraph-aifix>.aifix-btn{align-self:flex-end}.paragraph-aifix .aifix-panel{display:flex;align-items:center;gap:8px;width:100%}.paragraph-aifix .aifix-panel[hidden]{display:none}.paragraph-aifix .aifix-label{flex:0 0 auto;white-space:nowrap}.paragraph-aifix .aifix-panel>.aifix-row:not(.aifix-actions){flex:1;min-width:180px}.paragraph-aifix .aifix-panel>.aifix-row input{width:100%;min-height:32px;padding:6px 9px}.paragraph-aifix .aifix-actions{flex:0 0 auto;gap:6px;justify-content:flex-end}.paragraph-aifix .aifix-btn.compact,.paragraph-aifix .aifix-close{border-radius:4px;min-height:32px;height:32px;padding:0 14px;font-size:13px;font-weight:600;line-height:1;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}.paragraph-aifix .aifix-close{background:var(--surface);border:1px solid var(--border);color:var(--text-main);cursor:pointer;font-family:inherit}.paragraph-aifix .aifix-close:hover{background:var(--surface2);border-color:var(--accent)}.ai-decision-line{color:var(--text-main);font-weight:600}.ai-reason-line{color:var(--text-secondary);margin-top:-3px}.card[data-nodeid]{scroll-margin-top:12px}
+  @media (max-width:680px){.paragraph-aifix .aifix-panel{flex-wrap:wrap}.paragraph-aifix .aifix-panel>.aifix-row:not(.aifix-actions){flex-basis:100%}.paragraph-aifix .aifix-actions{margin-left:auto}}
+  @media (prefers-color-scheme: dark){:root{--bg:#1f242a;--surface:#282e35;--surface2:#303740;--border:#596570;--accent:#69b7ea;--accent2:#69b7ea;--accent-glow:rgba(105,183,234,.18);--text-main:#edf1f4;--text-secondary:#cbd3db;--text-muted:#b8c2cb;--text-faint:#a2adb8;--text-disabled:#8e9aa6;--text:var(--text-main);--green:#78cfa6;--red:#ffaaa3;--amber:#f4cc7d;--number-badge:#3a444e;--heading1:#b5ddf6;--heading2:#c6dced;--heading3:#c0d8e4}header,.sidebar,.card,.dify-card,details>summary,.ebtn.ghost,.dify-btn.clear,.dify-btn.sample,.rev-actions button,.addblock button,.tbl-actions button{background:var(--surface)}main{background:var(--bg)}.cardh,.dify-cardh,.block-h{background:var(--surface2)}.hlogo{color:var(--text-main)}.hbadge{background:#34414c;border-color:#596570;color:var(--text-secondary)}.step{color:var(--text-muted)}.step .sdot{color:var(--text-secondary)}.step.active{background:#253d4e;border-color:#5a91b7;color:var(--text-main)}.step.done{color:var(--text-secondary)}.step-arrow{color:var(--text-faint)}.slabel,.flabel,.clabel,.hint,.nav-empty,.phase-head .plabel,.phase-desc,.fig-meta{color:var(--text-muted)}.navi{color:var(--text-secondary)}.navi.lv1{color:var(--heading1)}.navi.lv3{color:var(--text-muted)}.navi:hover{background:#303b45;color:var(--text-main)}.navi.active{background:#294455;color:#e7f4fc}.navi .nnum{background:#3b4651;color:var(--text-secondary)}input[type=text],textarea,.ci-input,.pf input,.pf textarea{background:#20262c;border-color:#687582;color:var(--text-main)}input::placeholder,textarea::placeholder{color:var(--text-faint);opacity:1}.ebtn.ghost,.dify-btn.clear,.dify-btn.sample{color:var(--text-secondary);border-color:#687582}.ebtn.ghost:hover,.dify-btn.clear:hover,.dify-btn.sample:hover{background:#37414b;color:var(--text-main)}.ebtn:disabled,.dify-btn:disabled{opacity:1;background:#3a424b;border-color:#56616d;color:var(--text-disabled)}.nav-add,.nav-ctrl button{background:#303840;border-color:#687582;color:var(--text-secondary)}.nav-add:hover,.nav-ctrl button:hover{color:var(--text-main)}table.tbl-edit th{background:#353d46}table.tbl-edit th,table.tbl-edit td{border-color:#687582}.aifix-close{background:var(--surface);border-color:#687582;color:var(--text-main)}.aifix-label{color:var(--heading2)}.ai-decision-line{color:var(--text-main)}.ai-reason-line{color:var(--text-secondary)}.point-popup{background:var(--surface2)}#previewArea{background:#3b4148}}
 
 </style>
 </head>
@@ -24065,9 +24068,12 @@ function renderNav(){
   });
 }
 function scrollToNode(id,navEl){
-  const card=document.querySelector('[data-nodeid="'+id+'"]');
-  if(card){
-    card.scrollIntoView({behavior:'smooth',block:'start'});
+  const card=Array.from(document.querySelectorAll('[data-nodeid]')).find(el=>el.dataset.nodeid===id);
+  const scroller=document.getElementById('mainArea');
+  if(card && scroller){
+    const offset=12;
+    const top=scroller.scrollTop+card.getBoundingClientRect().top-scroller.getBoundingClientRect().top-offset;
+    scroller.scrollTo({top:Math.max(0,top),behavior:'smooth'});
     card.classList.add('jump-highlight');
     setTimeout(()=>card.classList.remove('jump-highlight'),1200);
   }
@@ -24108,12 +24114,11 @@ function buildChapterSelectCard(n, parent){
   twp.appendChild(pfx); twp.appendChild(tin); fgT.appendChild(twp); body.appendChild(fgT);
 
   const appBox=document.createElement('div'); appBox.className='fg';
-  appBox.innerHTML='<div class="flabel">AI判定</div>';
   const decision=document.createElement('div'); decision.className='ai-decision-line';
   decision.appendChild(document.createTextNode('AI判定'));
   const badge=document.createElement('span'); badge.className='ai-decision-badge '+aiDecisionClass(n.applicability); badge.textContent=aiDecisionLabel(n.applicability);
   decision.appendChild(badge);
-  const reason=document.createElement('div'); reason.className='ai-reason-line'; reason.textContent='AI判断理由：'+(n.reason || '—');
+  const reason=document.createElement('div'); reason.className='ai-reason-line'; reason.textContent='判定理由：'+(n.reason || '—');
   appBox.appendChild(decision);
   appBox.appendChild(reason);
   body.appendChild(appBox);
@@ -24422,7 +24427,7 @@ function convertPlaceholder(n,b){
 
 function buildParagraphAiFix(n,b){
   const wrap=document.createElement('div'); wrap.className='aifix paragraph-aifix';
-  const toggle=document.createElement('button'); toggle.type='button'; toggle.className='aifix-btn'; toggle.textContent='🤖 AI修正';
+  const toggle=document.createElement('button'); toggle.type='button'; toggle.className='aifix-btn'; toggle.textContent='AI修正';
   const panel=document.createElement('div'); panel.className='aifix-panel'; panel.hidden=true;
   const label=document.createElement('div'); label.className='aifix-label'; label.textContent='AI修正指示';
   const row=document.createElement('div'); row.className='aifix-row';
@@ -24433,7 +24438,7 @@ function buildParagraphAiFix(n,b){
   const actions=document.createElement('div'); actions.className='aifix-row aifix-actions';
   const fix=document.createElement('button'); fix.type='button'; fix.className='aifix-btn compact'; fix.textContent='AI修正';
   fix.addEventListener('click',()=>fixParagraphWithAi(n,b,fix));
-  const close=document.createElement('button'); close.type='button'; close.textContent='閉じる';
+  const close=document.createElement('button'); close.type='button'; close.className='aifix-close'; close.textContent='閉じる';
   close.addEventListener('click',()=>{ panel.hidden=true; toggle.hidden=false; });
   actions.appendChild(fix); actions.appendChild(close);
   panel.appendChild(label); panel.appendChild(row); panel.appendChild(actions);
