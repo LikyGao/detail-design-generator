@@ -252,20 +252,20 @@
   .word-fig-img{max-width:100%;max-height:300px;display:block;margin:4px auto;border:1px solid #ccc}
   [hidden]{display:none !important}
   /* ── Enterprise document workspace refresh ── */
-  :root{--bg:#f5f6f8;--surface:#fff;--surface2:#f8f9fb;--border:#d7dce3;--accent:#1769aa;--accent2:#1769aa;--accent-glow:rgba(23,105,170,.10);--text-main:#20252b;--text-secondary:#4f5b67;--text-muted:#5f6975;--text-faint:#6c7783;--text-disabled:#7a8490;--text:var(--text-main);--green:#197a52;--red:#b42318;--amber:#9a6700;--number-badge:#e8edf3;--heading1:#1c4f78;--heading2:#2f5f82;--heading3:#486777;--radius:4px;--tr:.15s ease}
+  :root{--bg:#f5f6f8;--surface:#fff;--surface2:#f8f9fb;--border:#d7dce3;--accent:#1769aa;--accent2:#1769aa;--accent-glow:rgba(23,105,170,.10);--text-main:#20252b;--text-secondary:#4f5b67;--text-muted:#5f6975;--text-faint:#6c7783;--text-disabled:#7a8490;--text:var(--text-main);--green:#197a52;--red:#b42318;--amber:#9a6700;--number-badge:#e8edf3;--heading1:#1c4f78;--heading2:#2f5f82;--heading3:#486777;--text-label:#505862;--heading-primary:#245f91;--radius:4px;--tr:.15s ease}
   body{background:var(--bg);font-size:13px;line-height:1.55;letter-spacing:.01em}.app-shell{grid-template-columns:220px 1fr;grid-template-rows:52px 1fr}.app-shell.preview-open{grid-template-columns:220px minmax(460px,1fr) minmax(380px,42%)}.app-shell.chapter-select-mode{grid-template-columns:250px 1fr}
   header{padding:0 14px;gap:9px;background:#fff;box-shadow:none}.hlogo{gap:8px;font-size:13px;color:#1f2933;letter-spacing:.03em}.licon{width:26px;height:26px;background:#1769aa;border-radius:3px;font-size:13px}.hbadge{background:#eef3f7;border-color:#d3dde6;color:#466174;border-radius:3px;padding:2px 7px}.stepper{gap:4px;color:var(--text-faint)}.step{gap:5px;padding:3px 8px;border-radius:3px;background:transparent;border-color:transparent}.step .sdot{width:17px;height:17px;background:#e5e9ee;color:#66717d}.step.active{border-color:#aac4d8;background:#f1f7fb;color:#1c4f78}.step.active .sdot{background:var(--accent);color:#fff}.step.done .sdot{background:#2d7b5c;color:#fff}.step-arrow{color:#a5adb7}
   .ebtn,.dify-btn{min-height:30px;background:#1769aa;border:1px solid #1769aa;border-radius:4px;padding:5px 11px;font-size:12px;box-shadow:none;transform:none!important}.ebtn:hover,.dify-btn:hover{background:#12588f;border-color:#12588f;opacity:1}.ebtn.ghost,.dify-btn.clear,.dify-btn.sample{background:#fff;border-color:#c7cfd8;color:#364452}.ebtn.ghost:hover,.dify-btn.clear:hover,.dify-btn.sample:hover{background:#f2f5f7;border-color:#9eabb7;color:#1f2933}.ebtn.icon{min-height:30px;padding:5px 9px;font-size:14px}
   .sidebar{background:#fff;padding:12px 0}.slabel{padding:0 12px 7px;color:#67727e;font-size:10px}.nav-empty{padding:12px;color:#75808c}.navi{gap:6px;padding:6px 12px;border-left:3px solid transparent;color:#56616d;font-size:12px}.navi:hover{background:#f2f6f9;color:#253744}.navi.active{background:#eaf3f9;border-left-color:#1769aa;color:#164c74}.navi.lv1{color:#244f70;border-top-color:#e5e8ec;margin-top:3px;padding-top:7px}.navi.lv2{padding-left:23px}.navi.lv3{padding-left:35px;color:#65717d}.navi .nnum{background:#edf1f5;color:#53616e;border-radius:3px;padding:1px 5px}.nav-add,.nav-ctrl button{background:#fff;border-color:#cbd3dc;color:#53616e;border-radius:3px}
-  main{padding:18px 22px;background:#f5f6f8}.phase-head{gap:10px;margin-bottom:5px}.phase-head .pnum{font-size:28px;color:#9ba6b1;font-weight:600}.phase-head .ptitle{font-size:19px;color:#243b53}.phase-head .plabel{color:#75818e}.phase-desc{margin-bottom:14px;font-size:12px;line-height:1.6;max-width:900px}.card,.dify-card{background:#fff;border-color:#d8dde3;border-radius:4px;margin-bottom:12px;box-shadow:none}.card:focus-within,.card.jump-highlight{border-color:#6d9cbc;box-shadow:0 0 0 1px rgba(23,105,170,.12)}.cardh,.dify-cardh{background:#f7f8fa;padding:8px 12px;border-bottom-color:#dfe4e9}.cnum{background:#1769aa;border-radius:3px;padding:2px 7px}.cnum.lv1{font-size:12px;padding:3px 8px}.cnum.lv2{background:#35719d}.cnum.lv3{background:#e6ecf1;color:#53616e}.cbody,.dify-body{padding:11px 12px;gap:9px}.dify-card{background:#fff}.dify-icon{font-size:15px}.dify-title{font-size:12.5px}.dify-desc{font-size:11px}
-  input[type=text],textarea,.ci-input,.pf input,.pf textarea{background:#fff;border-color:#bfc8d2;border-radius:3px;padding:7px 9px;font-size:12.5px}input[type=text]:focus,textarea:focus,.pf input:focus,.pf textarea:focus{border-color:#1769aa;box-shadow:0 0 0 2px rgba(23,105,170,.10)}.cover-grid,.plan-form{gap:10px}.fg{gap:4px}.flabel,.pf label{color:#4b5965;font-size:11px}.hint{font-size:10.5px}.dify-actions,.rev-toolbar{gap:7px}.dify-missing,.form-error{border-radius:4px;padding:8px 10px}details{margin-bottom:12px}details>summary{padding:8px 11px;border-radius:4px;background:#fff;color:#465563}
+  main{padding:18px 22px;background:#f5f6f8}.phase-head{gap:10px;margin-bottom:5px}.phase-head .pnum{font-size:28px;color:#9ba6b1;font-weight:600}.phase-head .ptitle{font-size:19px;color:var(--heading-primary)}.phase-head .plabel{color:#75818e}.phase-desc{margin-bottom:14px;font-size:12px;line-height:1.6;max-width:900px}.card,.dify-card{background:#fff;border-color:#d8dde3;border-radius:4px;margin-bottom:12px;box-shadow:none}.card:focus-within,.card.jump-highlight{border-color:#6d9cbc;box-shadow:0 0 0 1px rgba(23,105,170,.12)}.cardh,.dify-cardh{background:#f7f8fa;padding:8px 12px;border-bottom-color:#dfe4e9}.cnum{background:#1769aa;border-radius:3px;padding:2px 7px}.cnum.lv1{font-size:12px;padding:3px 8px}.cnum.lv2{background:#35719d}.cnum.lv3{background:#e6ecf1;color:#53616e}.cbody,.dify-body{padding:11px 12px;gap:9px}.dify-card{background:#fff}.dify-icon{font-size:15px}.dify-title{font-size:12.5px}.dify-desc{font-size:11px}
+  input[type=text],textarea,.ci-input,.pf input,.pf textarea{background:#fff;border-color:#bfc8d2;border-radius:3px;padding:7px 9px;font-size:12.5px}input[type=text]:focus,textarea:focus,.pf input:focus,.pf textarea:focus{border-color:#1769aa;box-shadow:0 0 0 2px rgba(23,105,170,.10)}.cover-grid,.plan-form{gap:10px}.fg{gap:4px}.flabel,.pf label{color:var(--text-label);font-size:11px}.hint{font-size:10.5px}.dify-actions,.rev-toolbar{gap:7px}.dify-missing,.form-error{border-radius:4px;padding:8px 10px}details{margin-bottom:12px}details>summary{padding:8px 11px;border-radius:4px;background:#fff;color:#465563}
   .rev-node{border-radius:4px;margin-bottom:6px}.rev-node.lv2{margin-left:16px}.rev-node.lv3{margin-left:32px}.rev-row{gap:8px;padding:8px 10px}.rev-title-in{font-size:12.5px}.rev-actions{gap:4px}.rev-actions button{border-radius:3px;padding:3px 7px;background:#fff}.rev-lvtag,.rev-src{border-radius:3px}.blocks{gap:8px}.block{border-radius:4px}.block-h{padding:5px 8px;background:#f6f8fa}.block-body{padding:8px}.ph-box,.fig-drop,.tbl-wrap{border-radius:4px}.addblock{gap:6px}.addblock button,.tbl-actions button{border-radius:3px;background:#fff;padding:4px 8px}.aifix{padding-top:8px}.aifix-label{color:#2f5f82}.aifix-btn{background:#1769aa;border:1px solid #1769aa;border-radius:4px;min-height:30px;padding:4px 10px;font-size:12px}.aifix-btn:hover{background:#12588f;opacity:1}.point-btn{border-radius:3px;background:#fff8e6;color:#8a5a00;padding:2px 7px}.point-popup{border-radius:6px;box-shadow:0 8px 22px rgba(20,32,45,.18)}
   #previewArea{background:#e5e7eb}.preview-pane-header{background:#fff;color:#465563;padding:7px 12px}#previewContent{padding:16px;gap:14px}.word-page{box-shadow:0 2px 10px rgba(0,0,0,.18)}.toast{border-radius:5px;box-shadow:0 6px 18px rgba(20,32,45,.18);padding:9px 14px}
   @media (max-width:900px){.app-shell,.app-shell.chapter-select-mode{grid-template-columns:185px 1fr}.app-shell.preview-open{grid-template-columns:185px minmax(380px,1fr) minmax(330px,40%)}header{padding:0 9px}.hbadge,.step-arrow{display:none}.step{padding:3px 5px}.stepper{gap:1px}main{padding:14px}}@media (max-width:680px){.app-shell,.app-shell.chapter-select-mode{grid-template-columns:160px 1fr}.app-shell.preview-open{grid-template-columns:160px minmax(330px,1fr) minmax(300px,42%)}.hlogo{font-size:11px}.stepper{display:none}.cover-grid,.plan-form{grid-template-columns:1fr}.pf.wide{grid-column:auto}main{padding:12px}.phase-desc{font-size:11.5px}}
   /* Keep paragraph AI actions in the block footer, with a stable right-aligned entry. */
   .paragraph-aifix{gap:6px}.paragraph-aifix>.aifix-btn{align-self:flex-end}.paragraph-aifix .aifix-panel{display:flex;align-items:center;gap:8px;width:100%}.paragraph-aifix .aifix-panel[hidden]{display:none}.paragraph-aifix .aifix-label{flex:0 0 auto;white-space:nowrap}.paragraph-aifix .aifix-panel>.aifix-row:not(.aifix-actions){flex:1;min-width:180px}.paragraph-aifix .aifix-panel>.aifix-row input{width:100%;min-height:32px;padding:6px 9px}.paragraph-aifix .aifix-actions{flex:0 0 auto;gap:6px;justify-content:flex-end}.paragraph-aifix .aifix-btn.compact,.paragraph-aifix .aifix-close{border-radius:4px;min-height:32px;height:32px;padding:0 14px;font-size:13px;font-weight:600;line-height:1;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}.paragraph-aifix .aifix-close{background:var(--surface);border:1px solid var(--border);color:var(--text-main);cursor:pointer;font-family:inherit}.paragraph-aifix .aifix-close:hover{background:var(--surface2);border-color:var(--accent)}.ai-decision-line{color:var(--text-main);font-weight:600}.ai-reason-line{color:var(--text-secondary);margin-top:-3px}.card[data-nodeid]{scroll-margin-top:12px}
   @media (max-width:680px){.paragraph-aifix .aifix-panel{flex-wrap:wrap}.paragraph-aifix .aifix-panel>.aifix-row:not(.aifix-actions){flex-basis:100%}.paragraph-aifix .aifix-actions{margin-left:auto}}
-  @media (prefers-color-scheme: dark){:root{--bg:#1f242a;--surface:#282e35;--surface2:#303740;--border:#596570;--accent:#69b7ea;--accent2:#69b7ea;--accent-glow:rgba(105,183,234,.18);--text-main:#edf1f4;--text-secondary:#cbd3db;--text-muted:#b8c2cb;--text-faint:#a2adb8;--text-disabled:#8e9aa6;--text:var(--text-main);--green:#78cfa6;--red:#ffaaa3;--amber:#f4cc7d;--number-badge:#3a444e;--heading1:#b5ddf6;--heading2:#c6dced;--heading3:#c0d8e4}header,.sidebar,.card,.dify-card,details>summary,.ebtn.ghost,.dify-btn.clear,.dify-btn.sample,.rev-actions button,.addblock button,.tbl-actions button{background:var(--surface)}main{background:var(--bg)}.cardh,.dify-cardh,.block-h{background:var(--surface2)}.hlogo{color:var(--text-main)}.hbadge{background:#34414c;border-color:#596570;color:var(--text-secondary)}.step{color:var(--text-muted)}.step .sdot{color:var(--text-secondary)}.step.active{background:#253d4e;border-color:#5a91b7;color:var(--text-main)}.step.done{color:var(--text-secondary)}.step-arrow{color:var(--text-faint)}.slabel,.flabel,.clabel,.hint,.nav-empty,.phase-head .plabel,.phase-desc,.fig-meta{color:var(--text-muted)}.navi{color:var(--text-secondary)}.navi.lv1{color:var(--heading1)}.navi.lv3{color:var(--text-muted)}.navi:hover{background:#303b45;color:var(--text-main)}.navi.active{background:#294455;color:#e7f4fc}.navi .nnum{background:#3b4651;color:var(--text-secondary)}input[type=text],textarea,.ci-input,.pf input,.pf textarea{background:#20262c;border-color:#687582;color:var(--text-main)}input::placeholder,textarea::placeholder{color:var(--text-faint);opacity:1}.ebtn.ghost,.dify-btn.clear,.dify-btn.sample{color:var(--text-secondary);border-color:#687582}.ebtn.ghost:hover,.dify-btn.clear:hover,.dify-btn.sample:hover{background:#37414b;color:var(--text-main)}.ebtn:disabled,.dify-btn:disabled{opacity:1;background:#3a424b;border-color:#56616d;color:var(--text-disabled)}.nav-add,.nav-ctrl button{background:#303840;border-color:#687582;color:var(--text-secondary)}.nav-add:hover,.nav-ctrl button:hover{color:var(--text-main)}table.tbl-edit th{background:#353d46}table.tbl-edit th,table.tbl-edit td{border-color:#687582}.aifix-close{background:var(--surface);border-color:#687582;color:var(--text-main)}.aifix-label{color:var(--heading2)}.ai-decision-line{color:var(--text-main)}.ai-reason-line{color:var(--text-secondary)}.point-popup{background:var(--surface2)}#previewArea{background:#3b4148}}
+  @media (prefers-color-scheme: dark){:root{--bg:#1f242a;--surface:#282e35;--surface2:#303740;--border:#596570;--accent:#69b7ea;--accent2:#69b7ea;--accent-glow:rgba(105,183,234,.18);--text-main:#edf1f4;--text-secondary:#cbd3db;--text-muted:#b8c2cb;--text-faint:#a2adb8;--text-disabled:#8e9aa6;--text:var(--text-main);--green:#78cfa6;--red:#ffaaa3;--amber:#f4cc7d;--number-badge:#3a444e;--heading1:#b5ddf6;--heading2:#c6dced;--heading3:#c0d8e4;--text-label:#b8c1cc;--heading-primary:#9fc4e5}header,.sidebar,.card,.dify-card,details>summary,.ebtn.ghost,.dify-btn.clear,.dify-btn.sample,.rev-actions button,.addblock button,.tbl-actions button{background:var(--surface)}main{background:var(--bg)}.cardh,.dify-cardh,.block-h{background:var(--surface2)}.hlogo{color:var(--text-main)}.hbadge{background:#34414c;border-color:#596570;color:var(--text-secondary)}.step{color:var(--text-muted)}.step .sdot{color:var(--text-secondary)}.step.active{background:#253d4e;border-color:#5a91b7;color:var(--text-main)}.step.done{color:var(--text-secondary)}.step-arrow{color:var(--text-faint)}.slabel,.flabel,.pf label,.clabel,.hint,.nav-empty,.phase-head .plabel,.phase-desc,.fig-meta,.status.muted{color:var(--text-muted)}.phase-head .ptitle{color:var(--heading-primary)}.navi{color:var(--text-secondary)}.navi.lv1{color:var(--heading1)}.navi.lv3{color:var(--text-muted)}.navi:hover{background:#303b45;color:var(--text-main)}.navi.active{background:#294455;color:#e7f4fc}.navi .nnum{background:#3b4651;color:var(--text-secondary)}input[type=text],textarea,.ci-input,.pf input,.pf textarea{background:#20262c;border-color:#687582;color:var(--text-main)}input::placeholder,textarea::placeholder{color:var(--text-faint);opacity:1}.ebtn.ghost,.dify-btn.clear,.dify-btn.sample{color:var(--text-secondary);border-color:#687582}.ebtn.ghost:hover,.dify-btn.clear:hover,.dify-btn.sample:hover{background:#37414b;color:var(--text-main)}.ebtn:disabled,.dify-btn:disabled{opacity:1;background:#3a424b;border-color:#56616d;color:var(--text-disabled)}.nav-add,.nav-ctrl button{background:#303840;border-color:#687582;color:var(--text-secondary)}.nav-add:hover,.nav-ctrl button:hover{color:var(--text-main)}table.tbl-edit th{background:#353d46}table.tbl-edit th,table.tbl-edit td{border-color:#687582}.aifix-close{background:var(--surface);border-color:#687582;color:var(--text-main)}.aifix-label{color:var(--heading2)}.ai-decision-line{color:var(--text-main)}.ai-reason-line{color:var(--text-secondary)}.point-popup{background:var(--surface2)}#previewArea{background:#3b4148}}
 
 </style>
 </head>
@@ -316,9 +316,9 @@
         </div>
       </div>
 
-      <!-- 案件情報フォーム（全項目必須） -->
+      <!-- 案件情報フォーム（全項目任意） -->
       <div class="dify-card">
-        <div class="dify-cardh"><span class="dify-icon">📝</span><span class="dify-title">案件情報フォーム（Stage ①）</span><span class="dify-desc">全項目必須。該当なしは「なし」</span></div>
+        <div class="dify-cardh"><span class="dify-icon">📝</span><span class="dify-title">案件情報フォーム（Stage ①）</span><span class="dify-desc">全項目任意。入力可能な項目のみ記載してください。</span></div>
         <div class="dify-body">
           <div id="planForm" class="plan-form"></div>
           <div class="form-error" id="planError"></div>
@@ -378,19 +378,6 @@
 
       <div class="status muted" id="genStatus" hidden></div>
       <div class="dify-missing" id="missingBox" hidden></div>
-
-      <details>
-        <summary><span>🛠</span><span>開発者向け：本文 JSON を手動導入（Stage ② 出力）</span></summary>
-        <div class="dify-card" style="margin-top:8px">
-          <div class="dify-body">
-            <textarea class="ci-input" id="genJsonInput" rows="6" placeholder='{"chapters":[{"id":"...","blocks":[...],"children":[...]}],"missing_items":[...]}'></textarea>
-            <div class="dify-actions">
-              <button class="dify-btn" onclick="importGenJson()">JSON を導入</button>
-              <button class="dify-btn clear" onclick="document.getElementById('genJsonInput').value=''">クリア</button>
-            </div>
-          </div>
-        </div>
-      </details>
 
       <!-- Cover -->
       <div class="card" id="sec-cover">
@@ -23821,7 +23808,7 @@ const PLAN_FIELDS = [
 ];
 // 自動振り分けの優先順（具体的なものを先に判定。other は fallback）
 const MATCH_ORDER = ['client','project','purpose','summary','outscope','scope','server','hv','os','network','backup','migration','security','ops','test','undecided'];
-const PLAN_PH = '該当なしの場合は「なし」と入力してください';
+const PLAN_PH = '';
 
 function buildPlanForm(){
   const root=document.getElementById('planForm'); if(!root) return; root.innerHTML='';
@@ -23838,14 +23825,11 @@ function buildPlanForm(){
 function getPlanValues(){ const v={}; PLAN_FIELDS.forEach(f=>{ const el=document.getElementById('f-'+f.key); v[f.key]=el?el.value.trim():''; }); return v; }
 function fillPlanForm(obj){ PLAN_FIELDS.forEach(f=>{ const el=document.getElementById('f-'+f.key); if(el && obj[f.key]!=null) el.value=obj[f.key]; }); }
 function assemblePlanText(v){ return PLAN_FIELDS.map(f=>f.label+'：'+(v[f.key]||'')).join('\n'); }
-function validatePlan(){
-  const missing=[];
-  PLAN_FIELDS.forEach(f=>{
-    const el=document.getElementById('f-'+f.key); const pf=el?el.closest('.pf'):null;
-    if(pf) pf.classList.remove('missing');
-    if(!el || !el.value.trim()){ missing.push(f.label); if(pf) pf.classList.add('missing'); }
-  });
-  return missing;
+function normalizeAutoFilledValue(value){
+  const text=String(value??'').trim();
+  if(!text || /^(なし|無し|不明|未記載|該当なし|情報なし)$/.test(text)) return '';
+  if(/^[^：:]+[：:]\s*$/.test(text) || /^[\s、。，．・:：;；!！?？()（）\[\]【】「」『』]+$/.test(text)) return '';
+  return text;
 }
 
 /* 一括入力：JSのみで簡易解析 → 空欄だけ自動入力 */
@@ -23860,6 +23844,8 @@ function autofillFromBulk(){
     // 「項目名：内容」対応
     let content=cleaned; const m=cleaned.match(/^(.{1,16}?)[：:]\s*(.+)$/);
     if(m && m[2].trim()) content=m[2].trim();
+    content=normalizeAutoFilledValue(content);
+    if(!content) return;
     const hay=cleaned.toLowerCase();
     let target=null;
     for(const key of MATCH_ORDER){
@@ -23881,13 +23867,6 @@ function autofillFromBulk(){
 async function callDifyPlan(){
   const status=document.getElementById('planStatus'); const btn=document.getElementById('planBtn');
   const errBox=document.getElementById('planError');
-  const missing=validatePlan();
-  if(missing.length){
-    errBox.innerHTML='⚠ 未入力の項目があります（該当なしは「なし」と入力）：<br>'+missing.map(esc).join(' / ');
-    errBox.classList.add('show'); status.textContent='';
-    document.querySelector('.pf.missing input,.pf.missing textarea')?.focus();
-    return;
-  }
   errBox.classList.remove('show');
   const values=getPlanValues();
   const input=assemblePlanText(values);
@@ -24596,7 +24575,9 @@ async function runGenerate(scopeNode,btn,status,enterEditAfter){
   }finally{ if(btn){ btn.disabled=false; btn.innerHTML=enterEditAfter?'🚀 この章節構成で本文を生成':'🚀 確定章節の本文を生成'; } }
 }
 function importGenJson(){
-  const raw=document.getElementById('genJsonInput').value.trim();
+  const input=document.getElementById('genJsonInput');
+  if(!input) return;
+  const raw=input.value.trim();
   if(!raw){ showToast('JSONを貼り付けてください。',true); return; }
   let data; try{ data=JSON.parse(raw); }catch(e){ showToast('JSON解析に失敗しました。',true); return; }
   applyGenerated(data); showToast('✓ 本文を反映しました');
