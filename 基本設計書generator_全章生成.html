@@ -24047,7 +24047,10 @@ function renderNav(){
   });
 }
 function scrollToNode(id,navEl){
-  const card=Array.from(document.querySelectorAll('[data-nodeid]')).find(el=>el.dataset.nodeid===id);
+  const chapterSelectContainer=document.getElementById('chapterSelectContainer');
+  const sectionsContainer=document.getElementById('sectionsContainer');
+  const container=phase===PHASE.CHAPTERS ? chapterSelectContainer : sectionsContainer;
+  const card=container ? Array.from(container.querySelectorAll('[data-nodeid]')).find(el=>el.dataset.nodeid===id) : null;
   const scroller=document.getElementById('mainArea');
   if(card && scroller){
     const offset=12;
