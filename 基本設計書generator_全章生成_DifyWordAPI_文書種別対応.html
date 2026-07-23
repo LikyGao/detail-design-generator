@@ -162,30 +162,33 @@
   #previewArea{grid-area:pv;display:none;flex-direction:column;background:#525659;overflow:hidden}
   .app-shell.preview-open #previewArea{display:flex}
   .preview-pane-header{padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text-muted)}
-  #previewContent{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;align-items:center;gap:20px}
-  .word-page{background:#fff;color:#000;width:100%;max-width:640px;padding:48px 56px;font-family:'MS Mincho','Noto Serif JP',serif;font-size:13px;line-height:1.9;box-shadow:0 4px 20px rgba(0,0,0,.4);border-radius:2px}
-  .word-cover{min-height:880px;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;text-align:center;gap:0;padding-top:90px}
+  #previewContent{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;align-items:center;gap:24px}
+  .word-page{box-sizing:border-box;background:#fff;color:#000;width:210mm;min-width:210mm;min-height:297mm;padding:20mm;font-family:Century,'ＭＳ 明朝','MS Mincho','Yu Mincho','游明朝',serif;font-size:10.5pt;line-height:1.75;box-shadow:0 4px 20px rgba(0,0,0,.4);border-radius:0;overflow:visible}
+  .word-cover{display:flex;flex-direction:column;justify-content:flex-start;align-items:center;text-align:center;gap:0;padding-top:42mm}
   .word-cover .wc-top{display:flex;flex-direction:column;align-items:center;gap:14px}
-  .word-cover .wc-client{font-size:16px;font-weight:700;min-height:20px}
-  .word-cover .wc-title{font-size:30px;font-weight:700;letter-spacing:.1em;margin:18px 0}
+  .word-cover .wc-client,.word-cover .wc-title,.word-cover .wc-project{font-family:'ＭＳ ゴシック','MS Gothic',sans-serif}
+  .word-cover .wc-client{font-size:14pt;font-weight:700;min-height:20px}
+  .word-cover .wc-title{font-size:26pt;font-weight:700;letter-spacing:.1em;margin:18px 0}
   .word-cover .wc-project{font-size:15px;color:#333;min-height:18px}
   .word-prop{margin-top:auto;margin-bottom:50px;border-collapse:collapse;font-size:11px;width:80%}
   .word-prop td{border:1px solid #fff;background:#f2f2f2;padding:6px 10px}
   .word-prop td:first-child{width:34%;font-weight:700}
-  #previewContent .word-index-page .word-h-toc, #previewContent .word-index-page .word-toc-row, #previewContent .word-index-page .word-toc-name, #previewContent .word-index-page .word-toc-page{font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif !important}
-  .word-h-toc{font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif !important;font-size:20px;font-weight:700;line-height:1.6;color:#000;border-bottom:2px solid #000;padding-bottom:5px;margin:24px 0 16px;letter-spacing:.04em}
-  .word-sub-toc{margin-top:18px;font-size:15px}
-  .word-toc-row{display:flex;align-items:baseline;gap:6px;padding:3px 0;font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif !important;font-size:13px;line-height:1.9;color:#000}
-  .word-toc-row.l1{font-size:13.5px;font-weight:700;margin-top:8px}
-  .word-toc-row.l2{padding-left:22px;font-size:13px;color:#111}
-  .word-toc-row.l3{padding-left:44px;font-size:12.5px;color:#222}
+  #previewContent .word-index-page .word-toc-row, #previewContent .word-index-page .word-toc-name, #previewContent .word-index-page .word-toc-page{font-family:"MS Mincho","ＭＳ 明朝","Yu Mincho","游明朝",serif !important}
+  .word-h-toc{font-family:'ＭＳ ゴシック','MS Gothic',sans-serif !important;font-size:15pt;font-weight:700;line-height:1.5;color:#000;border-bottom:2px solid #000;padding-bottom:5px;margin:0 0 12pt;letter-spacing:.04em}
+  .word-sub-toc{margin-top:18pt;font-size:12pt}
+  .word-toc-row{display:flex;align-items:baseline;gap:6px;padding:0;font-family:Century,'ＭＳ 明朝','MS Mincho','Yu Mincho','游明朝',serif !important;font-size:10.5pt;line-height:1.5;color:#000}
+  .word-toc-row.l1{font-size:12pt;font-weight:700;margin-top:6pt}
+  .word-toc-row.l2{padding-left:10.5pt;font-size:10.5pt;color:#111}
+  .word-toc-row.l3{padding-left:21pt;font-size:10.5pt;color:#222}
   .word-toc-name{white-space:nowrap}
   .word-toc-dots{flex:1;border-bottom:1px dotted #999;transform:translateY(-3px)}
   .word-toc-page{font-variant-numeric:tabular-nums;color:#000}
-  .word-body h1{font-size:20px;border-bottom:2px solid #000;padding-bottom:5px;margin:22px 0 12px}
-  .word-body h2{font-size:16px;border-left:5px solid #444;padding-left:8px;margin:18px 0 8px}
-  .word-body h3{font-size:14px;margin:14px 0 6px;color:#222}
-  .word-body p{margin:6px 0;text-align:justify}
+  .word-body h1,.word-body h2,.word-body h3{font-family:'ＭＳ ゴシック','MS Gothic',sans-serif;font-weight:700;break-after:avoid-page}
+  .word-body h1{font-size:15pt;border-bottom:2px solid #333;padding-bottom:4pt;margin:0 0 10pt;line-height:1.4}
+  .word-body h2{font-size:12pt;border-left:4px solid #444;padding-left:7pt;margin:12pt 0 6pt;line-height:1.45}
+  .word-body h3{font-size:10.5pt;margin:10pt 0 4pt;color:#222;line-height:1.5}
+  .word-body p{margin:0 0 4pt;text-align:justify;text-indent:10.5pt;line-height:1.75}
+  .preview-unit,.preview-chapter,.word-keep-together{break-inside:avoid-page}
   .word-ph{border:1px solid #bbb;background:#fafafa;padding:10px;margin:10px 0;text-align:center;color:#555;font-size:11px}
   .word-ph .wpref{font-weight:700;color:#222;display:block;margin-bottom:3px}
   .word-empty{color:#999;font-style:italic}
@@ -245,11 +248,12 @@
   .fig-remove{background:transparent;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit}
   .fig-remove:hover{border-color:var(--red);color:var(--red)}
   /* ── Word preview table/figure ── */
-  table.word-table{border-collapse:collapse;width:100%;margin:8px 0;font-size:11.5px}
-  table.word-table th,table.word-table td{border:1px solid #999;padding:4px 8px}
+  table.word-table{border-collapse:collapse;table-layout:fixed;width:100%;max-width:100%;margin:0;font-size:10.5pt;line-height:1.45}
+  table.word-table th,table.word-table td{border:1px solid #999;padding:3pt 6pt;overflow-wrap:anywhere;vertical-align:top}
   table.word-table th{background:#f2f2f2;font-weight:700}
-  .word-cap{text-align:center;font-weight:700;color:#222;margin:10px 0 4px}
-  .word-fig-img{max-width:100%;max-height:300px;display:block;margin:4px auto;border:1px solid #ccc}
+  .word-cap{text-align:center;font-weight:700;color:#222;margin:0 0 3pt;line-height:1.5;break-after:avoid-page}
+  .word-fig-img{box-sizing:border-box;max-width:100%;width:auto;height:auto;max-height:250mm;display:block;margin:0 auto;border:1px solid #ccc;object-fit:contain}
+  .word-keep-together{margin:9pt 0}
   [hidden]{display:none !important}
   /* ── Document type pre-step ── */
   .document-landing{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px;background:var(--bg)}
@@ -24813,33 +24817,49 @@ function parseMediaHeading(text){
 function collectMediaFromDocument(root){
   const scope=root || document;
   const tables=[], figures=[];
-  const nodes=Array.from(scope.querySelectorAll('.word-body .word-cap, .word-body p, .word-body .wpref'));
+  const nodes=Array.from(scope.querySelectorAll('.word-body .word-cap, .word-body .wpref'));
   nodes.forEach(el=>{
     if(el.closest('.word-index-page')) return;
     const item=parseMediaHeading(el.textContent);
     if(!item) return;
-    (item.type==='表'?tables:figures).push(item);
+    const collection=item.type==='表'?tables:figures;
+    item.index=collection.length;
+    el.dataset.mediaType=item.type==='表'?'table':'figure';
+    el.dataset.mediaIndex=String(item.index);
+    collection.push(item);
   });
   return {tables,figures};
 }
-function renderMediaIndexRows(container, items){
+function renderMediaIndexRows(container, items, type){
   if(!container) return;
   if(!items.length){ container.innerHTML='<div class="word-empty">該当なし</div>'; return; }
-  container.innerHTML=items.map(item=>'<div class="word-toc-row l2"><span class="word-toc-name">'+escH(mediaTocLabel(item))+'</span><span class="word-toc-dots"></span><span class="word-toc-page">-</span></div>').join('');
+  container.innerHTML=items.map(item=>'<div class="word-toc-row l2" data-media-toc="'+type+'" data-media-index="'+item.index+'"><span class="word-toc-name">'+escH(mediaTocLabel(item))+'</span><span class="word-toc-dots"></span><span class="word-toc-page">-</span></div>').join('');
 }
-function updateTableOfTables(root){
-  const scope=root || document;
-  renderMediaIndexRows(scope.querySelector('.word-table-toc-entries'), collectMediaFromDocument(scope).tables);
+function updateTableOfTables(root, media){ renderMediaIndexRows((root||document).querySelector('.word-table-toc-entries'), (media||collectMediaFromDocument(root)).tables, 'table'); }
+function updateTableOfFigures(root, media){ renderMediaIndexRows((root||document).querySelector('.word-figure-toc-entries'), (media||collectMediaFromDocument(root)).figures, 'figure'); }
+function updateTOC(root){
+  const scope=root||document;
+  scope.querySelectorAll('.word-body h1, .word-body h2, .word-body h3').forEach((heading,index)=>{
+    heading.dataset.tocIndex=String(index);
+  });
 }
-function updateTableOfFigures(root){
-  const scope=root || document;
-  renderMediaIndexRows(scope.querySelector('.word-figure-toc-entries'), collectMediaFromDocument(scope).figures);
-}
-function updateTOC(root){ return root; }
 function updateDocumentIndexes(root){
-  updateTOC(root);
-  updateTableOfTables(root);
-  updateTableOfFigures(root);
+  const scope=root||document;
+  updateTOC(scope);
+  const media=collectMediaFromDocument(scope);
+  updateTableOfTables(scope,media);
+  updateTableOfFigures(scope,media);
+  const pages=Array.from(scope.querySelectorAll('.word-page'));
+  pages.forEach((page,index)=>{ page.dataset.pageNumber=String(index+1); page.dataset.pageCount=String(pages.length); });
+  const pageOf=el=>{ const page=el&&el.closest('.word-page'); return page ? pages.indexOf(page)+1 : 1; };
+  scope.querySelectorAll('.word-main-toc .word-toc-row[data-toc-index]').forEach(row=>{
+    const target=scope.querySelector('.word-body [data-toc-index="'+row.dataset.tocIndex+'"]');
+    const page=row.querySelector('.word-toc-page'); if(page) page.textContent=String(pageOf(target));
+  });
+  scope.querySelectorAll('.word-toc-row[data-media-toc]').forEach(row=>{
+    const target=scope.querySelector('.word-body [data-media-type="'+row.dataset.mediaToc+'"][data-media-index="'+row.dataset.mediaIndex+'"]');
+    const page=row.querySelector('.word-toc-page'); if(page) page.textContent=String(pageOf(target));
+  });
 }
 function collectRenderedMediaForExport(){
   const tmp=document.createElement('div');
@@ -24856,12 +24876,12 @@ function blocksToHtml(blocks){
         const cap='<div class="word-cap">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</div>';
         const head='<tr>'+(b.headers||[]).map(h=>'<th>'+escH(h)+'</th>').join('')+'</tr>';
         const body=(b.rows||[]).map(r=>'<tr>'+(r||[]).map(c=>'<td>'+escH(c)+'</td>').join('')+'</tr>').join('');
-        return cap+'<table class="word-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+        return '<div class="word-keep-together">'+cap+'<table class="word-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
       }
       if(b.type==='figure'){
         const cap='<div class="word-cap">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</div>';
         const img = b.imageData ? '<img class="word-fig-img" src="'+b.imageData+'">' : '<div class="word-ph">（画像未挿入）</div>';
-        return cap+img;
+        return '<div class="word-keep-together">'+cap+img+'</div>';
       }
       // placeholders
       return '<div class="word-ph"><span class="wpref">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</span>'+(b.type==='table_placeholder'?'（表は別途作成）':'（図は別途作成）')+'</div>';
@@ -24871,38 +24891,52 @@ function blocksToHtml(blocks){
 function refreshPreview(){ if(_previewOpen){ try{ buildPreview(); }catch(e){ console.error('preview error',e); } } }
 function buildPreviewHtml(){
   const cv=doc.cover;
-  // 表紙：版数・発行日などが未入力でも全項目を表示（値は空欄のまま）
   const props=[['版数',cv.version],['発行日',cv.issue_date],['ファイル名',cv.file_name],['プロジェクトNo',cv.project_no]];
   const coverHtml='<div class="word-page word-cover">'+
-    '<div class="wc-top">'+
-      '<div class="wc-client">'+escH(cv.client_name||'')+'</div>'+
-      '<div class="wc-title">基本設計書</div>'+
-      '<div class="wc-project">'+escH(cv.project_name||'')+'</div>'+
-    '</div>'+
-    '<table class="word-prop"><tbody>'+props.map(r=>'<tr><td>'+escH(r[0])+'</td><td>'+escH(r[1]||'')+'</td></tr>').join('')+'</tbody></table>'+
-    '</div>';
-  // toc
-  let toc='<div class="word-page word-index-page"><div class="word-main-toc"><div class="word-h-toc">目次</div>';
-  let any=false;
-  walkSelected(doc.chapters,n=>{ any=true;
-    toc+='<div class="word-toc-row l'+n.level+'"><span class="word-toc-name">'+escH(n.display_number)+'　'+escH(n.title||'(無題)')+'</span><span class="word-toc-dots"></span><span class="word-toc-page">-</span></div>';
-  });
+    '<div class="wc-top"><div class="wc-client">'+escH(cv.client_name||'')+'</div><div class="wc-title">基本設計書</div><div class="wc-project">'+escH(cv.project_name||'')+'</div></div>'+
+    '<table class="word-prop"><tbody>'+props.map(r=>'<tr><td>'+escH(r[0])+'</td><td>'+escH(r[1]||'')+'</td></tr>').join('')+'</tbody></table></div>';
+  let toc='<section class="preview-flow word-index-flow"><div class="preview-unit"><div class="word-h-toc">目次</div>';
+  let any=false, tocIndex=0;
+  walkSelected(doc.chapters,n=>{ any=true; toc+='<div class="word-toc-row l'+n.level+'" data-toc-index="'+(tocIndex++)+'"><span class="word-toc-name">'+escH(n.display_number)+'　'+escH(n.title||'(無題)')+'</span><span class="word-toc-dots"></span><span class="word-toc-page">-</span></div>'; });
   if(!any) toc+='<div class="word-empty">章節がありません。</div>';
-  toc+='</div><div class="word-table-toc"><div class="word-h-toc word-sub-toc">表目次</div><div class="word-table-toc-entries"></div></div>';
-  toc+='<div class="word-figure-toc"><div class="word-h-toc word-sub-toc">図目次</div><div class="word-figure-toc-entries"></div></div>';
-  toc+='</div>';
-  // body
-  let body='<div class="word-page word-body">';
+  toc+='</div><div class="preview-unit"><div class="word-h-toc word-sub-toc">表目次</div><div class="word-table-toc-entries"></div></div><div class="preview-unit"><div class="word-h-toc word-sub-toc">図目次</div><div class="word-figure-toc-entries"></div></div></section>';
+  let body='<section class="preview-flow word-body">'; let chapterOpen=false;
   walkSelected(doc.chapters,n=>{
+    if(n.level===1){ if(chapterOpen) body+='</section>'; body+='<section class="preview-chapter">'; chapterOpen=true; }
     const tag=n.level===1?'h1':n.level===2?'h2':'h3';
-    body+='<'+tag+'>'+escH(n.display_number)+'　'+escH(n.title||'(無題)')+'</'+tag+'>';
-    const bh=blocksToHtml(n.blocks);
-    body+= bh || '<p class="word-empty">（本文未入力）</p>';
+    body+='<div class="preview-unit"><'+tag+'>'+escH(n.display_number)+'　'+escH(n.title||'(無題)')+'</'+tag+'>'+((blocksToHtml(n.blocks))||'<p class="word-empty">（本文未入力）</p>')+'</div>';
   });
-  body+='</div>';
+  if(chapterOpen) body+='</section>'; body+='</section>';
   return coverHtml+toc+body;
 }
-function buildPreview(){ const preview=document.getElementById('previewContent'); preview.innerHTML=buildPreviewHtml(); updateDocumentIndexes(preview); }
+function createPreviewPage(className){ const page=document.createElement('div'); page.className='word-page '+(className||''); return page; }
+function pageHasOverflow(page){ return page.scrollHeight>page.clientHeight+1; }
+function paginatePreviewFlow(preview, flow, pageClass){
+  const units=Array.from(flow.children);
+  let page=null;
+  const appendPage=()=>{ page=createPreviewPage(pageClass); preview.appendChild(page); };
+  units.forEach(unit=>{
+    if(unit.classList.contains('preview-chapter')){ appendPage(); Array.from(unit.children).forEach(child=>placeUnit(child)); return; }
+    placeUnit(unit);
+  });
+  function placeUnit(unit){
+    if(!page) appendPage();
+    page.appendChild(unit);
+    if(pageHasOverflow(page) && page.children.length>1){ page.removeChild(unit); appendPage(); page.appendChild(unit); }
+    // A block taller than one printable page remains intact and is allowed to overflow naturally.
+  }
+}
+function paginatePreview(preview){
+  const flows=Array.from(preview.querySelectorAll('.preview-flow'));
+  flows.forEach(flow=>{ const cls=flow.classList.contains('word-index-flow')?'word-index-page':'word-body'; paginatePreviewFlow(preview,flow,cls); flow.remove(); });
+}
+function buildPreview(){
+  const preview=document.getElementById('previewContent');
+  preview.innerHTML=buildPreviewHtml();
+  updateDocumentIndexes(preview);
+  paginatePreview(preview);
+  updateDocumentIndexes(preview);
+}
 
 /* 印刷 / PDF：プレビューの体裁でそのまま印刷（別ウィンドウ） */
 const PRINT_CSS = `
