@@ -25029,6 +25029,24 @@ async function exportDocxLocal(){
 
 
 // 標準 Word テンプレートは Dify Workflow 側で管理し、編集済みの doc 全体をそのまま渡す。
+function sanitizeWordFilenamePart(value){
+  return String(value??'')
+    .replace(/[\r\n]+/g,' ')
+    .replace(/[\\/:*?"<>|]/g,'_')
+    .replace(/\s+/g,' ')
+    .trim()
+    .replace(/_+/g,'_')
+    .replace(/^_+|_+$/g,'');
+}
+
+function buildWordOutputFilename(cover){
+  const clientName=sanitizeWordFilenamePart(String(cover?.client_name??'').replace(/\s*様\s*$/,''));
+  const projectNo=sanitizeWordFilenamePart(cover?.project_no);
+  const filenameParts=[clientName,'基本設計書'].filter(Boolean);
+  if(projectNo && projectNo!=='-') filenameParts.push(projectNo);
+  return filenameParts.join('_').replace(/_+/g,'_')+'.docx';
+}
+
 async function exportDocx(){
   const btn=document.getElementById('exportBtn');
   const old=btn.innerHTML;
@@ -25061,8 +25079,7 @@ async function exportDocx(){
     const cover=doc.cover||{};
     const today=new Date();
     const todayText=today.getFullYear()+'/'+pad2(today.getMonth()+1)+'/'+pad2(today.getDate());
-    let outputFilename=String(cover.file_name||'').trim()||'基本設計書.docx';
-    if(!/\.docx$/i.test(outputFilename)) outputFilename+='.docx';
+    const outputFilename=buildWordOutputFilename(cover);
     const revisionHistory=Array.isArray(doc.revision_history) ? doc.revision_history : [{
       issue_date:cover.issue_date||todayText,
       version:cover.version||'1.0',
