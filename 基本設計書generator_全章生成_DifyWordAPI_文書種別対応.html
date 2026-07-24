@@ -23512,9 +23512,11 @@ var __async = (__this, __arguments, generator) => {
    ============================================================ */
 
 /* ── Dify config（実運用ではキー/URLを差し替え） ───────────── */
-const DIFY_API_URL      = "https://api.dify.ricoh.com/v1/workflows/run";
-const DIFY_PLAN_API_KEY = "app-YfEDcDP8XhKSqyyOQSUQ86Jm";  // Stage① ①章節確認_v2
-const DIFY_GEN_API_KEY  = "app-hY4JYiuPn1CoAUz1aJGMnRZD";  // Stage② ②本文生成_v2
+const DIFY_API_URL             = "https://api.dify.ricoh.com/v1/workflows/run";
+const DIFY_WORKFLOW_API_URL    = "https://api.dify.ai/v1/workflows/run";
+const DIFY_TEMPLATE_API_KEY    = "app-nYF68CJV3Scjj5XdVitHxwRr"; // 標準テンプレートデータ取得API
+const DIFY_CHAPTER_API_KEY     = "app-F8gTcWis3cHO1dKSm90IGMLW"; // Stage① ①章節確認_v3
+const DIFY_GEN_API_KEY         = "app-hY4JYiuPn1CoAUz1aJGMnRZD"; // Stage② ②本文生成_v2
 
 const DOCUMENT_PROFILES = {
   server_storage: { label: "サーバー・ストレージ版", description: "サーバー、ストレージ、仮想化基盤を中心とする基本設計書", enabled: true },
@@ -23542,7 +23544,12 @@ function emptyDoc(){
     missing_items:[],
     document_type:'',
     template_id:'',
-    template_version:''
+    template_version:'',
+    master_json:'',
+    chapter_list_json:'',
+    section_contents_json:'',
+    reference_text:'',
+    returned_section_count:''
   };
 }
 
@@ -23787,6 +23794,9 @@ function restoreHistory(){
     doc=JSON.parse(JSON.stringify(_hist[_histIdx].snapshot));
     if(!doc.document_type) doc.document_type='server_storage';
     if(doc.template_id==null) doc.template_id=''; if(doc.template_version==null) doc.template_version='';
+    if(doc.master_json==null) doc.master_json=''; if(doc.chapter_list_json==null) doc.chapter_list_json='';
+    if(doc.section_contents_json==null) doc.section_contents_json=''; if(doc.reference_text==null) doc.reference_text='';
+    if(doc.returned_section_count==null) doc.returned_section_count='';
     updateDocumentTypeDisplay();
     renumber(); fillCoverInputs(); renderNav(); renderChapterSelector(); renderEditor(); renderMissing();
     if(_previewOpen) buildPreview();
@@ -23834,7 +23844,10 @@ function startWithDocumentType(){
   document.getElementById('documentLanding').hidden=true; document.getElementById('appShell').hidden=false;
   updateDocumentTypeDisplay(); setPhase(PHASE.INPUT);
 }
-function clearGeneratedDocumentState(){ doc.chapters=[]; doc.missing_items=[]; doc.template_id=''; doc.template_version=''; }
+function clearGeneratedDocumentState(){
+  doc.chapters=[]; doc.missing_items=[]; doc.template_id=''; doc.template_version='';
+  doc.master_json=''; doc.chapter_list_json=''; doc.section_contents_json=''; doc.reference_text=''; doc.returned_section_count='';
+}
 function changeDocumentType(){
   document.getElementById('appShell').hidden=true; document.getElementById('documentLanding').hidden=false;
   renderDocumentProfileOptions(); updateDocumentTypeDisplay();
@@ -23956,20 +23969,54 @@ async function callDifyPlan(){
   doc.cover.client_name = doc.cover.client_name || values.client;
   doc.cover.project_name = doc.cover.project_name || values.project;
   doc.document_plan.summary = input;
-  if(DIFY_PLAN_API_KEY.includes('REPLACE')){
-    status.style.color='var(--amber)';
-    status.textContent='⚠ Plan用 Dify APIキー未設定。APIキーを設定してください。';
-    return;
-  }
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 生成中...';
-  status.style.color='var(--text-muted)'; status.textContent='標準章節構成を作成中です...';
   try{
-    const data=await difyCall(DIFY_PLAN_API_KEY,{ document_type: doc.document_type, input_json: JSON.stringify(casePayload) });
-    applyPlan(data);
-    status.style.color='var(--green)'; status.textContent='✓ 章節構成案を作成しました。内容を確認してください。';
-  }catch(e){
-    status.style.color='var(--red)'; status.textContent='⚠ Dify(Plan)呼び出しに失敗：'+e.message;
-    console.error(e);
+    status.style.color='var(--text-muted)'; status.textContent='標準テンプレートデータを取得しています…';
+    let templateOutputs;
+    try{
+      templateOutputs=await difyCall(
+        DIFY_TEMPLATE_API_KEY,
+        { document_type: doc.document_type },
+        DIFY_WORKFLOW_API_URL,
+        true
+      );
+      const required=['template_id','template_version','master_json','chapter_list_json'];
+      const isEmpty=value=>value===undefined || value===null ||
+        (typeof value==='string' && !value.trim()) ||
+        (Array.isArray(value) && !value.length) ||
+        (typeof value==='object' && !Array.isArray(value) && !Object.keys(value).length);
+      const missing=required.filter(key=>isEmpty(templateOutputs[key]));
+      if(missing.length){
+        console.error('[標準テンプレートデータ取得] 必須フィールド不足:', missing);
+        throw new Error('必須フィールド不足: '+missing.join(', '));
+      }
+    }catch(e){
+      status.style.color='var(--red)'; status.textContent='標準テンプレートデータの取得に失敗しました。';
+      console.error(e);
+      return;
+    }
+
+    status.style.color='var(--text-muted)'; status.textContent='章節構成を判定しています…';
+    try{
+      const toJsonString=value=>typeof value==='string' ? value : JSON.stringify(value);
+      const data=await difyCall(
+        DIFY_CHAPTER_API_KEY,
+        {
+          input_json: JSON.stringify(casePayload),
+          document_type: templateOutputs.document_type || doc.document_type,
+          template_id: String(templateOutputs.template_id),
+          template_version: String(templateOutputs.template_version),
+          master_json: toJsonString(templateOutputs.master_json),
+          chapter_list_json: toJsonString(templateOutputs.chapter_list_json)
+        },
+        DIFY_WORKFLOW_API_URL
+      );
+      applyPlan(data, templateOutputs);
+      status.style.color='var(--green)'; status.textContent='✓ 章節構成案を作成しました。内容を確認してください。';
+    }catch(e){
+      status.style.color='var(--red)'; status.textContent='章節構成の判定に失敗しました。';
+      console.error(e);
+    }
   }finally{ btn.disabled=false; btn.innerHTML='🚀 標準章節構成を作成'; }
 }
 function backToInput(){ setPhase(PHASE.INPUT); }
@@ -23979,11 +24026,18 @@ function importPlanJson(){
   let data; try{ data=JSON.parse(raw); }catch(e){ showToast('JSON解析に失敗しました。',true); return; }
   applyPlan(data); showToast('✓ 章節確認 JSON を導入しました');
 }
-function applyPlan(data){
+function applyPlan(data, templateOutputs){
   const ing=ingestPayload(data, { forceSelectTopLevel: true });
-  doc.document_type=ing.document_type || doc.document_type || 'server_storage';
-  doc.template_id=ing.template_id || '';
-  doc.template_version=ing.template_version || '';
+  doc.document_type=(templateOutputs && templateOutputs.document_type) || ing.document_type || doc.document_type || 'server_storage';
+  doc.template_id=(templateOutputs && templateOutputs.template_id) || ing.template_id || '';
+  doc.template_version=(templateOutputs && templateOutputs.template_version) || ing.template_version || '';
+  if(templateOutputs){
+    doc.master_json=templateOutputs.master_json;
+    doc.chapter_list_json=templateOutputs.chapter_list_json;
+    doc.section_contents_json=templateOutputs.section_contents_json;
+    doc.reference_text=templateOutputs.reference_text;
+    doc.returned_section_count=templateOutputs.returned_section_count;
+  }
   updateDocumentTypeDisplay();
   if(!ing.chapters){ showToast('chapters[] が見つかりません。',true); return; }
   doc.chapters = ing.chapters;
@@ -24709,8 +24763,8 @@ function renderMissing(){
 }
 
 /* shared Dify fetch */
-async function difyCall(apiKey, inputs){
-  const res = await fetch(DIFY_API_URL, {
+async function difyCall(apiKey, inputs, apiUrl=DIFY_API_URL, returnOutputs=false){
+  const res = await fetch(apiUrl, {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer ' + apiKey,
@@ -24746,6 +24800,8 @@ async function difyCall(apiKey, inputs){
   if(!o){
     throw new Error('Dify output_not_found: response.data.outputs がありません');
   }
+
+  if(returnOutputs) return o;
 
   let raw = o.result_json ?? o.text ?? o.output ?? o.answer ?? null;
   if(raw === null){
