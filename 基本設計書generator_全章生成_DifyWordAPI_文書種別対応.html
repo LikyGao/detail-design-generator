@@ -24009,7 +24009,7 @@ async function callDifyPlan(){
           master_json: toJsonString(templateOutputs.master_json),
           chapter_list_json: toJsonString(templateOutputs.chapter_list_json)
         },
-        DIFY_WORKFLOW_API_URL
+        DIFY_API_URL
       );
       applyPlan(data, templateOutputs);
       status.style.color='var(--green)'; status.textContent='✓ 章節構成案を作成しました。内容を確認してください。';
