@@ -23515,12 +23515,12 @@ var __async = (__this, __arguments, generator) => {
 const DIFY_API_URL             = "https://api.dify.ricoh.com/v1/workflows/run";
 const DIFY_WORKFLOW_API_URL    = "https://api.dify.ai/v1/workflows/run";
 const DIFY_TEMPLATE_API_KEY    = "app-nYF68CJV3Scjj5XdVitHxwRr"; // 標準テンプレートデータ取得API
-const DIFY_CHAPTER_API_KEY     = "app-F8gTcWis3cHO1dKSm90IGMLW"; // Stage① ①章節確認_v3
+const DIFY_CHAPTER_API_KEY     = "app-FMhoRqPLcu46L2lvSsMulHRi"; // Stage① ①章節確認_v4_四版本共通版
 const DIFY_GEN_API_KEY         = "app-BaULNnPZEwBmlBwVefdCQk21"; // Stage② ②本文生成_v3
 
 const DOCUMENT_PROFILES = {
   server_storage: { label: "サーバー・ストレージ版", description: "サーバー、ストレージ、仮想化基盤を中心とする基本設計書", enabled: true },
-  network: { label: "ネットワーク版", description: "LAN、WAN、ルーティング、ファイアウォール等を中心とする基本設計書", enabled: false, statusLabel: "準備中" },
+  network: { label: "ネットワーク版", description: "LAN、WAN、ルーティング、ファイアウォール等を中心とする基本設計書", enabled: true },
   cloud: { label: "クラウド版", description: "AWS、Azure等のクラウド基盤を中心とする基本設計書", enabled: false, statusLabel: "準備中" },
   full: { label: "完整版", description: "大規模・複合案件向けの独立した標準基本設計書", enabled: false, statusLabel: "準備中" }
 };
@@ -23836,11 +23836,13 @@ function startWithDocumentType(){
   const selected=document.querySelector('input[name="document_type"]:checked'); const status=document.getElementById('documentTypeStatus');
   if(!selected){ status.textContent='基本設計書の種類を選択してください。'; return; }
   if(!isEnabledDocumentType(selected.value)){ status.textContent='この文書種別は準備中です。'; return; }
-  const changing=doc.document_type && doc.document_type!==selected.value;
-  const hasGenerated=doc.chapters.length>0 || doc.missing_items.length>0;
-  if(changing && hasGenerated && !window.confirm('文書種別を変更すると、生成済みの章節と本文がクリアされます。続行しますか？')) return;
-  if(changing && hasGenerated) clearGeneratedDocumentState();
+  const previousType=doc.document_type;
+  const typeActuallyChanged=previousType!==selected.value;
+  const changingGeneratedType=!!previousType && previousType!==selected.value && (doc.chapters.length>0 || doc.missing_items.length>0);
+  if(changingGeneratedType && !window.confirm('文書種別を変更すると、生成済みの章節と本文がクリアされます。続行しますか？')) return;
+  if(changingGeneratedType) clearGeneratedDocumentState();
   doc.document_type=selected.value;
+  if(typeActuallyChanged){ buildPlanForm(); }
   document.getElementById('documentLanding').hidden=true; document.getElementById('appShell').hidden=false;
   updateDocumentTypeDisplay(); setPhase(PHASE.INPUT);
 }
@@ -23878,32 +23880,79 @@ function setPhase(p){
    STAGE ① — PLAN (章節確認)
    ============================================================ */
 /* ── Step1 案件情報フォーム定義（表示順）── */
-const PLAN_FIELDS = [
-  { key:'client',    label:'顧客名',                      multiline:false, kw:['顧客','顧客名','お客様','会社名'] },
-  { key:'project',   label:'プロジェクト名',              multiline:false, kw:['プロジェクト','案件名','件名'] },
-  { key:'purpose',   label:'目的',                        multiline:true,  kw:['目的','背景'] },
-  { key:'summary',   label:'案件概要',                    multiline:true,  kw:['案件概要','概要'] },
-  { key:'scope',     label:'対象範囲',                    multiline:true,  kw:['対象範囲','スコープ','対象'] },
-  { key:'outscope',  label:'対象外範囲',                  multiline:true,  kw:['対象外','スコープ外'] },
-  { key:'server',    label:'サーバー・ストレージ情報',    multiline:true,  kw:['サーバー','ストレージ','物理サーバー','仮想サーバー'] },
-  { key:'hv',        label:'仮想化基盤 / ハイパーバイザー', multiline:true, kw:['VMware','vSphere','Hyper-V','AHV','ハイパーバイザー','仮想化基盤'] },
-  { key:'os',        label:'OS 情報',                     multiline:true,  kw:['Windows','Linux','OS'] },
-  { key:'network',   label:'ネットワーク関連情報',        multiline:true,  kw:['ネットワーク','VLAN','IP','DNS','ルータ','スイッチ'] },
-  { key:'backup',    label:'バックアップ情報',            multiline:true,  kw:['バックアップ','Acronis','リストア','保存世代'] },
-  { key:'migration', label:'移行情報',                    multiline:true,  kw:['移行','切替','データコピー','既存環境'] },
-  { key:'security',  label:'セキュリティ情報',            multiline:true,  kw:['セキュリティ','権限','アクセス制御','パッチ','ウイルス対策','ログ'] },
-  { key:'ops',       label:'監視・運用保守情報',          multiline:true,  kw:['監視','運用','保守','Zabbix','障害対応','外部保守'] },
-  { key:'test',      label:'テスト方針',                  multiline:true,  kw:['テスト','試験','疎通確認','受入テスト'] },
-  { key:'undecided', label:'未定・確認中の項目',          multiline:true,  kw:['未定','確認中','不明','未入力'] },
-  { key:'other',     label:'その他補足',                  multiline:true,  kw:[] }
+const COMMON_PLAN_FIELDS = [
+  { key:'client', label:'顧客名', multiline:false, kind:'common', commonKey:'client_name', kw:['顧客','顧客名','お客様','会社名'] },
+  { key:'project', label:'プロジェクト名', multiline:false, kind:'common', commonKey:'project_name', kw:['プロジェクト','案件名','件名'] },
+  { key:'purpose', label:'目的', multiline:true, kind:'common', commonKey:'purpose', kw:['目的','背景'] },
+  { key:'summary', label:'案件概要', multiline:true, kind:'common', commonKey:'summary', kw:['案件概要','概要'] },
+  { key:'scope', label:'対象範囲', multiline:true, kind:'common', commonKey:'scope', kw:['対象範囲','スコープ'] },
+  { key:'outscope', label:'対象外範囲', multiline:true, kind:'common', commonKey:'out_of_scope', kw:['対象外','スコープ外'] }
 ];
-// 自動振り分けの優先順（具体的なものを先に判定。other は fallback）
-const MATCH_ORDER = ['client','project','purpose','summary','outscope','scope','server','hv','os','network','backup','migration','security','ops','test','undecided'];
+
+const SERVER_STORAGE_PLAN_FIELDS = [
+  { key:'server', label:'サーバー・ストレージ情報', multiline:true, kind:'domain', kw:['サーバー','ストレージ','物理サーバー','仮想サーバー'] },
+  { key:'hv', label:'仮想化基盤 / ハイパーバイザー', multiline:true, kind:'domain', kw:['VMware','vSphere','Hyper-V','AHV','ハイパーバイザー','仮想化基盤'] },
+  { key:'os', label:'OS 情報', multiline:true, kind:'domain', kw:['Windows','Linux','OS'] },
+  { key:'network', label:'ネットワーク関連情報', multiline:true, kind:'domain', kw:['ネットワーク','VLAN','IP','DNS','ルータ','スイッチ'] },
+  { key:'backup', label:'バックアップ情報', multiline:true, kind:'domain', kw:['バックアップ','Acronis','リストア','保存世代'] },
+  { key:'migration', label:'移行情報', multiline:true, kind:'domain', kw:['移行','切替','データコピー','既存環境'] },
+  { key:'security', label:'セキュリティ情報', multiline:true, kind:'domain', kw:['セキュリティ','権限','アクセス制御','パッチ','ウイルス対策','ログ'] },
+  { key:'ops', label:'監視・運用保守情報', multiline:true, kind:'domain', kw:['監視','運用','保守','Zabbix','障害対応','外部保守'] },
+  { key:'test', label:'テスト方針', multiline:true, kind:'domain', kw:['テスト','試験','疎通確認','受入テスト'] }
+];
+
+const NETWORK_PLAN_FIELDS = [
+  { key:'current_network', label:'現行ネットワーク・移行対象', multiline:true, kind:'domain', kw:['現行ネットワーク','既存ネットワーク','現行構成','既存構成','移行対象'] },
+  { key:'locations', label:'対象拠点・利用場所', multiline:true, kind:'domain', kw:['対象拠点','拠点','利用場所','設置場所','フロア'] },
+  { key:'devices', label:'導入・更新するネットワーク機器', multiline:true, kind:'domain', kw:['導入機器','更新機器','対象機器','ネットワーク機器','スイッチ','ルーター','アクセスポイント'] },
+  { key:'wan', label:'WAN・回線情報', multiline:true, kind:'domain', kw:['WAN','回線','拠点間通信','インターネット回線','閉域網'] },
+  { key:'wired_lan', label:'有線LAN情報', multiline:true, kind:'domain', kw:['有線LAN','LANポート','L2スイッチ','L3スイッチ','ポート収容','LAG'] },
+  { key:'wireless_lan', label:'無線LAN情報', multiline:true, kind:'domain', kw:['無線LAN','Wi-Fi','SSID','アクセスポイント','無線コントローラー','電波'] },
+  { key:'ip_vlan_routing', label:'IPアドレス・VLAN・ルーティング情報', multiline:true, kind:'domain', kw:['IPアドレス','VLAN','ルーティング','サブネット','セグメント','デフォルトゲートウェイ','VRRP','HSRP','OSPF','BGP'] },
+  { key:'network_services', label:'DNS・DHCP・NAT等のネットワークサービス', multiline:true, kind:'domain', kw:['DNS','DHCP','NAT','NAPT','SMTP','NTP','名前解決','時刻同期'] },
+  { key:'firewall_utm', label:'ファイアウォール・UTM・通信制御', multiline:true, kind:'domain', kw:['ファイアウォール','Firewall','UTM','通信制御','アクセスリスト','ACL','IPS','URLフィルタリング'] },
+  { key:'auth_vpn_cert', label:'認証・VPN・証明書', multiline:true, kind:'domain', kw:['認証','RADIUS','802.1X','VPN','証明書','PKI','サプリカント'] },
+  { key:'availability_recovery', label:'冗長化・可用性・障害復旧', multiline:true, kind:'domain', kw:['冗長化','可用性','障害復旧','フェイルオーバー','Active','Standby','RPO','RTO','BCP','DR'] },
+  { key:'physical_network', label:'ラック・電源・ケーブル等の物理情報', multiline:true, kind:'domain', kw:['ラック','ラッキング','電源','UPS','PDU','ケーブル','配線','ポート','エアーフロー'] },
+  { key:'performance_qos', label:'性能・帯域・QoS・拡張性', multiline:true, kind:'domain', kw:['性能','帯域','QoS','優先制御','帯域制御','拡張性','トラフィック','遅延'] },
+  { key:'monitoring_logging', label:'監視・ログ・通知', multiline:true, kind:'domain', kw:['監視','死活監視','性能監視','Syslog','SNMP','トラップ','ログ','通知','Zabbix'] },
+  { key:'operations_maintenance', label:'運用・保守・ファームウェア', multiline:true, kind:'domain', kw:['運用','保守','ファームウェア','メーカー保守','障害対応','Config','設定バックアップ'] },
+  { key:'migration_cutover', label:'移行・切替方針', multiline:true, kind:'domain', kw:['移行','切替','並行稼働','パイロット','展開','ロールバック'] },
+  { key:'test', label:'テスト方針', multiline:true, kind:'domain', kw:['テスト','試験','疎通確認','結合テスト','総合テスト','受入テスト'] }
+];
+
+const TRAILING_PLAN_FIELDS = [
+  { key:'undecided', label:'未定・確認中の項目', multiline:true, kind:'unknown', kw:['未定','確認中','不明','要確認','検討中'] },
+  { key:'other', label:'その他補足', multiline:true, kind:'notes', kw:[] }
+];
+
+const PLAN_FIELD_PROFILES = {
+  server_storage: SERVER_STORAGE_PLAN_FIELDS,
+  network: NETWORK_PLAN_FIELDS,
+  cloud: [],
+  full: []
+};
+
+function getActivePlanFields(){
+  const domainFields=PLAN_FIELD_PROFILES[doc.document_type] || PLAN_FIELD_PROFILES.server_storage;
+  return [...COMMON_PLAN_FIELDS, ...domainFields, ...TRAILING_PLAN_FIELDS];
+}
+
+const PLAN_MATCH_ORDERS = {
+  server_storage: ['client','project','purpose','summary','outscope','scope','server','hv','os','network','backup','migration','security','ops','test','undecided'],
+  network: ['client','project','purpose','summary','outscope','locations','wan','wired_lan','wireless_lan','ip_vlan_routing','network_services','firewall_utm','auth_vpn_cert','availability_recovery','physical_network','performance_qos','monitoring_logging','operations_maintenance','migration_cutover','test','devices','current_network','scope','undecided']
+};
+
+function getActiveMatchOrder(){
+  return PLAN_MATCH_ORDERS[doc.document_type] || PLAN_MATCH_ORDERS.server_storage;
+}
+
 const PLAN_PH = '';
 
 function buildPlanForm(){
   const root=document.getElementById('planForm'); if(!root) return; root.innerHTML='';
-  PLAN_FIELDS.forEach(f=>{
+  const fields=getActivePlanFields();
+  fields.forEach(f=>{
     const pf=document.createElement('div'); pf.className='pf'+(f.multiline?' wide':''); pf.dataset.key=f.key;
     const lab=document.createElement('label'); lab.textContent=f.label;
     const inp = f.multiline ? document.createElement('textarea') : document.createElement('input');
@@ -23913,9 +23962,33 @@ function buildPlanForm(){
     pf.appendChild(lab); pf.appendChild(inp); root.appendChild(pf);
   });
 }
-function getPlanValues(){ const v={}; PLAN_FIELDS.forEach(f=>{ const el=document.getElementById('f-'+f.key); v[f.key]=el?el.value.trim():''; }); return v; }
-function fillPlanForm(obj){ PLAN_FIELDS.forEach(f=>{ const el=document.getElementById('f-'+f.key); if(el && obj[f.key]!=null) el.value=obj[f.key]; }); }
-function assemblePlanText(v){ return PLAN_FIELDS.map(f=>f.label+'：'+(v[f.key]||'')).join('\n'); }
+function getPlanValues(){ const fields=getActivePlanFields(); const v={}; fields.forEach(f=>{ const el=document.getElementById('f-'+f.key); v[f.key]=el?el.value.trim():''; }); return v; }
+function fillPlanForm(obj){ const fields=getActivePlanFields(); fields.forEach(f=>{ const el=document.getElementById('f-'+f.key); if(el && obj[f.key]!=null) el.value=obj[f.key]; }); }
+function assemblePlanText(v){ const fields=getActivePlanFields(); return fields.map(f=>f.label+'：'+(v[f.key]||'')).join('\n'); }
+function splitPlanItems(text){
+  return String(text || '').split(/\r?\n/).map(item=>item.trim()).filter(Boolean);
+}
+function buildCommonCasePayload(values){
+  const fields=getActivePlanFields();
+  const domainDetails=fields
+    .filter(field=>field.kind==='domain')
+    .map(field=>({ key:field.key, label:field.label, value:String(values[field.key] || '').trim() }))
+    .filter(item=>item.value);
+  return {
+    document_type:doc.document_type,
+    common:{
+      client_name:values.client || '',
+      project_name:values.project || '',
+      purpose:values.purpose || '',
+      summary:values.summary || '',
+      scope:values.scope || '',
+      out_of_scope:values.outscope || ''
+    },
+    domain_details:domainDetails,
+    unknown_items:splitPlanItems(values.undecided),
+    notes:values.other || ''
+  };
+}
 function normalizeAutoFilledValue(value){
   const text=String(value??'').trim();
   if(!text || /^(なし|無し|不明|未記載|該当なし|情報なし)$/.test(text)) return '';
@@ -23926,9 +23999,11 @@ function normalizeAutoFilledValue(value){
 /* 一括入力：JSのみで簡易解析 → 空欄だけ自動入力 */
 function autofillFromBulk(){
   const raw=(document.getElementById('bulkInput').value||''); const status=document.getElementById('bulkStatus');
+  const fields=getActivePlanFields();
+  const matchOrder=getActiveMatchOrder();
   const lines=raw.split('\n');
-  const buckets={}; PLAN_FIELDS.forEach(f=>buckets[f.key]=[]);
-  const kwOf={}; PLAN_FIELDS.forEach(f=>kwOf[f.key]=f.kw);
+  const buckets={}; fields.forEach(f=>buckets[f.key]=[]);
+  const kwOf={}; fields.forEach(f=>kwOf[f.key]=f.kw);
   lines.forEach(line=>{
     let cleaned=line.replace(/^[\s　]*[・\-*●○◦▪–—]+[\s　]*/,'').replace(/^[\s　]*[0-9０-９]+[\.．、)）][\s　]*/,'').trim();
     if(!cleaned) return;
@@ -23939,14 +24014,14 @@ function autofillFromBulk(){
     if(!content) return;
     const hay=cleaned.toLowerCase();
     let target=null;
-    for(const key of MATCH_ORDER){
+    for(const key of matchOrder){
       if(kwOf[key].some(k=>hay.includes(k.toLowerCase()))){ target=key; break; }
     }
     if(!target) target='other';
     buckets[target].push(content);
   });
   let filled=0;
-  PLAN_FIELDS.forEach(f=>{
+  fields.forEach(f=>{
     const el=document.getElementById('f-'+f.key); if(!el) return;
     const joined=buckets[f.key].join('\n');
     if(joined && !el.value.trim()){ el.value=joined; el.closest('.pf').classList.remove('missing'); filled++; }
@@ -23962,8 +24037,7 @@ async function callDifyPlan(){
   const values=getPlanValues();
   if(!doc.document_type){ showToast('基本設計書の種類を選択してください。', true); return; }
   if(!isEnabledDocumentType(doc.document_type)){ showToast('この文書種別は準備中です。', true); return; }
-  const casePayload=values;
-  casePayload.document_type=doc.document_type;
+  const casePayload=buildCommonCasePayload(values);
   const input=assemblePlanText(values);
   // 顧客名・プロジェクト名は表紙に先行反映
   doc.cover.client_name = doc.cover.client_name || values.client;
@@ -25460,6 +25534,10 @@ const SAMPLE_FORM={
   other:'なし'
 };
 function loadSamplePlan(){
+  if(doc.document_type !== 'server_storage'){
+    showToast('サンプルデータはサーバー・ストレージ版のみ対応しています。', true);
+    return;
+  }
   doc=emptyDoc();
   fillPlanForm(SAMPLE_FORM);
   document.getElementById('planError').classList.remove('show');
@@ -25469,6 +25547,10 @@ function loadSamplePlan(){
   const st=document.getElementById('planStatus'); st.style.color='var(--green)'; st.textContent='✓ サンプル章節構成を読み込みました。';
 }
 function loadSampleGenerated(){
+  if(doc.document_type !== 'server_storage'){
+    showToast('サンプルデータはサーバー・ストレージ版のみ対応しています。', true);
+    return;
+  }
   // build a generate-style payload from SAMPLE_GEN keyed by source_template_number
   const gen={ chapters:[], missing_items:SAMPLE_GEN.missing_items };
   walkAll(doc.chapters,n=>{
