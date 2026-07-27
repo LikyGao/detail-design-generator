@@ -47,6 +47,7 @@
   .navi.lv3{padding-left:40px;font-size:11px;color:var(--text-faint)}
   .navi .nnum{background:var(--number-badge);color:var(--text-muted);font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:4px;min-width:34px;text-align:center;font-family:monospace;flex-shrink:0}
   .navi .ntxt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .nav-warning{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex-shrink:0;border:1px solid var(--amber);border-radius:50%;color:var(--amber);background:rgba(154,103,0,.08);font-size:10px;font-weight:700;line-height:1}
   .navi .nstat{font-size:11px;flex-shrink:0;color:var(--green)}
   .navi .nstat.off{color:var(--text-faint)}
   .ai-decision-line,.ai-reason-line{font-size:12.5px;color:var(--text-muted);line-height:1.7}
@@ -24273,6 +24274,13 @@ function renderNav(){
     const txt=document.createElement('span'); txt.className='ntxt'; txt.textContent=n.title||'(無題)';
     d.addEventListener('click',()=>scrollToNode(n.id,d));
     if(phase===PHASE.CHAPTERS){
+      const needsAttention=n.applicability==='missing'||n.applicability==='confirm';
+      if(needsAttention){
+        const warning=document.createElement('span'); warning.className='nav-warning'; warning.textContent='!';
+        warning.title=n.applicability==='missing'?'情報不足：入力内容の確認が必要です':'要確認：ユーザーによる確認が必要です';
+        warning.setAttribute('aria-label',warning.title);
+        d.appendChild(warning);
+      }
       const stat=document.createElement('span'); stat.className='nstat'+(n.selected===false?' off':''); stat.textContent=n.selected===false?'☐':'☑';
       d.appendChild(stat);
     }
