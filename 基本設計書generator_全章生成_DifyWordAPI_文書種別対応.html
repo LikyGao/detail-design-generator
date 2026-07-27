@@ -23516,7 +23516,7 @@ const DIFY_API_URL             = "https://api.dify.ricoh.com/v1/workflows/run";
 const DIFY_WORKFLOW_API_URL    = "https://api.dify.ai/v1/workflows/run";
 const DIFY_TEMPLATE_API_KEY    = "app-nYF68CJV3Scjj5XdVitHxwRr"; // 標準テンプレートデータ取得API
 const DIFY_CHAPTER_API_KEY     = "app-F8gTcWis3cHO1dKSm90IGMLW"; // Stage① ①章節確認_v3
-const DIFY_GEN_API_KEY         = "app-hY4JYiuPn1CoAUz1aJGMnRZD"; // Stage② ②本文生成_v2
+const DIFY_GEN_API_KEY         = "app-BaULNnPZEwBmlBwVefdCQk21"; // Stage② ②本文生成_v3
 
 const DOCUMENT_PROFILES = {
   server_storage: { label: "サーバー・ストレージ版", description: "サーバー、ストレージ、仮想化基盤を中心とする基本設計書", enabled: true },
@@ -24701,12 +24701,61 @@ async function runGenerate(scopeNode,btn,status,enterEditAfter){
     else throw new Error('Generate APIキー未設定');
     return;
   }
+  const missingTemplateFields = [];
+  if(!String(doc.document_type || '').trim()){
+    missingTemplateFields.push('document_type');
+  }
+  if(!String(doc.template_id || '').trim()){
+    missingTemplateFields.push('template_id');
+  }
+  if(!String(doc.template_version || '').trim()){
+    missingTemplateFields.push('template_version');
+  }
+  const hasSectionContents =
+    doc.section_contents_json !== undefined &&
+    doc.section_contents_json !== null &&
+    !(
+      typeof doc.section_contents_json === 'string' &&
+      !doc.section_contents_json.trim()
+    );
+  if(!hasSectionContents){
+    missingTemplateFields.push('section_contents_json');
+  }
+  if(missingTemplateFields.length){
+    console.error('[Dify Generate] 標準テンプレート情報不足:', missingTemplateFields);
+    const message = '標準テンプレート情報が不足しているため、本文を生成できません。Step1から章節構成を再生成してください。';
+    if(status){
+      status.style.color='var(--red)';
+      status.textContent=message;
+      return;
+    }
+    throw new Error(message);
+  }
   if(btn){ btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 生成中...'; }
   if(status){ status.style.color='var(--text-muted)'; status.textContent='本文を生成中です...'; }
   try{
     const payload = buildGenPayload(scopeNode);
+    const toInputString = value => {
+      if(value === undefined || value === null) return '';
+      return typeof value === 'string' ? value : JSON.stringify(value);
+    };
+    const generateInputs = {
+      input_json: JSON.stringify(payload),
+      document_type: String(doc.document_type || ''),
+      template_id: String(doc.template_id || ''),
+      template_version: String(doc.template_version || ''),
+      section_contents_json: toInputString(doc.section_contents_json),
+      reference_text: toInputString(doc.reference_text)
+    };
     console.log('[Dify Generate payload]', payload);
-    const data=await difyCall(DIFY_GEN_API_KEY,{ input_json: JSON.stringify(payload) });
+    console.log('[Dify Generate inputs]', {
+      document_type: generateInputs.document_type,
+      template_id: generateInputs.template_id,
+      template_version: generateInputs.template_version,
+      section_contents_json_length: generateInputs.section_contents_json.length,
+      reference_text_length: generateInputs.reference_text.length
+    });
+    const data = await difyCall(DIFY_GEN_API_KEY, generateInputs, DIFY_API_URL);
     console.log('[Dify Generate response]', data);
     applyGenerated(data);
     if(enterEditAfter){ enterEdit(false); }
