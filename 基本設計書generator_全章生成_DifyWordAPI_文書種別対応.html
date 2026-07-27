@@ -323,7 +323,7 @@
         <div class="pnum">1</div>
         <div><div class="plabel">Step 1</div><div class="ptitle">案件概要を入力</div></div>
       </div>
-      <div class="phase-desc">標準テンプレートの13章を固定表示し、案件内容に応じて各章配下の節・小節を自動提案します。提案された章節構成は次画面で確認・修正できます。</div>
+      <div class="phase-desc">選択した標準テンプレートの章節を表示し、案件内容に応じて各章配下の節・小節を自動提案します。提案された章節構成は次画面で確認・修正できます。</div>
 
       <!-- 一括入力（JSのみで簡易解析） -->
       <div class="dify-card">
@@ -397,7 +397,7 @@
         <div class="pnum">3</div>
         <div><div class="plabel">Step 3</div><div class="ptitle">本文編集・出力</div></div>
       </div>
-      <div class="phase-desc" id="planSummary">確定した本文を手入力で調整し、段落単位の AI 修正、Word 風プレビューや Word 出力を確認できます。</div>
+      <div class="phase-desc" id="planSummary">確定した本文を手入力で調整し、段落単位の AI 修正、本文プレビューや Word 出力を確認できます。</div>
 
       <div class="status muted" id="genStatus" hidden></div>
       <div class="dify-missing" id="missingBox" hidden></div>
@@ -422,7 +422,7 @@
   </main>
 
   <div id="previewArea">
-    <div class="preview-pane-header"><span>📄 Word 風プレビュー</span><button class="ebtn ghost" onclick="printPreview()" style="padding:5px 12px;font-size:12px">🖨 印刷 / PDF</button></div>
+    <div class="preview-pane-header"><button class="ebtn ghost" onclick="printPreview()" style="margin-left:auto;padding:5px 12px;font-size:12px">🖨 印刷 / PDF</button></div>
     <div id="previewContent"></div>
   </div>
 </div>
@@ -23522,7 +23522,7 @@ const DOCUMENT_PROFILES = {
   server_storage: { label: "サーバー・ストレージ版", description: "サーバー、ストレージ、仮想化基盤を中心とする基本設計書", enabled: true },
   network: { label: "ネットワーク版", description: "LAN、WAN、ルーティング、ファイアウォール等を中心とする基本設計書", enabled: true },
   cloud: { label: "クラウド版", description: "AWS、Azure等のクラウド基盤を中心とする基本設計書", enabled: false, statusLabel: "準備中" },
-  full: { label: "完整版", description: "大規模・複合案件向けの独立した標準基本設計書", enabled: false, statusLabel: "準備中" }
+  full: { label: "完整版", description: "ネットワーク、サーバー・ストレージ、クラウドを含む大規模・複合案件向けの基本設計書", enabled: true }
 };
 
 /* ── docx exports ── */
@@ -23921,6 +23921,27 @@ const NETWORK_PLAN_FIELDS = [
   { key:'test', label:'テスト方針', multiline:true, kind:'domain', kw:['テスト','試験','疎通確認','結合テスト','総合テスト','受入テスト'] }
 ];
 
+const FULL_PLAN_FIELDS = [
+  { key:'current_environment', label:'現行環境・更改背景', multiline:true, kind:'domain', kw:['現行環境','既存環境','現行システム','既存システム','老朽化','更改背景','現状課題'] },
+  { key:'target_systems', label:'導入・更改対象システム・機器', multiline:true, kind:'domain', kw:['対象システム','対象機器','導入機器','更改機器','導入対象','サーバー','ストレージ','スイッチ','ルーター'] },
+  { key:'system_architecture', label:'システム全体構成・連携方針', multiline:true, kind:'domain', kw:['システム構成','全体構成','構成概要','システム連携','関連システム','オンプレミス','ハイブリッド'] },
+  { key:'network', label:'ネットワーク設計', multiline:true, kind:'domain', kw:['ネットワーク','WAN','有線LAN','無線LAN','VLAN','IPアドレス','ルーティング','SSID','ファイアウォール','UTM','QoS','NAT','DHCP','RADIUS'] },
+  { key:'server_storage', label:'サーバー・ストレージ設計', multiline:true, kind:'domain', kw:['サーバー','ストレージ','物理サーバー','仮想サーバー','RAID','ボリューム','データストア','HCI','SAN','NAS'] },
+  { key:'virtualization_os', label:'仮想化基盤・OS設計', multiline:true, kind:'domain', kw:['仮想化基盤','ハイパーバイザー','VMware','vSphere','Hyper-V','AHV','Nutanix','Windows','Linux','OS'] },
+  { key:'cloud', label:'クラウド設計', multiline:true, kind:'domain', kw:['クラウド','AWS','Azure','サブスクリプション','管理グループ','リージョン','VNET','Subnet','NSG','ExpressRoute','CloudWatch','Azure VM'] },
+  { key:'functions_services', label:'提供機能・基盤サービス', multiline:true, kind:'domain', kw:['提供機能','基盤サービス','DNS','SMTP','Active Directory','Webサーバー','ロードバランサー','DHCP','RADIUS','証明書','VPN'] },
+  { key:'software_license', label:'ソフトウェア・ライセンス', multiline:true, kind:'domain', kw:['ソフトウェア','ミドルウェア','ライセンス','バージョン','CAL','サポート期限'] },
+  { key:'physical_design', label:'物理構成・ラック・電源・ケーブル', multiline:true, kind:'domain', kw:['物理構成','レイアウト','ラック','ラッキング','電源','UPS','PDU','ケーブル','配線','コンソール'] },
+  { key:'backup_dr', label:'バックアップ・災害対策', multiline:true, kind:'domain', kw:['バックアップ','リストア','復元','保存世代','災害対策','DR','RPO','RTO','外部保管'] },
+  { key:'availability_reliability', label:'可用性・信頼性・障害復旧', multiline:true, kind:'domain', kw:['可用性','信頼性','冗長化','障害復旧','フェイルオーバー','Active-Active','Active-Standby','HA','BCP'] },
+  { key:'performance_scalability', label:'性能・容量・拡張性', multiline:true, kind:'domain', kw:['性能','容量','拡張性','CPU','メモリ','ディスク','IOPS','帯域','スループット','サイジング'] },
+  { key:'security', label:'セキュリティ設計', multiline:true, kind:'domain', kw:['セキュリティ','アクセス制御','通信制御','認証','MFA','暗号化','マルウェア','ウイルス対策','EDR','ログ','脆弱性','パッチ'] },
+  { key:'cloud_cost', label:'クラウドコスト・ガバナンス', multiline:true, kind:'domain', kw:['クラウドコスト','コスト管理','料金','課金','予算','ガバナンス','Azure Policy','タグ','請求'] },
+  { key:'migration', label:'移行・切替方針', multiline:true, kind:'domain', kw:['移行','切替','データコピー','並行稼働','パイロット','展開','ロールバック','既存機撤去'] },
+  { key:'monitoring_operations', label:'監視・運用・保守', multiline:true, kind:'domain', kw:['監視','運用','保守','Zabbix','CloudWatch','SNMP','Syslog','障害通知','メーカー保守','ファームウェア','運用時間'] },
+  { key:'test', label:'テスト方針', multiline:true, kind:'domain', kw:['テスト','試験','単体テスト','結合テスト','総合テスト','運用テスト','受入テスト','疎通確認','切替テスト'] }
+];
+
 const TRAILING_PLAN_FIELDS = [
   { key:'undecided', label:'未定・確認中の項目', multiline:true, kind:'unknown', kw:['未定','確認中','不明','要確認','検討中'] },
   { key:'other', label:'その他補足', multiline:true, kind:'notes', kw:[] }
@@ -23930,7 +23951,7 @@ const PLAN_FIELD_PROFILES = {
   server_storage: SERVER_STORAGE_PLAN_FIELDS,
   network: NETWORK_PLAN_FIELDS,
   cloud: [],
-  full: []
+  full: FULL_PLAN_FIELDS
 };
 
 function getActivePlanFields(){
@@ -23940,7 +23961,12 @@ function getActivePlanFields(){
 
 const PLAN_MATCH_ORDERS = {
   server_storage: ['client','project','purpose','summary','outscope','scope','server','hv','os','network','backup','migration','security','ops','test','undecided'],
-  network: ['client','project','purpose','summary','outscope','locations','wan','wired_lan','wireless_lan','ip_vlan_routing','network_services','firewall_utm','auth_vpn_cert','availability_recovery','physical_network','performance_qos','monitoring_logging','operations_maintenance','migration_cutover','test','devices','current_network','scope','undecided']
+  network: ['client','project','purpose','summary','outscope','locations','wan','wired_lan','wireless_lan','ip_vlan_routing','network_services','firewall_utm','auth_vpn_cert','availability_recovery','physical_network','performance_qos','monitoring_logging','operations_maintenance','migration_cutover','test','devices','current_network','scope','undecided'],
+  full: [
+    'client','project','purpose','summary','outscope',
+    'cloud_cost','cloud','virtualization_os','server_storage','network','backup_dr','availability_reliability','performance_scalability','security','physical_design','software_license','functions_services','migration','monitoring_operations','test','target_systems','system_architecture','current_environment',
+    'scope','undecided'
+  ]
 };
 
 function getActiveMatchOrder(){
@@ -25069,24 +25095,32 @@ function blocksToHtml(blocks){
 }
 function refreshPreview(){ if(_previewOpen){ try{ buildPreview(); }catch(e){ console.error('preview error',e); } } }
 function buildPreviewHtml(){
-  const cv=doc.cover;
-  const props=[['版数',cv.version],['発行日',cv.issue_date],['ファイル名',cv.file_name],['プロジェクトNo',cv.project_no]];
-  const coverHtml='<div class="word-page word-cover">'+
-    '<div class="wc-top"><div class="wc-client">'+escH(cv.client_name||'')+'</div><div class="wc-title">基本設計書</div><div class="wc-project">'+escH(cv.project_name||'')+'</div></div>'+
-    '<table class="word-prop"><tbody>'+props.map(r=>'<tr><td>'+escH(r[0])+'</td><td>'+escH(r[1]||'')+'</td></tr>').join('')+'</tbody></table></div>';
-  let toc='<section class="preview-flow word-index-flow"><div class="preview-unit"><div class="word-h-toc">目次</div>';
-  let any=false, tocIndex=0;
-  walkSelected(doc.chapters,n=>{ any=true; toc+='<div class="word-toc-row l'+n.level+'" data-toc-index="'+(tocIndex++)+'"><span class="word-toc-name">'+escH(n.display_number)+'　'+escH(n.title||'(無題)')+'</span><span class="word-toc-dots"></span><span class="word-toc-page">-</span></div>'; });
-  if(!any) toc+='<div class="word-empty">章節がありません。</div>';
-  toc+='</div><div class="preview-unit"><div class="word-h-toc word-sub-toc">表目次</div><div class="word-table-toc-entries"></div></div><div class="preview-unit"><div class="word-h-toc word-sub-toc">図目次</div><div class="word-figure-toc-entries"></div></div></section>';
-  let body='<section class="preview-flow word-body">'; let chapterOpen=false;
+  let body='<section class="preview-flow word-body">';
+  let chapterOpen=false;
+
   walkSelected(doc.chapters,n=>{
-    if(n.level===1){ if(chapterOpen) body+='</section>'; body+='<section class="preview-chapter">'; chapterOpen=true; }
-    const tag=n.level===1?'h1':n.level===2?'h2':'h3';
-    body+='<div class="preview-unit"><'+tag+'>'+escH(n.display_number)+'　'+escH(n.title||'(無題)')+'</'+tag+'>'+((blocksToHtml(n.blocks))||'<p class="word-empty">（本文未入力）</p>')+'</div>';
+    if(n.level===1){
+      if(chapterOpen) body+='</section>';
+      body+='<section class="preview-chapter">';
+      chapterOpen=true;
+    }
+
+    const tag=n.level===1 ? 'h1' : n.level===2 ? 'h2' : 'h3';
+
+    body+='<div class="preview-unit">'+
+      '<'+tag+'>'+
+      escH(n.display_number)+'　'+
+      escH(n.title||'(無題)')+
+      '</'+tag+'>'+
+      (blocksToHtml(n.blocks)||'<p class="word-empty">（本文未入力）</p>')+
+      '</div>';
   });
-  if(chapterOpen) body+='</section>'; body+='</section>';
-  return coverHtml+toc+body;
+
+  if(chapterOpen) body+='</section>';
+
+  body+='</section>';
+
+  return body;
 }
 function createPreviewPage(className){ const page=document.createElement('div'); page.className='word-page '+(className||''); return page; }
 function pageHasOverflow(page){ return page.scrollHeight>page.clientHeight+1; }
