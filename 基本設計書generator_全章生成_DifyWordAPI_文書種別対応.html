@@ -23526,6 +23526,82 @@ const DOCUMENT_PROFILES = {
   full: { label: "完整版", description: "ネットワーク、サーバー・ストレージ、クラウドを含む大規模・複合案件向けの基本設計書", enabled: true }
 };
 
+const BULK_TEST_TEXTS = {
+  server_storage: `顧客名：〇〇製造株式会社
+プロジェクト名：サーバー・ストレージ基盤更改プロジェクト
+目的：老朽化した基盤設備を更新し、安定性と運用性を向上する
+案件概要：本社データセンターの基盤設備を全面更改する
+対象範囲：本社データセンター内の基盤設備一式
+対象外範囲：業務アプリケーション、クライアント端末および拠点LAN設備の更改
+
+サーバー：物理サーバー3台と共有ストレージ1台を新規導入し、共有領域はRAID6で構成する
+VMware：VMware vSphereを採用し、複数の仮想マシンを稼働させる
+OS：Windows ServerおよびLinuxを使用する
+ネットワーク：業務用・管理用・保守用のVLANを分離し、固定IPアドレスを使用する
+バックアップ：業務データを日次で取得し、日次7世代、月次12世代を保持する
+移行：夜間にデータコピーを実施し、問題発生時は既存環境へ戻す
+セキュリティ：アクセス制御とウイルス対策を実施し、管理操作のログを取得する
+監視：Zabbixを使用して死活状態、CPU使用率、メモリ使用率を監視し、障害時に担当者へ通知する
+受入テスト：設計した機能、性能および冗長性が要件を満たすことを確認する
+
+未定：正式な納品日程および作業開始日は確認中
+契約は年度内の締結を希望する
+`,
+  network: `顧客名：〇〇製造株式会社
+プロジェクト名：本社・支社ネットワーク更改プロジェクト
+目的：老朽設備を更新し、通信の安定性と安全性を向上する
+案件概要：本社および主要支社の通信基盤を全面更改する
+対象範囲：本社および主要支社の設備一式
+対象外範囲：サーバー、ストレージ、業務アプリケーションの更改
+現行ネットワーク：既存設備は導入後7年を経過している
+対象拠点：本社、東京支社、大阪支社を対象とする
+導入機器：主要設備一式を新規導入する
+閉域網：本社と各支社を閉域網で接続する
+LAG：上位装置との接続をLAG構成とする
+SSID：社内用とゲスト用のSSIDを分離する
+OSPF：経路制御にOSPFを使用する
+NTP：全装置を社内NTPサーバーと同期する
+IPS：境界装置でIPSとURLフィルタリングを使用する
+802.1X：社内接続に802.1X方式を使用する
+フェイルオーバー：主系障害時は待機系へ自動切替する
+PDU：冗長電源を異なるPDUへ接続する
+QoS：音声通信を優先制御する
+SNMP：死活状態と使用状況を取得する
+ファームウェア：メーカー推奨版を使用する
+ロールバック：障害発生時は旧設備へ戻す
+受入テスト：業務要件を満たすことを確認する
+未定：正式な納品日程は確認中
+契約は年度内の締結を希望する
+`,
+  full: `顧客名：〇〇製造株式会社
+プロジェクト名：基幹システム基盤更改プロジェクト
+目的：老朽設備を更新し、安定性と運用性を向上する
+案件概要：本社基盤を全面更改する
+対象範囲：本社データセンター基盤一式
+対象外：業務アプリケーション改修と端末更新
+現行環境：既存設備は導入後7年を経過している
+導入機器：新規設備一式を導入する
+全体構成：本社設備と外部サービスを連携する
+VLAN：業務用・管理用・保守用に分割する
+RAID：共有領域はRAID6で構成する
+VMware：vSphere上にWindowsとLinuxを構築する
+Azure：Japan EastにVNETとAzure VMを構築する
+提供機能：Active DirectoryとDNSを提供する
+CAL：必要数を契約する
+PDU：冗長電源を異なるPDUへ接続する
+保存世代：日次7世代、月次12世代を保持する
+可用性：主要設備を冗長化し、障害時に自動切替する
+IOPS：将来増加を考慮して30％の余裕を確保する
+MFA：管理者認証にMFAを使用する
+クラウドコスト：月次料金を確認し予算超過を監視する
+ロールバック：夜間切替と旧環境への復旧手順を用意する
+Zabbix：死活状態を確認し、障害通知を送信する
+受入テスト：業務要件を満たすことを確認する
+未定：納品日程を確認中
+契約は年度内の締結を希望する
+`
+};
+
 /* ── docx exports ── */
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         WidthType, AlignmentType, VerticalAlign, ShadingType, BorderStyle, PageBreak, ImageRun,
@@ -23833,6 +23909,11 @@ function updateDocumentTypeDisplay(){
   if(doc.template_id){ display.textContent += '　使用テンプレート：'+doc.template_id+(doc.template_version ? ' v'+doc.template_version : ''); }
 }
 function isEnabledDocumentType(type){ return !!(DOCUMENT_PROFILES[type] && DOCUMENT_PROFILES[type].enabled); }
+function setBulkTestText(documentType){
+  const bulkInput=document.getElementById('bulkInput');
+  if(!bulkInput) return;
+  bulkInput.value=BULK_TEST_TEXTS[documentType] || '';
+}
 function startWithDocumentType(){
   const selected=document.querySelector('input[name="document_type"]:checked'); const status=document.getElementById('documentTypeStatus');
   if(!selected){ status.textContent='基本設計書の種類を選択してください。'; return; }
@@ -23843,7 +23924,7 @@ function startWithDocumentType(){
   if(changingGeneratedType && !window.confirm('文書種別を変更すると、生成済みの章節と本文がクリアされます。続行しますか？')) return;
   if(changingGeneratedType) clearGeneratedDocumentState();
   doc.document_type=selected.value;
-  if(typeActuallyChanged){ buildPlanForm(); }
+  if(typeActuallyChanged){ buildPlanForm(); setBulkTestText(selected.value); }
   document.getElementById('documentLanding').hidden=true; document.getElementById('appShell').hidden=false;
   updateDocumentTypeDisplay(); setPhase(PHASE.INPUT);
 }
