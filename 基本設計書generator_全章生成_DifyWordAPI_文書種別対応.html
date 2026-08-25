@@ -25506,6 +25506,7 @@ async function exportDocx(){
     }];
     const payload={
       inputs:{
+        document_type:doc.document_type,
         client_name:cover.client_name||'',
         project_name:cover.project_name||'',
         version:cover.version||'1.0',
