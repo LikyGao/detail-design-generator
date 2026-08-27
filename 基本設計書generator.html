@@ -163,7 +163,10 @@
   #previewArea{grid-area:pv;display:none;flex-direction:column;background:#525659;overflow:hidden}
   .app-shell.preview-open #previewArea{display:flex}
   .preview-pane-header{padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text-muted)}
-  #previewContent{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;align-items:center;gap:24px}
+  #previewContent{flex:1;overflow:auto;padding:24px}
+  .preview-page-shell{position:relative;margin:0 auto 24px;flex:none}
+  .preview-page-shell:last-child{margin-bottom:0}
+  .preview-page-shell>.word-page{position:absolute;left:0;top:0;transform-origin:top left}
   .word-page{box-sizing:border-box;background:#fff;color:#000;width:210mm;min-width:210mm;min-height:297mm;padding:20mm;font-family:Century,'ＭＳ 明朝','MS Mincho','Yu Mincho','游明朝',serif;font-size:10.5pt;line-height:1.75;box-shadow:0 4px 20px rgba(0,0,0,.4);border-radius:0;overflow:visible}
   .word-cover{display:flex;flex-direction:column;justify-content:flex-start;align-items:center;text-align:center;gap:0;padding-top:42mm}
   .word-cover .wc-top{display:flex;flex-direction:column;align-items:center;gap:14px}
@@ -23611,7 +23614,7 @@ const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
 const PHASE = { INPUT:'input', CHAPTERS:'chapters', EDIT:'edit' };
 let phase = PHASE.INPUT;
 let doc = emptyDoc();
-let _previewOpen = false, _previewTimer = null;
+let _previewOpen = false, _previewTimer = null, _previewResizeFrame = null;
 
 function emptyDoc(){
   return {
@@ -23680,6 +23683,32 @@ function normalizeBlock(raw){
   return { id: raw.id||uid(), type:'paragraph', text: raw.text||raw.content||'', caption:'', revision_instruction: raw.revision_instruction||'', revision_history: Array.isArray(raw.revision_history) ? raw.revision_history.slice(0,2) : [] };
 }
 function normalizeBlocks(arr){ return Array.isArray(arr) ? arr.map(normalizeBlock) : []; }
+
+/* 標準本文の連続する短い段落を、編集用の1ブロックにまとめる。 */
+function mergeConsecutiveParagraphBlocks(blocks){
+  const MAX_PARAGRAPHS=6, MAX_GROUP_CHARS=600, LONG_PARAGRAPH_CHARS=300;
+  const merged=[], group=[];
+  let groupChars=0;
+  const flush=()=>{
+    if(!group.length) return;
+    const first=group[0];
+    merged.push(Object.assign({}, first, {text:group.map(b=>String(b.text||'')).join('\n')}));
+    group.length=0; groupChars=0;
+  };
+  (blocks||[]).forEach(block=>{
+    if(block.type!=='paragraph'){
+      flush(); merged.push(block); return;
+    }
+    const length=String(block.text||'').length;
+    if(length>=LONG_PARAGRAPH_CHARS){
+      flush(); merged.push(block); return;
+    }
+    if(group.length && (group.length>=MAX_PARAGRAPHS || groupChars+length>MAX_GROUP_CHARS)) flush();
+    group.push(block); groupChars+=length;
+  });
+  flush();
+  return merged;
+}
 
 function deriveSelectedFromAi(raw, level, opts){
   opts = opts || {};
@@ -24974,6 +25003,7 @@ function applyGenerated(data){
     showToast('本文読込結果に chapters[] がありません。Dify の出力形式を確認してください。', true);
     throw new Error('本文読込結果に chapters[] がありません。Dify の出力形式を確認してください。');
   }
+  walkAll(ing.chapters, n=>{ n.blocks=mergeConsecutiveParagraphBlocks(n.blocks); });
   if(ing.cover) { Object.assign(doc.cover, cleanObj(ing.cover)); fillCoverInputs(); }
   // index incoming by id and by source_template_number
   const byId={}, byStn={};
@@ -25089,8 +25119,36 @@ function togglePreview(){
   const btn=document.getElementById('previewToggleBtn');
   shell.classList.toggle('preview-open',_previewOpen);
   btn.classList.toggle('ghost',!_previewOpen);
-  if(_previewOpen) buildPreview();
+  if(_previewOpen){ buildPreview(); schedulePreviewScale(); }
 }
+function schedulePreviewScale(){
+  cancelAnimationFrame(_previewResizeFrame);
+  _previewResizeFrame=requestAnimationFrame(adjustPreviewScale);
+}
+function adjustPreviewScale(){
+  if(!_previewOpen) return;
+  const preview=document.getElementById('previewContent');
+  const pages=Array.from(preview.querySelectorAll('.word-page'));
+  if(!pages.length) return;
+  const style=getComputedStyle(preview);
+  const availableWidth=Math.max(0, preview.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight));
+  const pageWidth=pages[0].offsetWidth;
+  const scale=Math.max(.58, Math.min(1, availableWidth/pageWidth));
+  pages.forEach(page=>{
+    let shell=page.parentElement;
+    if(!shell.classList.contains('preview-page-shell')){
+      shell=document.createElement('div');
+      page.parentNode.insertBefore(shell,page);
+      shell.appendChild(page);
+    }
+    shell.style.width=(page.offsetWidth*scale)+'px';
+    shell.style.height=(page.offsetHeight*scale)+'px';
+    page.style.transform='scale('+scale+')';
+  });
+}
+const previewResizeObserver=new ResizeObserver(()=>{ if(_previewOpen) schedulePreviewScale(); });
+previewResizeObserver.observe(document.getElementById('previewArea'));
+previewResizeObserver.observe(document.getElementById('previewContent'));
 function debouncePreview(){ if(!_previewOpen) return; clearTimeout(_previewTimer); _previewTimer=setTimeout(buildPreview,500); }
 function escH(s){ return esc(s); }
 function mediaTocLabel(item){
@@ -25238,6 +25296,7 @@ function buildPreview(){
   updateDocumentIndexes(preview);
   paginatePreview(preview);
   updateDocumentIndexes(preview);
+  schedulePreviewScale();
 }
 
 /* 印刷 / PDF：プレビューの体裁でそのまま印刷（別ウィンドウ） */
