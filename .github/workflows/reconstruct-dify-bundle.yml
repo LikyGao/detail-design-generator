@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           cat .upload/dify_bundle/part-*.b64 | tr -d '\n\r' | base64 --decode > /tmp/dify_project_bundle.tar.gz
-          echo '1cb69c445409c97d75a369dbb445680f8b15ec48b6d146096d4caefc8d5e44f5  /tmp/dify_project_bundle.tar.gz' | sha256sum --check --strict
+          echo '0a015fd7f2a830785ca3209e01b530950f7618b435efda781a4eae835c9b6826  /tmp/dify_project_bundle.tar.gz' | sha256sum --check --strict
           tar -xzf /tmp/dify_project_bundle.tar.gz -C .
 
       - name: Commit reconstructed files
@@ -35,6 +35,6 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git rm -r .upload/dify_bundle
           git rm .github/workflows/reconstruct-dify-bundle.yml
-          git add dify
-          git commit -m 'Add Dify workflows and plugin'
+          git add dify plugins
+          git commit -m 'Add Dify workflows and plugin source'
           git push origin HEAD:main
