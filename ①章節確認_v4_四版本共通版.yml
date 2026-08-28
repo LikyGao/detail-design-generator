@@ -1,0 +1,553 @@
+app:
+  description: HTMLから案件情報・文書種別・テンプレート情報・章節Masterを受け取り、server_storage / network / cloud
+    / full の全文書種別を共通ロジックで判定するWorkflow。
+  icon: 🧩
+  icon_background: '#E8F5FF'
+  icon_type: emoji
+  mode: workflow
+  name: ①章節確認_v4_四版本共通版
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/azure_openai:0.0.62@e59e0cf56086f94e280d30292d6e0898c15164c5a320e8fc2ca5a3e6703ee4ee
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 100
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 5
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: start-source-17848009024030-target
+      source: start
+      sourceHandle: source
+      target: '17848009024030'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: 17848009024030-source-section_decision_llm-target
+      source: '17848009024030'
+      sourceHandle: source
+      target: section_decision_llm
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: code
+      id: edge_decision_merge
+      source: section_decision_llm
+      sourceHandle: source
+      target: merge_code
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: end
+      id: edge_merge_end
+      source: merge_code
+      sourceHandle: source
+      target: end
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: ''
+        selected: false
+        title: START（HTMLから受信）
+        type: start
+        variables:
+        - label: 案件情報 input_json
+          max_length: 200000
+          options: []
+          required: true
+          type: paragraph
+          variable: input_json
+        - label: 文書種別 document_type
+          max_length: 48
+          options:
+          - server_storage
+          - network
+          - cloud
+          - full
+          required: true
+          type: select
+          variable: document_type
+        - label: テンプレートID template_id
+          max_length: 128
+          options: []
+          required: true
+          type: text-input
+          variable: template_id
+        - label: テンプレート版 template_version
+          max_length: 64
+          options: []
+          required: true
+          type: text-input
+          variable: template_version
+        - label: 章節Master master_json
+          max_length: 500000
+          options: []
+          required: true
+          type: paragraph
+          variable: master_json
+        - label: 章節リスト chapter_list_json
+          max_length: 200000
+          options: []
+          required: true
+          type: paragraph
+          variable: chapter_list_json
+      height: 239
+      id: start
+      position:
+        x: 80
+        y: 280
+      positionAbsolute:
+        x: 80
+        y: 280
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 動的に受信した標準章節リストの全IDを、共通案件プロファイルに基づいて判定する。文書種別固有ロジックは持たない。
+        model:
+          completion_params:
+            max_completion_tokens: 12000
+          mode: chat
+          name: gpt4omini-dify-t0000-240806
+          provider: langgenius/azure_openai/azure_openai
+        prompt_template:
+        - id: decision-system
+          role: system
+          text: 'あなたは日本語インフラ基本設計書の標準章節適用性判定担当です。
+
+
+            動的に受信した標準章節リストに含まれる全章節について、案件情報と整理済み案件プロファイルに明記された事実だけを根拠として適用性を判定してください。
+
+
+            server_storage、network、cloud、full のいずれでも同じ判定規則を使用します。
+
+            文書種別名だけを根拠に、製品、機能、構成、章節の適用性を推測してはいけません。
+
+
+            標準章節の追加、削除、名称変更、ID変更は行わず、各章節の判定結果だけを出力してください。'
+        - id: decision-user
+          role: user
+          text: "あなたは、日本語の基本設計書における章節適用性判定の専門家です。\n\n# 文書種別\n{{#start.document_type#}}\n\
+            \n# 案件情報\n{{#start.input_json#}}\n\n# 整理済み案件プロファイル\n{{#17848009024030.text#}}\n\
+            \n# 標準章節リスト\n{{#start.chapter_list_json#}}\n\n# 判定の基本原則\n\n- 標準章節リストのタイトル、階層、IDを正とする\n\
+            - 案件情報と整理済み案件プロファイルに明記された事実だけを根拠にする\n- domain_details の key、label、value、status、evidence\
+            \ を章節タイトルと照合する\n- 文書種別名だけを根拠に適用性を決めない\n- 一般的な設計慣行、製品知識、経験から不足情報を補完しない\n\
+            - full は独立した標準テンプレートとして扱い、他の文書種別の合成とみなさない\n\n# applicability\n\napplicable:\n\
+            案件の対象であり、その章節を基本設計書へ記載するために必要な情報が判定可能な範囲で確認できる。\n\nnot_applicable:\n「対象外」「使用しない」「導入しない」「構築しない」「実施しない」など、明確な対象外根拠が案件情報に存在する。\n\
+            \nmissing:\n章節自体は対象である、または対象である可能性が高いが、本文に必要な製品、方式、容量、構成、期間、時刻、対象範囲などの詳細が不足または未定である。\n\
+            \nconfirm:\n現在の案件情報だけでは、その章節自体が案件の対象か対象外かを判断できない。\n\n# status との対応\n\n\
+            confirmed:\n原則として applicable。\nただし、章節本文に必要な詳細が不足している場合は missing。\n\nundecided:\n\
+            対象であることが分かる場合は missing。\n対象かどうか自体が分からない場合は confirm。\n\nnot_applicable:\n\
+            対応する章節は not_applicable。\n\n# 厳守事項\n\n- 標準章節リストに含まれるすべてのIDを必ず1回ずつ出力する\n\
+            - level=1、level=2、level=3を省略しない\n- 標準章節リストに存在しないIDを追加しない\n- ID、source_template_number、title、levelを変更しない\n\
+            - 標準章節リストと同じ順番で出力する\n- 案件情報に記載がないだけで not_applicable にしない\n- 「詳細未定」「情報不足」「別途確認」「検討中」を理由に\
+            \ not_applicable にしない\n- 明確な対象外根拠がなければ confirm または missing にする\n- reason\
+            \ に「対象外ではない」「詳細が未定」「情報が不足している」と記載する場合、not_applicable にしない\n\n# 親子章節ルール\n\
+            \n- 親章節が明確に not_applicable の場合、その配下も原則 not_applicable\n- 子章節のいずれかが applicable、missing、confirm\
+            \ の場合、親章節を not_applicable にしない\n- 採用、導入、構築、実施が確認されている機能の配下は、詳細が未定でも not_applicable\
+            \ にせず missing とする\n- 対象かどうか自体が判断できない子章節は confirm とする\n\n# 共通判定例\n\n例1：domain_details\
+            \ に「無線LANを導入する」、status=confirmed とある。\n- 「無線LAN」章節：applicable\n- 無線LAN配下の具体的な認証方式が未定：missing\n\
+            \n例2：domain_details に「バックアップは実施するが保存期間は未定」とある。\n- 「バックアップ」章節：missing\n\
+            - 「保存期間」章節：missing\n\n例3：domain_details に「ロードバランサーは使用しない」、status=not_applicable\
+            \ とある。\n- 「ロードバランサー」章節：not_applicable\n- その配下の章節：not_applicable\n\n例4：案件情報に回線を使用するかどうかの記載がない。\n\
+            - 「回線」章節：confirm\n- 情報がないだけなので not_applicable にしない\n\n# reason\n\n判定根拠を日本語で簡潔に記載する。\n\
+            \n良い例：\n- 「無線LANの導入が確認されているため。」\n- 「バックアップは実施するが、保存期間が未定であるため。」\n- 「案件情報から回線が対象かどうか判断できないため。」\n\
+            - 「ロードバランサーを使用しないことが明記されているため。」\n\n悪い例：\n- 「情報がないため対象外。」\n- 「詳細が未定であるため対象外。」\n\
+            - 「対象外ではないが、not_applicable。」\n\n# 出力前確認\n\n- 標準章節リストの全IDが含まれている\n- level=3のIDも含まれている\n\
+            - IDの重複、追加、削除、変更がない\n- 標準章節リストと同じ順番である\n- 明確な対象外根拠がない章節を not_applicable\
+            \ にしていない\n- 詳細未定の章節を not_applicable にしていない\n- 親子章節の判定が矛盾していない\n\n# 出力形式\n\
+            \n以下のJSONだけを出力する。\n\n{\n  \"decisions\": [\n    {\n      \"id\": \"標準章節リストに存在するID\"\
+            ,\n      \"applicability\": \"applicable | not_applicable | missing |\
+            \ confirm\",\n      \"reason\": \"判定理由\"\n    }\n  ]\n}\n\n- generation_policy\
+            \ やその他の項目は出力しない\n- JSON以外の説明文、Markdown、コードブロックは禁止"
+        selected: false
+        title: 章節適用性判定
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 148
+      id: section_decision_llm
+      position:
+        x: 720
+        y: 280
+      positionAbsolute:
+        x: 720
+        y: 280
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        code: "import json\nimport re\n\n\ndef parse_json(value):\n    if isinstance(value,\
+          \ (dict, list)):\n        return value\n\n    text = str(value or \"\").strip()\n\
+          \n    # Markdown代码块去除\n    text = re.sub(r\"^```json\\s*\", \"\", text)\n\
+          \    text = re.sub(r\"^```\\s*\", \"\", text)\n    text = re.sub(r\"\\s*```$\"\
+          , \"\", text)\n\n    # 去除JSON前面的说明文字\n    if not (text.startswith(\"{\"\
+          ) or text.startswith(\"[\")):\n        first_obj = text.find(\"{\")\n  \
+          \      first_arr = text.find(\"[\")\n        starts = [x for x in (first_obj,\
+          \ first_arr) if x >= 0]\n\n        if starts:\n            text = text[min(starts):]\n\
+          \n    # 去除JSON后面的说明文字\n    if text.startswith(\"{\"):\n        end = text.rfind(\"\
+          }\")\n        if end >= 0:\n            text = text[:end + 1]\n\n    elif\
+          \ text.startswith(\"[\"):\n        end = text.rfind(\"]\")\n        if end\
+          \ >= 0:\n            text = text[:end + 1]\n\n    if not text:\n       \
+          \ return {}\n\n    return json.loads(text)\n\n\ndef force_not_applicable(node,\
+          \ reason):\n    \"\"\"\n    父章節が対象外の場合に、配下をすべて対象外にする。\n    \"\"\"\n    node[\"\
+          applicability\"] = \"not_applicable\"\n    node[\"selected\"] = False\n\n\
+          \    if not node.get(\"reason\"):\n        node[\"reason\"] = reason\n\n\
+          \    for child in node.get(\"children\") or []:\n        force_not_applicable(\n\
+          \            child,\n            \"親章節が対象外のため。\"\n        )\n\n\ndef normalize_hierarchy(node):\n\
+          \    \"\"\"\n    子から親へ判定を確認し、親子の矛盾を修正する。\n    \"\"\"\n    children = node.get(\"\
+          children\") or []\n\n    # 先に子章節を正規化\n    for child in children:\n     \
+          \   normalize_hierarchy(child)\n\n    if not children:\n        return\n\
+          \n    child_statuses = [\n        child.get(\"applicability\", \"confirm\"\
+          )\n        for child in children\n    ]\n\n    has_applicable = \"applicable\"\
+          \ in child_statuses\n    has_missing = \"missing\" in child_statuses\n \
+          \   has_confirm = \"confirm\" in child_statuses\n\n    # 子章節が適用対象なのに親が対象外の場合、親を適用側へ引き上げる\n\
+          \    if node.get(\"applicability\") == \"not_applicable\":\n        if has_applicable:\n\
+          \            node[\"applicability\"] = \"applicable\"\n            node[\"\
+          selected\"] = True\n            node[\"reason\"] = (\n                \"\
+          配下に適用対象の章節が存在するため。\"\n            )\n\n        elif has_missing:\n     \
+          \       node[\"applicability\"] = \"missing\"\n            node[\"selected\"\
+          ] = True\n            node[\"reason\"] = (\n                \"配下に情報不足の適用章節が存在するため。\"\
+          \n            )\n\n        elif has_confirm:\n            node[\"applicability\"\
+          ] = \"confirm\"\n            node[\"selected\"] = True\n            node[\"\
+          reason\"] = (\n                \"配下に適用確認が必要な章節が存在するため。\"\n            )\n\
+          \n    # 親が最終的に対象外なら、配下もすべて対象外に統一\n    if node.get(\"applicability\") ==\
+          \ \"not_applicable\":\n        for child in children:\n            force_not_applicable(\n\
+          \                child,\n                \"親章節が対象外のため。\"\n            )\n\
+          \n\ndef collect_result_data(nodes):\n    \"\"\"\n    階層修正後に統計と確認事項を作成する。\n\
+          \    \"\"\"\n    stats = {\n        \"applicable\": 0,\n        \"not_applicable\"\
+          : 0,\n        \"missing\": 0,\n        \"confirm\": 0\n    }\n\n    missing_items\
+          \ = []\n\n    def collect(node):\n        applicability = node.get(\n  \
+          \          \"applicability\",\n            \"confirm\"\n        )\n\n  \
+          \      if applicability not in stats:\n            applicability = \"confirm\"\
+          \n            node[\"applicability\"] = \"confirm\"\n            node[\"\
+          selected\"] = True\n\n        stats[applicability] += 1\n\n        if applicability\
+          \ in (\"missing\", \"confirm\"):\n            reason = node.get(\"reason\"\
+          ) or (\n                \"適用性の判断または設計条件の確認が必要です。\"\n            )\n\n  \
+          \          node[\"reason\"] = reason\n\n            missing_items.append({\n\
+          \                \"section_id\": node.get(\"id\"),\n                \"source_template_number\"\
+          :\n                    node.get(\"source_template_number\"),\n         \
+          \       \"title\": node.get(\"title\"),\n                \"item\": node.get(\"\
+          title\"),\n                \"reason\": reason\n            })\n\n      \
+          \  for child in node.get(\"children\") or []:\n            collect(child)\n\
+          \n    for node in nodes:\n        collect(node)\n\n    return stats, missing_items\n\
+          \n\ndef main(\n    master_json: str,\n    section_decisions_json: str,\n\
+          \    case_profile_json: str,\n    input_json: str,\n    document_type: str,\n\
+          \    template_id: str,\n    template_version: str\n) -> dict:\n\n    master\
+          \ = parse_json(master_json)\n    decision_data = parse_json(section_decisions_json)\n\
+          \n    # 個人Difyのテンプレート取得APIが返すmaster_jsonは章節配列。\n    # 旧形式の {\"chapters\"\
+          : [...]} にも互換対応する。\n    if isinstance(master, list):\n        chapters =\
+          \ master\n        master_meta = {}\n    elif isinstance(master, dict):\n\
+          \        chapters = master.get(\"chapters\") or []\n        master_meta\
+          \ = master\n    else:\n        chapters = []\n        master_meta = {}\n\
+          \n    case_profile = (\n        parse_json(case_profile_json)\n        if\
+          \ case_profile_json\n        else {}\n    )\n\n    # decisionsが配列で直接返された場合にも対応\n\
+          \    if isinstance(decision_data, list):\n        decisions = decision_data\n\
+          \    else:\n        decisions = decision_data.get(\"decisions\", [])\n\n\
+          \    allowed = {\n        \"applicable\",\n        \"not_applicable\",\n\
+          \        \"missing\",\n        \"confirm\"\n    }\n\n    decision_map =\
+          \ {}\n\n    for decision in decisions:\n        if not isinstance(decision,\
+          \ dict):\n            continue\n\n        decision_id = decision.get(\"\
+          id\")\n\n        if decision_id:\n            decision_map[decision_id]\
+          \ = decision\n\n    def apply_decision(node):\n        node_id = node.get(\"\
+          id\")\n        decision = decision_map.get(node_id)\n\n        if decision:\n\
+          \            applicability = decision.get(\n                \"applicability\"\
+          ,\n                \"confirm\"\n            )\n\n            if applicability\
+          \ not in allowed:\n                applicability = \"confirm\"\n\n     \
+          \       reason = decision.get(\"reason\") or \"\"\n\n            decision_policy\
+          \ = (\n                decision.get(\"generation_policy\") or \"\"\n   \
+          \         )\n\n            decision_source = \"llm\"\n\n        else:\n\
+          \            applicability = \"confirm\"\n            reason = (\n     \
+          \           \"章節適用性判定の出力に該当IDがないため、\"\n                \"適用有無の確認が必要です。\"\
+          \n            )\n            decision_policy = \"\"\n            decision_source\
+          \ = \"default_confirm\"\n\n        # Master側に既存の生成方針があれば保持する\n        master_policy\
+          \ = (\n            node.get(\"generation_policy\") or \"\"\n        )\n\n\
+          \        generation_policy = (\n            decision_policy or master_policy\n\
+          \        )\n\n        node[\"applicability\"] = applicability\n        node[\"\
+          selected\"] = (\n            applicability != \"not_applicable\"\n     \
+          \   )\n        node[\"reason\"] = reason\n        node[\"generation_policy\"\
+          ] = generation_policy\n        node[\"ai_instruction\"] = generation_policy\n\
+          \        node[\"decision_source\"] = decision_source\n        node[\"blocks\"\
+          ] = node.get(\"blocks\") or []\n\n        for child in node.get(\"children\"\
+          ) or []:\n            apply_decision(child)\n\n    # LLM判定をMasterへ合成\n \
+          \   for chapter in chapters:\n        apply_decision(chapter)\n\n    # 親子関係の矛盾を確定的に修正\n\
+          \    for chapter in chapters:\n        normalize_hierarchy(chapter)\n\n\
+          \    # 修正後の状態で統計を作り直す\n    stats, missing_items = collect_result_data(chapters)\n\
+          \n    project = case_profile.get(\"project\") or {}\n\n    result = {\n\
+          \        \"status\": \"success\",\n        \"stage\": \"chapter_confirm_v3\"\
+          ,\n        \"document_type\": str(\n            document_type or master_meta.get(\"\
+          document_type\") or \"\"\n        ),\n        \"template_id\": str(\n  \
+          \          template_id or master_meta.get(\"template_id\") or \"\"\n   \
+          \     ),\n        \"template_version\": str(\n            template_version\
+          \ or master_meta.get(\"template_version\") or \"\"\n        ),\n       \
+          \ \"cover\": {\n            \"client_name\":\n                project.get(\"\
+          client_name\") or \"\",\n            \"project_name\":\n               \
+          \ project.get(\"project_name\") or \"\"\n        },\n        \"document_plan\"\
+          : {\n            \"summary\": input_json,\n            \"note\": (\n   \
+          \             \"標準章節構成に基づき、\"\n                \"各章節の適用性を判定しました。\"\n   \
+          \         ),\n            \"decision_stats\": stats\n        },\n      \
+          \  \"case_profile\": case_profile,\n        \"chapters\": chapters,\n  \
+          \      \"missing_items\": missing_items\n    }\n\n    return {\n       \
+          \ \"result_json\": json.dumps(\n            result,\n            ensure_ascii=False\n\
+          \        )\n    }\n"
+        code_language: python3
+        desc: 動的に受信した章節Masterへ共通判定結果を合成し、HTML用result_jsonを作成する。出力形式はv3互換。
+        outputs:
+          result_json:
+            children: null
+            type: string
+        selected: false
+        title: 章節ツリー合成
+        type: code
+        variables:
+        - value_selector:
+          - start
+          - master_json
+          value_type: string
+          variable: master_json
+        - value_selector:
+          - section_decision_llm
+          - text
+          value_type: string
+          variable: section_decisions_json
+        - value_selector:
+          - '17848009024030'
+          - text
+          value_type: string
+          variable: case_profile_json
+        - value_selector:
+          - start
+          - input_json
+          value_type: string
+          variable: input_json
+        - value_selector:
+          - start
+          - document_type
+          value_type: string
+          variable: document_type
+        - value_selector:
+          - start
+          - template_id
+          value_type: string
+          variable: template_id
+        - value_selector:
+          - start
+          - template_version
+          value_type: string
+          variable: template_version
+      height: 112
+      id: merge_code
+      position:
+        x: 1040
+        y: 280
+      positionAbsolute:
+        x: 1040
+        y: 280
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        desc: ''
+        outputs:
+        - value_selector:
+          - merge_code
+          - result_json
+          variable: result_json
+        selected: true
+        title: End
+        type: end
+      height: 88
+      id: end
+      position:
+        x: 1360
+        y: 280
+      positionAbsolute:
+        x: 1360
+        y: 280
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 文書種別固有の項目名を固定せず、common + domain_details の共通形式へ案件情報を正規化する。旧形式の入力にも対応する。
+        isInIteration: false
+        isInLoop: false
+        model:
+          completion_params: {}
+          mode: chat
+          name: gpt4omini-dify-t0000-240806
+          provider: langgenius/azure_openai/azure_openai
+        prompt_template:
+        - id: profile-system
+          role: system
+          text: 'あなたは日本語インフラ基本設計書の「章節適用性判定」に使用する案件情報整理担当です。
+
+
+            入力された案件情報を、文書種別に依存しない共通JSONへ変換してください。
+
+
+            対象文書種別は次の4種類です。
+
+            - server_storage
+
+            - network
+
+            - cloud
+
+            - full
+
+
+            ただし、文書種別ごとの製品、構成、機能、設計項目を推測してはいけません。
+
+            入力に明記された事実だけを整理してください。
+
+
+            目的は文章の要約ではなく、次の情報を正確に分類することです。
+
+            - 確定している事項
+
+            - 未定、検討中、候補、要確認の事項
+
+            - 使用しない事項
+
+            - 本案件の対象外事項
+
+
+            入力に存在しない製品、構成、数量、方式、条件を追加してはいけません。'
+        - id: profile-user
+          role: user
+          text: "# 文書種別\n{{#start.document_type#}}\n\n# 案件情報\n{{#start.input_json#}}\n\
+            \n# 入力形式について\n\n推奨入力形式は、次の共通構造です。\n\n{\n  \"document_type\": \"server_storage\
+            \ | network | cloud | full\",\n  \"common\": {\n    \"client_name\": \"\
+            \",\n    \"project_name\": \"\",\n    \"purpose\": \"\",\n    \"summary\"\
+            : \"\",\n    \"scope\": \"\",\n    \"out_of_scope\": \"\"\n  },\n  \"\
+            domain_details\": [\n    {\n      \"key\": \"任意の識別子\",\n      \"label\"\
+            : \"画面上の項目名\",\n      \"value\": \"入力内容\"\n    }\n  ],\n  \"unknown_items\"\
+            : [],\n  \"notes\": \"\"\n}\n\nただし、旧HTMLが送信するフラットなJSONまたは文章形式も受け付けます。\n\
+            旧形式の場合も、入力に存在する各項目を共通出力形式の project、scope、domain_details、constraints、unknown_items、notes\
+            \ に整理してください。\n\n# 厳守事項\n\n- JSONだけを出力する\n- Markdown、説明文、コードブロックは禁止\n-\
+            \ 指定されたJSONキーを省略しない\n- 入力に書かれていない情報を追加しない\n- 文書種別から一般的な設計内容を推測しない\n- 一般的な設計慣行や経験を根拠に情報を補完しない\n\
+            - 製品名、構成、数量、方式、対象範囲を推測しない\n- 否定表現を肯定情報として扱わない\n- 同一内容を重複登録しない\n- 空欄の入力項目は\
+            \ domain_details に追加しない\n- 入力に全く記載されていない項目を unknown_items に追加しない\n- evidence\
+            \ には判断根拠となった入力中の短い表現を記載する\n- full は独立した標準テンプレートであり、他の文書種別を合成したものとして扱わない\n\
+            \n# status の定義\n\nconfirmed:\n採用、使用、導入、構築、実施、対象、決定済みであることが明記されている。\n\n\
+            undecided:\n未定、検討中、候補、予定、要確認、別途確認など、まだ確定していない。\n\nnot_applicable:\n使用しない、導入しない、構築しない、実施しない、本案件の対象外であることが明記されている。\n\
+            \n# 正規化ルール\n\n- document_type は START の document_type をそのまま使用する\n- common.client_name、client、customer、顧客名などは\
+            \ project.client_name に整理する\n- common.project_name、project、案件名、プロジェクト名などは\
+            \ project.project_name に整理する\n- 目的は project.purpose、案件概要は project.summary\
+            \ に整理する\n- 対象範囲は scope.in_scope、対象外範囲は scope.out_of_scope に整理する\n- domain_details\
+            \ の key と label は可能な限り入力値を保持する\n- domain_details の value に複数の独立事項が含まれる場合は、必要に応じて複数要素へ分割する\n\
+            - 同じ事実を scope と domain_details の両方に登録してよい\n- 実施自体が確定し、詳細だけが未定の場合は、実施事項を\
+            \ confirmed、未定の詳細を undecided として分ける\n- 「導入予定」「実施予定」は undecided とする\n-\
+            \ 「導入する」「実施する」「採用することが決定している」は confirmed とする\n- 明示された未定事項は unknown_items\
+            \ にも登録してよい\n- 制約、期限、既存環境踏襲、利用禁止条件などは constraints に整理する\n\n# domain_details\
+            \ の各要素\n\n{\n  \"key\": \"入力項目の識別子。存在しない場合は空文字\",\n  \"label\": \"入力項目名または対象項目名\"\
+            ,\n  \"value\": \"入力に記載された内容\",\n  \"status\": \"confirmed | undecided\
+            \ | not_applicable\",\n  \"evidence\": \"入力中の判断根拠\"\n}\n\n# scope の各要素\n\
+            \n{\n  \"item\": \"対象内容\",\n  \"evidence\": \"入力中の判断根拠\"\n}\n\n# constraints\
+            \ の各要素\n\n{\n  \"item\": \"制約内容\",\n  \"status\": \"confirmed | undecided\"\
+            ,\n  \"evidence\": \"入力中の判断根拠\"\n}\n\n# unknown_items の各要素\n\n{\n  \"\
+            item\": \"入力上で明示的に未定、検討中、要確認である内容\",\n  \"evidence\": \"入力中の判断根拠\"\n}\n\
+            \n# 出力形式\n\n{\n  \"document_type\": \"{{#start.document_type#}}\",\n \
+            \ \"project\": {\n    \"client_name\": \"\",\n    \"project_name\": \"\
+            \",\n    \"purpose\": \"\",\n    \"summary\": \"\"\n  },\n  \"scope\"\
+            : {\n    \"in_scope\": [],\n    \"out_of_scope\": []\n  },\n  \"domain_details\"\
+            : [],\n  \"constraints\": [],\n  \"unknown_items\": [],\n  \"notes\":\
+            \ []\n}"
+        selected: false
+        title: 案件情報正規化
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 164
+      id: '17848009024030'
+      position:
+        x: 400
+        y: 280
+      positionAbsolute:
+        x: 400
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: -35.725094738170014
+      y: -84.8172354942568
+      zoom: 0.794410734677843
+  rag_pipeline_variables: []

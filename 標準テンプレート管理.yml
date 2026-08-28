@@ -1,0 +1,633 @@
+app:
+  description: 管理者が標準DOCXを文書種別ごとに登録し、Heading 1～3から章節Masterを自動生成します。成功・失敗分岐を統合し、唯一の終了ノードから共通形式で返します。
+  icon: 🗂️
+  icon_background: '#E8F1FF'
+  icon_type: emoji
+  mode: workflow
+  name: 標準テンプレート管理
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: package
+  value:
+    plugin_unique_identifier: likygao/standard_word_generator:0.0.10@421ae6e8e70e56f66e09e68610d7a1b1be2274246376644540e66be5ef9616c9
+    version: null
+kind: app
+version: 0.7.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .DOCX
+      allowed_file_types:
+      - document
+      allowed_file_upload_methods:
+      - local_file
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        knowledge_file_size_limit: 15
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 1
+        transfer_methods:
+        - local_file
+      number_limits: 1
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: tool
+      id: start-source-register-target
+      source: start
+      sourceHandle: source
+      target: register_template
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: code
+      id: register-success-format-success-target
+      source: register_template
+      sourceHandle: success-branch
+      target: format_success
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: code
+      id: register-fail-format-error-target
+      selected: false
+      source: register_template
+      sourceHandle: fail-branch
+      target: format_error
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: variable-aggregator
+      id: format-success-to-aggregator
+      source: format_success
+      sourceHandle: source
+      target: result_aggregator
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: variable-aggregator
+      id: format-error-to-aggregator
+      selected: false
+      source: format_error
+      sourceHandle: source
+      target: result_aggregator
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: variable-aggregator
+        targetType: code
+      id: aggregator-to-unpack
+      source: result_aggregator
+      sourceHandle: source
+      target: unpack_result
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: unpack-to-end
+      source: unpack_result
+      sourceHandle: source
+      target: end
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: code
+      id: register_template-source-format_success-target
+      selected: false
+      source: register_template
+      sourceHandle: source
+      target: format_success
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: 標準DOCXと登録先の文書種別を指定します。
+        selected: false
+        title: 開始
+        type: start
+        variables:
+        - allowed_file_extensions:
+          - .DOCX
+          allowed_file_types:
+          - document
+          allowed_file_upload_methods:
+          - local_file
+          default: ''
+          hint: Microsoft Wordの標準テンプレート（.docx）を選択してください。
+          label: 標準テンプレートDOCX
+          max_length: 48
+          options: []
+          placeholder: ''
+          required: true
+          type: file
+          variable: template_file
+        - label: 文書種別
+          options:
+          - server_storage
+          - network
+          - cloud
+          - full
+          required: true
+          type: select
+          variable: document_type
+      height: 179
+      id: start
+      position:
+        x: 60
+        y: 280
+      positionAbsolute:
+        x: 60
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        desc: v0.0.7のregister_standard_templateを使用し、DOCX保存、Heading解析、Master生成を一括実行します。
+        error_strategy: fail-branch
+        provider_id: likygao/standard_word_generator/standard_word_generator
+        provider_name: likygao/standard_word_generator/standard_word_generator
+        provider_type: builtin
+        retry_config:
+          max_retries: 0
+          retry_enabled: false
+          retry_interval: 1000
+        selected: true
+        title: 標準テンプレート登録・解析
+        tool_configurations: {}
+        tool_description: DOCXを検証し、Heading 1～3を抽出して、指定文書種別の現在テンプレートを上書き登録します。
+        tool_label: 標準テンプレート登録・解析
+        tool_name: register_standard_template
+        tool_node_version: '2'
+        tool_parameters:
+          document_type:
+            type: mixed
+            value: '{{#start.document_type#}}'
+          template_file:
+            type: variable
+            value:
+            - start
+            - template_file
+        type: tool
+      height: 148
+      id: register_template
+      position:
+        x: 430
+        y: 260
+      positionAbsolute:
+        x: 430
+        y: 260
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        code: "def main(\n    document_type: str,\n    template_version: str,\n  \
+          \  template: dict,\n    master_json: list,\n    chapter_list_json: list,\n\
+          \    warnings: list,\n) -> dict:\n    template = template or {}\n    master_json\
+          \ = master_json or []\n    chapter_list_json = chapter_list_json or []\n\
+          \    parse_warnings = [str(item) for item in (warnings or []) if str(item).strip()]\n\
+          \n    validation = template.get(\"validation\") or {}\n    validation_warnings\
+          \ = [\n        str(item) for item in (validation.get(\"warnings\") or [])\
+          \ if str(item).strip()\n    ]\n\n    combined_warnings = []\n    for item\
+          \ in parse_warnings + validation_warnings:\n        if item not in combined_warnings:\n\
+          \            combined_warnings.append(item)\n\n    chapter_summary = template.get(\"\
+          chapter_summary\") or {}\n    heading_1_count = int(chapter_summary.get(\"\
+          heading_1_count\") or 0)\n    heading_2_count = int(chapter_summary.get(\"\
+          heading_2_count\") or 0)\n    heading_3_count = int(chapter_summary.get(\"\
+          heading_3_count\") or 0)\n\n    hierarchy_markers = (\n        \"Heading\
+          \ 1より前のHeading 2\",\n        \"親Heading 2がないHeading 3\",\n    )\n    hierarchy_errors\
+          \ = [\n        item\n        for item in combined_warnings\n        if any(marker\
+          \ in item for marker in hierarchy_markers)\n    ]\n\n    if hierarchy_errors:\n\
+          \        status = \"error\"\n        errors = [\n            \"章節階層に異常があります。Heading\
+          \ 1 → Heading 2 → Heading 3 の順序を確認してください。\"\n        ] + hierarchy_errors\n\
+          \        message = \"章節階層異常のため、登録結果を成功扱いにしていません。\"\n    else:\n        status\
+          \ = \"success\"\n        errors = []\n        message = (\n            \"\
+          標準テンプレートを登録・解析しました。\"\n            f\" Heading 1: {heading_1_count}件、\"\n\
+          \            f\"Heading 2: {heading_2_count}件、\"\n            f\"Heading\
+          \ 3: {heading_3_count}件。\"\n        )\n\n    return {\n        \"result\"\
+          : {\n            \"status\": status,\n        \"document_type\": str(document_type\
+          \ or template.get(\"document_type\") or \"\"),\n        \"template_id\"\
+          : str(template.get(\"id\") or \"\"),\n        \"template_version\": str(\n\
+          \            template_version or template.get(\"template_version\") or \"\
+          \"\n        ),\n        \"master_json\": master_json,\n        \"chapter_list_json\"\
+          : chapter_list_json,\n        \"heading_1_count\": heading_1_count,\n  \
+          \      \"heading_2_count\": heading_2_count,\n        \"heading_3_count\"\
+          : heading_3_count,\n        \"errors\": errors,\n        \"warnings\": combined_warnings,\n\
+          \            \"message\": message,\n        }\n    }"
+        code_language: python3
+        desc: プラグイン出力を管理用レスポンスへ整形し、章節階層警告をエラーとして判定します。
+        outputs:
+          result:
+            children:
+              chapter_list_json:
+                children: null
+                type: array[object]
+              document_type:
+                children: null
+                type: string
+              errors:
+                children: null
+                type: array[string]
+              heading_1_count:
+                children: null
+                type: number
+              heading_2_count:
+                children: null
+                type: number
+              heading_3_count:
+                children: null
+                type: number
+              master_json:
+                children: null
+                type: array[object]
+              message:
+                children: null
+                type: string
+              status:
+                children: null
+                type: string
+              template_id:
+                children: null
+                type: string
+              template_version:
+                children: null
+                type: string
+              warnings:
+                children: null
+                type: array[string]
+            type: object
+        selected: false
+        title: 登録結果整形
+        type: code
+        variables:
+        - value_selector:
+          - register_template
+          - document_type
+          variable: document_type
+        - value_selector:
+          - register_template
+          - template_version
+          variable: template_version
+        - value_selector:
+          - register_template
+          - template
+          variable: template
+        - value_selector:
+          - register_template
+          - master_json
+          variable: master_json
+        - value_selector:
+          - register_template
+          - chapter_list_json
+          variable: chapter_list_json
+        - value_selector:
+          - register_template
+          - warnings
+          variable: warnings
+      height: 112
+      id: format_success
+      position:
+        x: 820
+        y: 120
+      positionAbsolute:
+        x: 820
+        y: 120
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        code: "def main(document_type: str, error_type: str, error_message: str) ->\
+          \ dict:\n    raw_message = str(error_message or \"\").strip()\n    error_type\
+          \ = str(error_type or \"\").strip()\n\n    if \"登録できるファイルは.docxのみ\" in raw_message:\n\
+          \        message = \"DOCXファイルのみ登録できます。アップロードしたファイル形式を確認してください。\"\n    elif\
+          \ \"Heading 1～3から章節を抽出できませんでした\" in raw_message:\n        message = (\n\
+          \            \"章節を抽出できませんでした。\"\n            \"標準テンプレート本文にHeading 1を設定し、必要に応じてHeading\
+          \ 2・Heading 3を設定してください。\"\n        )\n    elif \"必要なWordスタイルがありません\" in\
+          \ raw_message:\n        message = (\n            \"標準テンプレートに必要なWordスタイルがありません。\"\
+          \n            \"Normal、Heading 1、Heading 2、Heading 3、Captionを確認してください。\"\
+          \n        )\n    elif \"有効なDOCX\" in raw_message or \"Wordテンプレートを開けません\"\
+          \ in raw_message:\n        message = \"DOCXファイルが破損しているか、Word文書として読み取れません。\"\
+          \n    elif raw_message:\n        message = raw_message\n    else:\n    \
+          \    message = \"標準テンプレートの登録・解析に失敗しました。\"\n\n    errors = [message]\n  \
+          \  if raw_message and raw_message != message:\n        errors.append(\"\
+          詳細: \" + raw_message)\n    if error_type:\n        errors.append(\"エラー種別:\
+          \ \" + error_type)\n\n    return {\n        \"result\": {\n            \"\
+          status\": \"error\",\n        \"document_type\": str(document_type or \"\
+          \"),\n        \"template_id\": \"\",\n        \"template_version\": \"\"\
+          ,\n        \"master_json\": [],\n        \"chapter_list_json\": [],\n  \
+          \      \"heading_1_count\": 0,\n        \"heading_2_count\": 0,\n      \
+          \  \"heading_3_count\": 0,\n        \"errors\": errors,\n        \"warnings\"\
+          : [],\n            \"message\": message,\n        }\n    }"
+        code_language: python3
+        desc: プラグイン例外を明確な日本語エラーへ整形します。
+        outputs:
+          result:
+            children:
+              chapter_list_json:
+                children: null
+                type: array[object]
+              document_type:
+                children: null
+                type: string
+              errors:
+                children: null
+                type: array[string]
+              heading_1_count:
+                children: null
+                type: number
+              heading_2_count:
+                children: null
+                type: number
+              heading_3_count:
+                children: null
+                type: number
+              master_json:
+                children: null
+                type: array[object]
+              message:
+                children: null
+                type: string
+              status:
+                children: null
+                type: string
+              template_id:
+                children: null
+                type: string
+              template_version:
+                children: null
+                type: string
+              warnings:
+                children: null
+                type: array[string]
+            type: object
+        selected: false
+        title: エラー整形
+        type: code
+        variables:
+        - value_selector:
+          - start
+          - document_type
+          variable: document_type
+        - value_selector:
+          - register_template
+          - error_type
+          variable: error_type
+        - value_selector:
+          - register_template
+          - error_message
+          variable: error_message
+      height: 96
+      id: format_error
+      position:
+        x: 820
+        y: 470
+      positionAbsolute:
+        x: 820
+        y: 470
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        desc: 成功分岐またはエラー分岐のうち、実行された側のresultを統合します。
+        output_type: object
+        selected: false
+        title: 結果統合
+        type: variable-aggregator
+        variables:
+        - - format_success
+          - result
+        - - format_error
+          - result
+      height: 178
+      id: result_aggregator
+      position:
+        x: 1210
+        y: 295
+      positionAbsolute:
+        x: 1210
+        y: 295
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        code: "def main(result: dict) -> dict:\n    result = result or {}\n    return\
+          \ {\n        \"status\": str(result.get(\"status\") or \"error\"),\n   \
+          \     \"document_type\": str(result.get(\"document_type\") or \"\"),\n \
+          \       \"template_id\": str(result.get(\"template_id\") or \"\"),\n   \
+          \     \"template_version\": str(result.get(\"template_version\") or \"\"\
+          ),\n        \"master_json\": result.get(\"master_json\") or [],\n      \
+          \  \"chapter_list_json\": result.get(\"chapter_list_json\") or [],\n   \
+          \     \"heading_1_count\": int(result.get(\"heading_1_count\") or 0),\n\
+          \        \"heading_2_count\": int(result.get(\"heading_2_count\") or 0),\n\
+          \        \"heading_3_count\": int(result.get(\"heading_3_count\") or 0),\n\
+          \        \"errors\": [str(v) for v in (result.get(\"errors\") or [])],\n\
+          \        \"warnings\": [str(v) for v in (result.get(\"warnings\") or [])],\n\
+          \        \"message\": str(result.get(\"message\") or \"\"),\n    }"
+        code_language: python3
+        desc: 統合結果をワークフローAPIの個別出力変数へ展開します。
+        outputs:
+          chapter_list_json:
+            children: null
+            type: array[object]
+          document_type:
+            children: null
+            type: string
+          errors:
+            children: null
+            type: array[string]
+          heading_1_count:
+            children: null
+            type: number
+          heading_2_count:
+            children: null
+            type: number
+          heading_3_count:
+            children: null
+            type: number
+          master_json:
+            children: null
+            type: array[object]
+          message:
+            children: null
+            type: string
+          status:
+            children: null
+            type: string
+          template_id:
+            children: null
+            type: string
+          template_version:
+            children: null
+            type: string
+          warnings:
+            children: null
+            type: array[string]
+        selected: false
+        title: 最終結果展開
+        type: code
+        variables:
+        - value_selector:
+          - result_aggregator
+          - output
+          variable: result
+      height: 96
+      id: unpack_result
+      position:
+        x: 1580
+        y: 270
+      positionAbsolute:
+        x: 1580
+        y: 270
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        desc: 登録成功・失敗を共通形式で返す唯一の終了ノードです。
+        outputs:
+        - value_selector:
+          - unpack_result
+          - status
+          variable: status
+        - value_selector:
+          - unpack_result
+          - document_type
+          variable: document_type
+        - value_selector:
+          - unpack_result
+          - template_id
+          variable: template_id
+        - value_selector:
+          - unpack_result
+          - template_version
+          variable: template_version
+        - value_selector:
+          - unpack_result
+          - master_json
+          variable: master_json
+        - value_selector:
+          - unpack_result
+          - chapter_list_json
+          variable: chapter_list_json
+        - value_selector:
+          - unpack_result
+          - heading_1_count
+          variable: heading_1_count
+        - value_selector:
+          - unpack_result
+          - heading_2_count
+          variable: heading_2_count
+        - value_selector:
+          - unpack_result
+          - heading_3_count
+          variable: heading_3_count
+        - value_selector:
+          - unpack_result
+          - errors
+          variable: errors
+        - value_selector:
+          - unpack_result
+          - warnings
+          variable: warnings
+        - value_selector:
+          - unpack_result
+          - message
+          variable: message
+        selected: false
+        title: 終了
+        type: end
+      height: 418
+      id: end
+      position:
+        x: 1990
+        y: 245
+      positionAbsolute:
+        x: 1990
+        y: 245
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    viewport:
+      x: 25.258948540773645
+      y: 182.24358102789245
+      zoom: 0.5929364609641091
+  rag_pipeline_variables: []

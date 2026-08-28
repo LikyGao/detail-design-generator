@@ -1,0 +1,266 @@
+app:
+  description: HTML/APIから案件情報と章節JSONを受け取り、登録済み標準DOCXテンプレートから基本設計書を生成します。
+  icon: 📄
+  icon_background: '#E8F1FF'
+  icon_type: emoji
+  mode: workflow
+  name: 基本設計書_Word生成API
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: package
+  value:
+    plugin_unique_identifier: likygao/standard_word_generator:0.0.10@421ae6e8e70e56f66e09e68610d7a1b1be2274246376644540e66be5ef9616c9
+    version: null
+kind: app
+version: 0.7.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      - document
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        knowledge_file_size_limit: 15
+        single_chunk_attachment_limit: 10
+        skill_file_size_limit: 50
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: tool
+      id: start-source-generate-target
+      source: start
+      sourceHandle: source
+      target: generate_docx
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: end
+      id: generate-source-end-target
+      source: generate_docx
+      sourceHandle: source
+      target: end
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: 案件情報、改訂履歴JSON、章節JSONを受け取ります。
+        selected: false
+        title: 開始
+        type: start
+        variables:
+        - label: 顧客名
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: client_name
+        - label: プロジェクト名
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: project_name
+        - label: 版数
+          max_length: 32
+          options: []
+          required: false
+          type: text-input
+          variable: version
+        - label: 発行日（YYYY/MM/DD）
+          max_length: 32
+          options: []
+          required: false
+          type: text-input
+          variable: issue_date
+        - label: プロジェクトNo
+          max_length: 128
+          options: []
+          required: false
+          type: text-input
+          variable: project_no
+        - label: 改訂履歴JSON
+          max_length: 200000
+          options: []
+          required: false
+          type: paragraph
+          variable: revision_history_json
+        - label: 章節JSON
+          max_length: 1000000
+          options: []
+          required: true
+          type: paragraph
+          variable: chapters_json
+        - label: 出力ファイル名
+          max_length: 256
+          options: []
+          required: false
+          type: text-input
+          variable: output_filename
+        - default: ''
+          hint: ''
+          label: document_type
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: document_type
+      height: 361
+      id: start
+      position:
+        x: 80
+        y: 218.78065359639947
+      positionAbsolute:
+        x: 80
+        y: 218.78065359639947
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        desc: 登録済み標準テンプレートからDOCXを生成します。
+        provider_id: likygao/standard_word_generator/standard_word_generator
+        provider_name: likygao/standard_word_generator/standard_word_generator
+        provider_type: builtin
+        selected: true
+        title: 標準DOCX生成
+        tool_configurations: {}
+        tool_description: 標準テンプレートを使用して基本設計書DOCXを生成します。
+        tool_label: 標準DOCX生成
+        tool_name: generate_standard_docx
+        tool_node_version: '2'
+        tool_parameters:
+          chapters_json:
+            type: mixed
+            value: '{{#start.chapters_json#}}'
+          client_name:
+            type: mixed
+            value: '{{#start.client_name#}}'
+          document_type:
+            type: variable
+            value:
+            - start
+            - document_type
+          issue_date:
+            type: mixed
+            value: '{{#start.issue_date#}}'
+          output_filename:
+            type: mixed
+            value: '{{#start.output_filename#}}'
+          project_name:
+            type: mixed
+            value: '{{#start.project_name#}}'
+          project_no:
+            type: mixed
+            value: '{{#start.project_no#}}'
+          revision_history_json:
+            type: mixed
+            value: '{{#start.revision_history_json#}}'
+          version:
+            type: mixed
+            value: '{{#start.version#}}'
+        type: tool
+      height: 96
+      id: generate_docx
+      position:
+        x: 472.434678643119
+        y: 247.56130719279895
+      positionAbsolute:
+        x: 472.434678643119
+        y: 247.56130719279895
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        desc: 生成されたDOCXファイルを返します。
+        outputs:
+        - value_selector:
+          - generate_docx
+          - files
+          variable: word_file
+        - value_selector:
+          - generate_docx
+          - text
+          variable: message
+        - value_selector:
+          - generate_docx
+          - json
+          variable: result_json
+        selected: false
+        title: 終了
+        type: end
+      height: 168
+      id: end
+      position:
+        x: 900
+        y: 285
+      positionAbsolute:
+        x: 900
+        y: 285
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    viewport:
+      x: 120.65882142441046
+      y: 195.695406049153
+      zoom: 0.675730172014987
+  rag_pipeline_variables: []

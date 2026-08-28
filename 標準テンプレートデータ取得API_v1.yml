@@ -1,0 +1,265 @@
+app:
+  description: 指定した文書種別の現行標準テンプレートから、章節Masterと全章節の標準本文を1回のAPI呼び出しで取得します。LLMは使用しません。
+  icon: 📚
+  icon_background: '#E8F5FF'
+  icon_type: emoji
+  mode: workflow
+  name: 標準テンプレートデータ取得API_v1
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: package
+  value:
+    plugin_unique_identifier: likygao/standard_word_generator:0.0.10@421ae6e8e70e56f66e09e68610d7a1b1be2274246376644540e66be5ef9616c9
+    version: null
+kind: app
+version: 0.7.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        knowledge_file_size_limit: 15
+        single_chunk_attachment_limit: 10
+        skill_file_size_limit: 50
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: tool
+      id: edge_start_get_master
+      source: start
+      sourceHandle: source
+      target: get_master_tool
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: tool
+      id: edge_get_master_get_sections
+      source: get_master_tool
+      sourceHandle: source
+      target: get_sections_tool
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: end
+      id: edge_get_sections_end
+      source: get_sections_tool
+      sourceHandle: source
+      target: end
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: 取得対象の文書種別を指定します。
+        selected: false
+        title: START
+        type: start
+        variables:
+        - label: document_type
+          max_length: 48
+          options:
+          - server_storage
+          - network
+          - cloud
+          - full
+          required: true
+          type: select
+          variable: document_type
+      height: 137
+      id: start
+      position:
+        x: 80
+        y: 280
+      positionAbsolute:
+        x: 80
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        desc: 現行テンプレートの章節Masterと扁平章節リストを取得します。
+        provider_id: likygao/standard_word_generator/standard_word_generator
+        provider_name: likygao/standard_word_generator/standard_word_generator
+        provider_type: builtin
+        selected: false
+        title: 現行テンプレート章節Master取得
+        tool_configurations: {}
+        tool_description: 指定文書種別の現行標準テンプレートから章節Masterを取得します。
+        tool_label: 現行テンプレート章節Master取得
+        tool_name: get_active_template_master
+        tool_node_version: '2'
+        tool_parameters:
+          document_type:
+            type: mixed
+            value: '{{#start.document_type#}}'
+        type: tool
+      height: 96
+      id: get_master_tool
+      position:
+        x: 400
+        y: 280
+      positionAbsolute:
+        x: 400
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        desc: 同じテンプレートID・版数を固定し、全章節の標準本文を一括取得します。
+        provider_id: likygao/standard_word_generator/standard_word_generator
+        provider_name: likygao/standard_word_generator/standard_word_generator
+        provider_type: builtin
+        selected: false
+        title: 全章節標準本文取得
+        tool_configurations: {}
+        tool_description: 現行テンプレートに保存された全章節の標準本文を取得します。
+        tool_label: 標準テンプレート章節本文取得
+        tool_name: get_template_section_texts
+        tool_node_version: '2'
+        tool_parameters:
+          document_type:
+            type: mixed
+            value: '{{#start.document_type#}}'
+          section_ids_json:
+            type: mixed
+            value: ''
+          template_id:
+            type: mixed
+            value: '{{#get_master_tool.template_id#}}'
+          template_version:
+            type: mixed
+            value: '{{#get_master_tool.template_version#}}'
+        type: tool
+      height: 96
+      id: get_sections_tool
+      position:
+        x: 780
+        y: 280
+      positionAbsolute:
+        x: 780
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        desc: API呼び出し元へ、Masterと全章節標準本文をまとめて返します。
+        outputs:
+        - value_selector:
+          - get_sections_tool
+          - document_type
+          variable: document_type
+        - value_selector:
+          - get_sections_tool
+          - template_id
+          variable: template_id
+        - value_selector:
+          - get_sections_tool
+          - template_version
+          variable: template_version
+        - value_selector:
+          - get_master_tool
+          - master_json_text
+          variable: master_json
+        - value_selector:
+          - get_master_tool
+          - chapter_list_json_text
+          variable: chapter_list_json
+        - value_selector:
+          - get_sections_tool
+          - section_contents_json_text
+          variable: section_contents_json
+        - value_selector:
+          - get_sections_tool
+          - reference_text
+          variable: reference_text
+        - value_selector:
+          - get_sections_tool
+          - returned_section_count
+          variable: returned_section_count
+        selected: true
+        title: END
+        type: end
+      height: 314
+      id: end
+      position:
+        x: 1158.6666666666665
+        y: 280
+      positionAbsolute:
+        x: 1158.6666666666665
+        y: 280
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    viewport:
+      x: 132.67262141455194
+      y: -91.57220456512698
+      zoom: 0.8262521843595584
+  rag_pipeline_variables: []
