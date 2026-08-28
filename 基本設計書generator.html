@@ -24905,7 +24905,10 @@ function buildGenPayload(scopeNode){
 }
 async function callDifyGenerate(){ await runGenerate(null,document.getElementById('genBtn'),document.getElementById('genStatus'), false); }
 async function generateFromConfirmedChapters(){
-  await runGenerate(null, document.getElementById('chapterGenerateBtn'), document.getElementById('chapterStatus'), true);
+  await loadTemplateBodyByChapter(
+    document.getElementById('chapterGenerateBtn'),
+    document.getElementById('chapterStatus')
+  );
 }
 async function callNodeFix(n,btn){
   const old=btn.textContent; btn.disabled=true; btn.textContent='生成中...';
@@ -24983,6 +24986,132 @@ async function runGenerate(scopeNode,btn,status,enterEditAfter){
     else throw e;
     console.error(e);
   }finally{ if(btn){ btn.disabled=false; btn.innerHTML=enterEditAfter?'🚀 この章節構成で本文を読み込む':'🚀 確定章節の本文を読み込む'; } }
+}
+
+/* Step2 の確定ツリーから、標準テンプレート由来の大章だけを 1 回ずつ取得する。 */
+function getSelectedTopLevelChapters(){
+  return doc.chapters.filter(ch =>
+    ch.selected !== false &&
+    !!String(ch.source_template_number || '').trim() &&
+    ch.source !== 'manual_added'
+  );
+}
+
+function templateNumberBelongsToChapter(number, chapterNumber){
+  const value=String(number == null ? '' : number).trim();
+  const root=String(chapterNumber == null ? '' : chapterNumber).trim();
+  return value===root || value.startsWith(root+'-') || value.startsWith(root+'.');
+}
+
+/* section_contents_json が配列/ラッパー/番号 key のどの形でも、対象大章の内容だけを渡す。 */
+function filterTemplateValueForChapter(value, chapterNumber){
+  const numberKeys=['source_template_number','number','chapter_number','section_number'];
+  function filter(current){
+    if(Array.isArray(current)){
+      return current.map(filter).filter(item => item !== undefined);
+    }
+    if(!current || typeof current!=='object') return current;
+    const ownNumber=numberKeys.map(k=>current[k]).find(v=>v!==undefined && v!==null && String(v).trim());
+    if(ownNumber && !templateNumberBelongsToChapter(ownNumber, chapterNumber)) return undefined;
+    const result={};
+    Object.entries(current).forEach(([key, child])=>{
+      if(/^\d+(?:[-.]\d+)*$/.test(key) && !templateNumberBelongsToChapter(key, chapterNumber)) return;
+      const filtered=filter(child);
+      if(filtered!==undefined) result[key]=filtered;
+    });
+    return result;
+  }
+  let parsed=value, wasString=typeof value==='string';
+  if(wasString){
+    try{ parsed=JSON.parse(value); }catch(e){ return value; }
+  }
+  const filtered=filter(parsed);
+  return wasString ? JSON.stringify(filtered == null ? {} : filtered) : filtered;
+}
+
+function buildChapterGenerateInputs(chapter){
+  const tree=selectedTreeForGenerate(chapter);
+  const payload={
+    stage:'generate',
+    cover:doc.cover,
+    document_plan:{ summary:doc.document_plan.summary || '' },
+    confirmed_chapter_tree:tree,
+    chapters:tree
+  };
+  const toInputString=value=>value == null ? '' : (typeof value==='string' ? value : JSON.stringify(value));
+  return {
+    input_json:JSON.stringify(payload),
+    document_type:String(doc.document_type || ''),
+    template_id:String(doc.template_id || ''),
+    template_version:String(doc.template_version || ''),
+    section_contents_json:toInputString(filterTemplateValueForChapter(doc.section_contents_json, chapter.source_template_number)),
+    reference_text:toInputString(doc.reference_text)
+  };
+}
+
+function appendUniqueMissingItems(target, incoming){
+  const keys=new Set(target.map(item=>JSON.stringify(item)));
+  (Array.isArray(incoming) ? incoming : []).forEach(item=>{
+    const key=JSON.stringify(item);
+    if(!keys.has(key)){ keys.add(key); target.push(item); }
+  });
+}
+
+async function loadTemplateBodyByChapter(btn,status){
+  if(DIFY_GEN_API_KEY.includes('REPLACE')){
+    status.style.color='var(--amber)';
+    status.textContent='⚠ Generate用 Dify APIキー未設定。APIキーを設定してください。';
+    return;
+  }
+  const required=['document_type','template_id','template_version','section_contents_json'];
+  const missing=required.filter(key=>doc[key] == null || (typeof doc[key]==='string' && !doc[key].trim()));
+  if(missing.length){
+    console.error('[Dify Generate] 標準テンプレート情報不足:', missing);
+    status.style.color='var(--red)';
+    status.textContent='標準テンプレート情報が不足しているため、本文を読み込めません。Step1から章節構成を再生成してください。';
+    return;
+  }
+  const chapters=getSelectedTopLevelChapters();
+  if(!chapters.length){
+    status.style.color='var(--green)';
+    status.textContent='✓ 取得対象の標準本文はありません。';
+    enterEdit(false);
+    return;
+  }
+  const allChapters=[], allMissingItems=[];
+  btn.disabled=true;
+  try{
+    for(let i=0; i<chapters.length; i++){
+      const chapter=chapters[i];
+      const label=(chapter.display_number || chapter.source_template_number || (i+1))+' '+chapter.title;
+      btn.innerHTML='<span class="spinner"></span> 読込中... '+(i+1)+' / '+chapters.length;
+      status.style.color='var(--text-muted)';
+      status.textContent='標準本文を読み込み中... '+(i+1)+' / '+chapters.length+'\n'+label;
+      try{
+        const inputs=buildChapterGenerateInputs(chapter);
+        console.log('[Dify Generate chapter]', label, inputs);
+        const data=await difyCall(DIFY_GEN_API_KEY, inputs, DIFY_API_URL);
+        if(!data || !Array.isArray(data.chapters) || !data.chapters.length){
+          throw new Error('本文読込結果に chapters[] がありません。');
+        }
+        allChapters.push(...data.chapters);
+        appendUniqueMissingItems(allMissingItems, data.missing_items);
+      }catch(e){
+        const chapterNo=chapter.display_number || chapter.source_template_number || (i+1);
+        status.style.color='var(--red)';
+        status.textContent='⚠ 第'+chapterNo+'章「'+chapter.title+'」の本文読み込みに失敗しました。\nDify: '+e.message;
+        console.error(e);
+        return;
+      }
+    }
+    applyGenerated({ chapters:allChapters, missing_items:allMissingItems });
+    status.style.color='var(--green)';
+    status.textContent='✓ 標準本文を読み込みました';
+    enterEdit(false);
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML='🚀 この章節構成で本文を読み込む';
+  }
 }
 function importGenJson(){
   const input=document.getElementById('genJsonInput');
