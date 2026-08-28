@@ -1,0 +1,40 @@
+name: Reconstruct Dify bundle
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.upload/dify_bundle/READY'
+
+permissions:
+  contents: write
+
+jobs:
+  reconstruct:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct uploaded bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .upload/dify_bundle/part-*.b64 | tr -d '\n\r' | base64 --decode > /tmp/dify_project_bundle.tar.gz
+          echo '1cb69c445409c97d75a369dbb445680f8b15ec48b6d146096d4caefc8d5e44f5  /tmp/dify_project_bundle.tar.gz' | sha256sum --check --strict
+          tar -xzf /tmp/dify_project_bundle.tar.gz -C .
+
+      - name: Commit reconstructed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -r .upload/dify_bundle
+          git rm .github/workflows/reconstruct-dify-bundle.yml
+          git add dify
+          git commit -m 'Add Dify workflows and plugin'
+          git push origin HEAD:main
