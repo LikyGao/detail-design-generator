@@ -2,9 +2,7 @@ import io
 import importlib.util
 import sys
 import unittest
-import zipfile
 from pathlib import Path
-from xml.etree import ElementTree
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,9 +31,12 @@ class ParagraphNumberingTest(unittest.TestCase):
             ["（1）", "①", "②", "（2）", "①"],
         )
 
-    def test_template_output_uses_literal_prefixes_without_num_pr(self):
+    def test_template_output_uses_literal_prefixes_without_effective_numbering(self):
         if importlib.util.find_spec("docx") is None:
             self.skipTest("python-docx is not installed")
+        from docx import Document
+
+        from tools.chapter_parser import _numbering_values
         from tools.docx_builder import generate_standard_docx
 
         template = PLUGIN_ROOT / "templates" / "基本設計書_template.docx"
@@ -56,22 +57,16 @@ class ParagraphNumberingTest(unittest.TestCase):
             chapters=[{"level": 1, "title": "test", "blocks": blocks}],
         )
 
-        with zipfile.ZipFile(io.BytesIO(output)) as archive:
-            document_xml = archive.read("word/document.xml")
-            self.assertTrue(archive.read("word/numbering.xml"))
-
-        root = ElementTree.fromstring(document_xml)
-        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
         expected = ["（1） バックアップ", "① OS", "② データ", "（2） リストア", "① 設定"]
-        paragraphs = {}
-        for paragraph in root.findall(".//w:body/w:p", ns):
-            text = "".join(node.text or "" for node in paragraph.findall(".//w:t", ns))
-            if text in expected:
-                paragraphs[text] = paragraph
+        paragraphs = {
+            paragraph.text: paragraph
+            for paragraph in Document(io.BytesIO(output)).paragraphs
+            if paragraph.text in expected
+        }
 
         self.assertEqual(list(paragraphs), expected)
         for paragraph in paragraphs.values():
-            self.assertIsNone(paragraph.find("./w:pPr/w:numPr", ns))
+            self.assertIsNone(_numbering_values(paragraph))
 
 
 if __name__ == "__main__":
