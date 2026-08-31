@@ -13,7 +13,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Inches
+from docx.shared import Inches, Twips
 
 from tools.chapter_parser import _paragraph_structure
 from tools.paragraph_numbering import calculate_paragraph_prefix
@@ -273,6 +273,32 @@ def _remove_numbering_properties(paragraph_properties) -> None:
         paragraph_properties.remove(num_properties)
 
 
+def _valid_indent_twips(value: Any) -> int | None:
+    """Return a non-negative Word indent in twips, or None when unavailable."""
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    try:
+        twips = int(value)
+    except (TypeError, ValueError):
+        return None
+    return twips if twips >= 0 else None
+
+
+def _restore_body_indents(paragraph, block: dict[str, Any], paragraph_style: str) -> None:
+    """Restore indents made ineffective when the template numPr is removed."""
+    left_indent = _valid_indent_twips(block.get("left_indent_twips"))
+    if left_indent is None:
+        left_indent = PARAGRAPH_FALLBACK_INDENTS[int(paragraph_style[-1])]
+    paragraph.paragraph_format.left_indent = Twips(left_indent)
+
+    hanging_indent = _valid_indent_twips(block.get("hanging_indent_twips"))
+    first_line_indent = _valid_indent_twips(block.get("first_line_indent_twips"))
+    if hanging_indent is not None:
+        paragraph.paragraph_format.first_line_indent = Twips(-hanging_indent)
+    elif first_line_indent is not None:
+        paragraph.paragraph_format.first_line_indent = Twips(first_line_indent)
+
+
 def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: dict[str, Any],
                         counters: dict[int, int]) -> None:
     paragraph_style = str(block.get("paragraph_style") or "level_0")
@@ -292,9 +318,8 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
         # literal prefixes are not combined with inherited automatic numbering.
         paragraph.style = "Normal"
 
+    _restore_body_indents(paragraph, block, paragraph_style)
     prefix = calculate_paragraph_prefix(paragraph_style, counters)
-    if prototype is None:
-        paragraph.paragraph_format.left_indent = Inches(PARAGRAPH_FALLBACK_INDENTS[int(paragraph_style[-1])] / 1440)
     separator = PARAGRAPH_PREFIX_SEPARATOR if prefix and text else ""
     paragraph.add_run(f"{prefix}{separator}{text}")
 
