@@ -25353,7 +25353,8 @@ function blocksToHtml(blocks){
     try{
       if(b.type==='paragraph'){
         const cfg=getParagraphStyleConfig(b.paragraph_style), prefix=paragraphPrefixes.get(b.id)||'';
-        return '<p style="text-indent:0;margin-left:'+cfg.indent*18+'pt"><span class="paragraph-prefix">'+escH(prefix)+'</span>'+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</p>';
+        const separator=prefix&&b.text?'&nbsp;':'';
+        return '<p style="text-indent:0;margin-left:'+cfg.indent*18+'pt"><span class="paragraph-prefix">'+escH(prefix)+'</span>'+separator+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</p>';
       }
       if(b.type==='table'){
         const cap='<div class="word-cap">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</div>';
@@ -25596,7 +25597,8 @@ async function exportDocxLocal(){
       (n.blocks||[]).forEach(b=>{
         if(b.type==='paragraph'){
           const cfg=getParagraphStyleConfig(b.paragraph_style), prefix=paragraphPrefixes.get(b.id)||'';
-          bodyCh.push(para(prefix+String(b.text||''),{indent:cfg.indent*360}));
+          const text=String(b.text||''), separator=prefix&&text?' ':'';
+          bodyCh.push(para(prefix+separator+text,{indent:cfg.indent*360}));
         } else if(b.type==='table'){
           bodyCh.push(captionParagraph(b,'表',{before:120,after:40}));
           bodyCh.push(buildDocxTable(b));
