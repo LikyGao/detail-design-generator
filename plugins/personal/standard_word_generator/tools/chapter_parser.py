@@ -131,6 +131,70 @@ def _resolve_numbering_format(document, num_id: str, ilvl: int) -> tuple[str, st
     return "", ""
 
 
+def _resolve_numbering_indent(document, num_id: str, ilvl: int) -> int | None:
+    """Resolve the level indentation stored in numbering.xml."""
+    try:
+        root = document.part.numbering_part.element
+        num = next((n for n in root.findall(qn("w:num")) if n.get(qn("w:numId")) == str(num_id)), None)
+        abstract_id_el = _first_child(num, "w:abstractNumId")
+        abstract_id = abstract_id_el.get(qn("w:val")) if abstract_id_el is not None else None
+        abstract = next((a for a in root.findall(qn("w:abstractNum")) if a.get(qn("w:abstractNumId")) == abstract_id), None)
+        level = next((lvl for lvl in abstract.findall(qn("w:lvl")) if lvl.get(qn("w:ilvl"), "0") == str(ilvl)), None)
+        ind = _first_child(_first_child(level, "w:pPr"), "w:ind")
+        raw = ind.get(qn("w:left")) or ind.get(qn("w:start")) if ind is not None else None
+        return int(raw) if raw is not None else None
+    except (AttributeError, StopIteration, TypeError, ValueError):
+        return None
+
+
+def _paragraph_indent_twips(paragraph) -> tuple[int | None, int | None, int | None]:
+    """Return effective left/first-line/hanging indents as raw Word twips."""
+    sources = [paragraph._p.pPr]
+    if paragraph.style is not None:
+        sources.append(paragraph.style.element.pPr)
+    for p_pr in sources:
+        ind = _first_child(p_pr, "w:ind")
+        if ind is None:
+            continue
+
+        def value(name: str) -> int | None:
+            raw = ind.get(qn(f"w:{name}"))
+            try:
+                return int(raw) if raw is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        return value("left") or value("start"), value("firstLine"), value("hanging")
+    return None, None, None
+
+
+def _paragraph_style(number_format: str, level_text: str, list_level: int | None,
+                     left_indent_twips: int | None, style_name: str) -> str:
+    """Map native Word list semantics to the seven editor paragraph levels."""
+    fmt = str(number_format or "").lower()
+    marker = str(level_text or "").strip()
+    style_lower = str(style_name or "").lower()
+    depth = list_level if isinstance(list_level, int) else None
+
+    is_dot = "・" in marker or "bullet" in fmt or "bullet" in style_lower or "箇条" in style_name
+    is_arrow = "➢" in marker or "arrow" in style_lower
+    is_circle = "①" in marker or "②" in marker or "circle" in fmt or "囲み" in style_name
+    indent = max(0, left_indent_twips or 0)
+    if is_arrow:
+        return "level_3"
+    if is_circle:
+        return "level_6" if (depth is not None and depth >= 5) or indent >= 2400 else "level_4"
+    if is_dot:
+        return "level_5" if (depth is not None and depth >= 4) or indent >= 1920 else "level_2"
+    # Multi-level definitions occasionally express every marker as a decimal
+    # placeholder; in that case ilvl remains the authoritative hierarchy signal.
+    if depth is not None and depth > 0:
+        return f"level_{min(depth + 1, 6)}"
+    if fmt and fmt != "none":
+        return "level_1"
+    return "level_0"
+
+
 def _paragraph_structure(document, paragraph) -> dict[str, Any]:
     style_name = paragraph.style.name if paragraph.style is not None else ""
     numbering = _numbering_values(paragraph)
@@ -155,6 +219,12 @@ def _paragraph_structure(document, paragraph) -> dict[str, Any]:
     else:
         kind = "paragraph"
 
+    left_indent, first_line_indent, hanging_indent = _paragraph_indent_twips(paragraph)
+    if left_indent is None and numbering is not None:
+        left_indent = _resolve_numbering_indent(document, num_id, list_level or 0)
+    paragraph_style = _paragraph_style(
+        number_format, level_text, list_level, left_indent, style_name
+    )
     return {
         "style": style_name,
         "kind": kind,
@@ -162,6 +232,10 @@ def _paragraph_structure(document, paragraph) -> dict[str, Any]:
         "num_id": num_id,
         "number_format": number_format,
         "level_text": level_text,
+        "paragraph_style": paragraph_style,
+        "left_indent_twips": left_indent,
+        "first_line_indent_twips": first_line_indent,
+        "hanging_indent_twips": hanging_indent,
     }
 
 
@@ -177,6 +251,20 @@ def _should_skip_body_paragraph(style_name: str, text: str) -> bool:
     if re.fullmatch(r"(?i:point)\s*[!！]?", normalized) or normalized in {"ポイント", "ポイント！"}:
         return True
     return False
+
+
+def _strip_literal_paragraph_marker(text: str, paragraph_style: str) -> str:
+    """Remove a literal list marker only after Word properties identified its level."""
+    patterns = {
+        "level_1": r"^\s*[（(][0-9０-９]+[）)]\s*",
+        "level_2": r"^\s*・\s*",
+        "level_3": r"^\s*➢\s*",
+        "level_4": r"^\s*[①-⑳]\s*",
+        "level_5": r"^\s*・\s*",
+        "level_6": r"^\s*[①-⑳]\s*",
+    }
+    pattern = patterns.get(paragraph_style)
+    return re.sub(pattern, "", text, count=1) if pattern else text
 
 
 def _build_reference_text(paragraphs: list[dict[str, Any]]) -> str:
@@ -237,6 +325,7 @@ def parse_template_chapters(template_bytes: bytes) -> dict[str, Any]:
                 continue
             section = section_by_id[current_section_id]
             structure = _paragraph_structure(document, paragraph)
+            text = _strip_literal_paragraph_marker(text, structure["paragraph_style"])
             section["paragraphs"].append(
                 {
                     "order": len(section["paragraphs"]) + 1,
