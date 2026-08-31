@@ -237,7 +237,7 @@ workflow:
           \ dict):\n            continue\n\n        t = item.get(\"type\") or \"\"\
           \n        if t == \"paragraph\":\n            text = str(item.get(\"text\"\
           ) or \"\").strip()\n            if text:\n                result.append({\"\
-          type\": \"paragraph\", \"text\": text})\n        elif t in (\"table\", \"\
+          type\": \"paragraph\", \"paragraph_style\": str(item.get(\"paragraph_style\") or \"level_0\"), \"text\": text})\n        elif t in (\"table\", \"\
           table_placeholder\", \"figure\", \"figure_placeholder\"):\n            result.append({\n\
           \                \"type\": t,\n                \"caption\": str(item.get(\"\
           caption\") or \"\").strip()\n            })\n\n    return result\n\n\ndef\
@@ -266,8 +266,7 @@ workflow:
           text\", \"content\", \"body\", \"value\", \"reference_text\"):\n       \
           \         text = text_from_value(item.get(key))\n                if text:\n\
           \                    break\n        else:\n            text = text_from_value(item)\n\
-          \n        if text:\n            result.append({\"type\": \"paragraph\",\
-          \ \"text\": text})\n\n    return result\n\n\ndef item_blocks(item):\n  \
+          \n        if text:\n            block = {\"type\": \"paragraph\", \"paragraph_style\": \"level_0\", \"text\": text}\n            if isinstance(item, dict):\n                block[\"paragraph_style\"] = str(item.get(\"paragraph_style\") or \"level_0\")\n                for field in (\"style\", \"kind\", \"list_level\", \"num_id\", \"number_format\", \"level_text\", \"left_indent_twips\", \"first_line_indent_twips\", \"hanging_indent_twips\"):\n                    if field in item:\n                        block[field] = item[field]\n            result.append(block)\n\n    return result\n\n\ndef item_blocks(item):\n  \
           \  if not isinstance(item, dict):\n        return []\n\n    # 1) 段落配列がある場合は、その順序と区切りを最優先で保持する。\n\
           \    for key in (\"paragraphs\", \"body_paragraphs\", \"paragraph_list\"\
           ):\n        blocks = paragraph_blocks_from_list(item.get(key))\n       \
@@ -279,8 +278,8 @@ workflow:
           \        text = text_from_value(item.get(key))\n        if text:\n     \
           \       # 空行で明確に分かれている場合だけ段落として分割。\n            parts = [p.strip() for p\
           \ in re.split(r\"\\n\\s*\\n+\", text) if p.strip()]\n            if len(parts)\
-          \ > 1:\n                return [{\"type\": \"paragraph\", \"text\": p} for\
-          \ p in parts]\n            return [{\"type\": \"paragraph\", \"text\": text}]\n\
+          \ > 1:\n                return [{\"type\": \"paragraph\", \"paragraph_style\": \"level_0\", \"text\": p} for\
+          \ p in parts]\n            return [{\"type\": \"paragraph\", \"paragraph_style\": \"level_0\", \"text\": text}]\n\
           \n    return []\n\n\ndef build_standard_reference(tree, section_contents_json):\n\
           \    items = extract_section_items(section_contents_json)\n\n    by_key\
           \ = {}\n    for item in items:\n        for key in (\n            item.get(\"\
@@ -511,9 +510,7 @@ workflow:
           \    for block in blocks:\n        if not isinstance(block, dict):\n   \
           \         continue\n\n        if str(block.get(\"type\") or \"paragraph\"\
           ).lower() != \"paragraph\":\n            continue\n\n        text = str(block.get(\"\
-          text\") or block.get(\"content\") or \"\")\n        if text.strip():\n \
-          \           result.append({\n                \"type\": \"paragraph\",\n\
-          \                \"text\": text\n            })\n\n    return result\n\n\
+          text\") or block.get(\"content\") or \"\")\n        if text.strip():\n            normalized = dict(block)\n            normalized[\"type\"] = \"paragraph\"\n            normalized[\"paragraph_style\"] = str(block.get(\"paragraph_style\") or \"level_0\")\n            normalized[\"text\"] = text\n            result.append(normalized)\n\n    return result\n\n\
           \ndef main(\n    confirmed_tree_json: str,\n    standard_reference_json:\
           \ str,\n    cover_json: str,\n    document_plan_json: str,\n    warnings_json:\
           \ str = \"\",\n    document_type: str = \"\",\n    template_id: str = \"\

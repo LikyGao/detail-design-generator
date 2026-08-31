@@ -15,8 +15,12 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches
 
+from tools.chapter_parser import _paragraph_structure
+
 
 MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+PARAGRAPH_STYLES = {f"level_{level}" for level in range(7)}
+PARAGRAPH_FALLBACK_INDENTS = {0: 0, 1: 360, 2: 720, 3: 1080, 4: 1440, 5: 1800, 6: 2160}
 
 
 def _replace_paragraph_text(paragraph, text: str) -> None:
@@ -245,6 +249,63 @@ def _add_figure(document: Document, block: dict[str, Any]) -> None:
     paragraph.add_run().add_picture(io.BytesIO(raw), width=Inches(6.1))
 
 
+def _collect_paragraph_prototypes(document: Document) -> dict[str, Any]:
+    """Capture template-native list paragraph properties before sample body removal."""
+    result: dict[str, Any] = {}
+    for paragraph in document.paragraphs:
+        if paragraph.style and paragraph.style.name in {"Heading 1", "Heading 2", "Heading 3"}:
+            continue
+        structure = _paragraph_structure(document, paragraph)
+        paragraph_style = structure.get("paragraph_style")
+        if paragraph_style in PARAGRAPH_STYLES - {"level_0"} and paragraph._p.pPr is not None:
+            result.setdefault(paragraph_style, deepcopy(paragraph._p.pPr))
+    return result
+
+
+def _fallback_prefix(paragraph_style: str, counters: dict[int, int]) -> str:
+    level = int(paragraph_style.rsplit("_", 1)[1])
+    if level in (1, 4, 6):
+        counters[level] = counters.get(level, 0) + 1
+        for deeper in tuple(key for key in counters if key > level):
+            counters.pop(deeper, None)
+    if level == 1:
+        return f"（{counters[level]}）"
+    if level in (2, 5):
+        return "・"
+    if level == 3:
+        return "➢"
+    if level in (4, 6):
+        value = counters[level]
+        return chr(0x2460 + value - 1) if 1 <= value <= 20 else f"({value})"
+    return ""
+
+
+def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: dict[str, Any],
+                        counters: dict[int, int]) -> None:
+    paragraph_style = str(block.get("paragraph_style") or "level_0")
+    if paragraph_style not in PARAGRAPH_STYLES:
+        paragraph_style = "level_0"
+    text = str(block.get("text") or "").replace("\r\n", "\n").replace("\r", "\n")
+    paragraph = document.add_paragraph(style="Normal")
+    prototype = prototypes.get(paragraph_style)
+    if prototype is not None:
+        if paragraph._p.pPr is not None:
+            paragraph._p.remove(paragraph._p.pPr)
+        paragraph._p.insert(0, deepcopy(prototype))
+        # Native numbering owns the visible marker; update logical counters for descendants.
+        level = int(paragraph_style.rsplit("_", 1)[1])
+        if level in (1, 4, 6):
+            counters[level] = counters.get(level, 0) + 1
+            for deeper in tuple(key for key in counters if key > level):
+                counters.pop(deeper, None)
+        paragraph.add_run(text)
+        return
+
+    prefix = _fallback_prefix(paragraph_style, counters)
+    paragraph.paragraph_format.left_indent = Inches(PARAGRAPH_FALLBACK_INDENTS[int(paragraph_style[-1])] / 1440)
+    paragraph.add_run(f"{prefix}{text}")
+
+
 def _add_blocks(
     document: Document,
     blocks: list[dict[str, Any]],
@@ -252,16 +313,15 @@ def _add_blocks(
     chapter_number: str,
     section_title: str,
     caption_counters: dict[str, int],
+    paragraph_prototypes: dict[str, Any],
 ) -> None:
+    paragraph_counters: dict[int, int] = {}
     for block in blocks or []:
         if not isinstance(block, dict):
             continue
         block_type = str(block.get("type") or "paragraph")
         if block_type == "paragraph":
-            text = str(block.get("text") or "")
-            pieces = [piece.strip() for piece in text.replace("\r\n", "\n").split("\n") if piece.strip()]
-            for piece in pieces:
-                document.add_paragraph(piece, style="Normal")
+            _add_body_paragraph(document, block, paragraph_prototypes, paragraph_counters)
         elif block_type == "table":
             caption_counters["表"] += 1
             _add_caption(
@@ -322,7 +382,7 @@ def _chapter_number_from_node(node: dict[str, Any], fallback: int) -> str:
     return str(fallback)
 
 
-def _add_chapters(document: Document, chapters: list[dict[str, Any]]) -> None:
+def _add_chapters(document: Document, chapters: list[dict[str, Any]], paragraph_prototypes: dict[str, Any]) -> None:
     first_level_one = True
     chapter_index = 0
     current_chapter_number = "1"
@@ -347,6 +407,7 @@ def _add_chapters(document: Document, chapters: list[dict[str, Any]]) -> None:
             chapter_number=current_chapter_number,
             section_title=title,
             caption_counters=caption_counters,
+            paragraph_prototypes=paragraph_prototypes,
         )
 
 
@@ -384,8 +445,9 @@ def generate_standard_docx(
         document = Document(str(template_source))
     _fill_cover(document, client_name, project_name, version, issue_date, file_name, project_no)
     _fill_revision_history(document, revisions or [])
+    paragraph_prototypes = _collect_paragraph_prototypes(document)
     _remove_existing_body(document)
-    _add_chapters(document, chapters or [])
+    _add_chapters(document, chapters or [], paragraph_prototypes)
     _mark_all_fields_dirty(document)
     _set_update_fields(document)
 

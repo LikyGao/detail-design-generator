@@ -136,6 +136,7 @@
   .block-h .bdel{margin-left:auto;background:transparent;border:none;color:var(--text-faint);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px}
   .block-h .bdel:hover{color:var(--red);background:rgba(255,107,107,.1)}
   .block-body{padding:10px}
+  .paragraph-editor{display:flex;align-items:flex-start;gap:8px}.paragraph-style-select{width:92px;flex:0 0 92px;padding:8px 6px}.paragraph-editor .ci-input{flex:1}.paragraph-prefix{display:inline-block;white-space:pre}
   .ph-box{border:1px dashed var(--border);border-radius:7px;padding:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
   .ph-tag{font-family:monospace;font-size:12px;color:var(--accent);font-weight:700}
   .ph-note{font-size:11px;color:var(--text-faint)}
@@ -23641,6 +23642,27 @@ function ea(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,
 function pad2(n){ return String(n).padStart(2,'0'); }
 function showToast(msg,isErr){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' err':''); setTimeout(()=>t.classList.remove('show'),3500); }
 function levelName(l){ return l===1?'章':l===2?'節':'小節'; }
+const PARAGRAPH_STYLE_CONFIGS={
+  level_0:{label:'本文',symbol:'',indent:0,numbered:false}, level_1:{label:'（1）',symbol:'',indent:1,numbered:true},
+  level_2:{label:'　・',symbol:'・',indent:2,numbered:false}, level_3:{label:'　　➢',symbol:'➢',indent:3,numbered:false},
+  level_4:{label:'　　　①',symbol:'',indent:4,numbered:true}, level_5:{label:'　　　　・',symbol:'・',indent:5,numbered:false},
+  level_6:{label:'　　　　　①',symbol:'',indent:6,numbered:true}
+};
+function getParagraphStyleConfig(style){ return PARAGRAPH_STYLE_CONFIGS[style]||PARAGRAPH_STYLE_CONFIGS.level_0; }
+function calculateParagraphNumbering(blocks){
+  const counters={}, prefixes=new Map();
+  (blocks||[]).forEach(b=>{
+    if(b.type!=='paragraph') return;
+    const style=PARAGRAPH_STYLE_CONFIGS[b.paragraph_style]?b.paragraph_style:'level_0', cfg=getParagraphStyleConfig(style), level=cfg.indent;
+    if(cfg.numbered){ counters[level]=(counters[level]||0)+1; Object.keys(counters).forEach(k=>{if(+k>level) delete counters[k];}); }
+    let prefix=cfg.symbol;
+    if(style==='level_1') prefix='（'+counters[level]+'）';
+    if(style==='level_4'||style==='level_6'){ const n=counters[level]; prefix=n>=1&&n<=20?String.fromCodePoint(0x2460+n-1):'('+n+')'; }
+    prefixes.set(b.id, prefix);
+  });
+  return prefixes;
+}
+function getParagraphDisplayPrefix(block,blocks){ return calculateParagraphNumbering(blocks).get(block.id)||''; }
 
 /* ── tree walkers ── */
 function walkAll(nodes, cb){ (nodes||[]).forEach(n=>{ cb(n); walkAll(n.children,cb); }); }
@@ -23680,35 +23702,9 @@ function normalizeBlock(raw){
   if(t==='figure'){
     return { id: raw.id||uid(), type:'figure', caption: raw.caption||'', imageData: raw.imageData||'', fileName: raw.fileName||'', _w: raw._w||0, _h: raw._h||0 };
   }
-  return { id: raw.id||uid(), type:'paragraph', text: raw.text||raw.content||'', caption:'', revision_instruction: raw.revision_instruction||'', revision_history: Array.isArray(raw.revision_history) ? raw.revision_history.slice(0,2) : [] };
+  return { id: raw.id||uid(), type:'paragraph', paragraph_style: PARAGRAPH_STYLE_CONFIGS[raw.paragraph_style]?raw.paragraph_style:'level_0', text: raw.text||raw.content||'', caption:'', revision_instruction: raw.revision_instruction||'', revision_history: Array.isArray(raw.revision_history) ? raw.revision_history.slice(0,2) : [] };
 }
 function normalizeBlocks(arr){ return Array.isArray(arr) ? arr.map(normalizeBlock) : []; }
-
-/* 標準本文の連続する短い段落を、編集用の1ブロックにまとめる。 */
-function mergeConsecutiveParagraphBlocks(blocks){
-  const MAX_PARAGRAPHS=6, MAX_GROUP_CHARS=600, LONG_PARAGRAPH_CHARS=300;
-  const merged=[], group=[];
-  let groupChars=0;
-  const flush=()=>{
-    if(!group.length) return;
-    const first=group[0];
-    merged.push(Object.assign({}, first, {text:group.map(b=>String(b.text||'')).join('\n')}));
-    group.length=0; groupChars=0;
-  };
-  (blocks||[]).forEach(block=>{
-    if(block.type!=='paragraph'){
-      flush(); merged.push(block); return;
-    }
-    const length=String(block.text||'').length;
-    if(length>=LONG_PARAGRAPH_CHARS){
-      flush(); merged.push(block); return;
-    }
-    if(group.length && (group.length>=MAX_PARAGRAPHS || groupChars+length>MAX_GROUP_CHARS)) flush();
-    group.push(block); groupChars+=length;
-  });
-  flush();
-  return merged;
-}
 
 function deriveSelectedFromAi(raw, level, opts){
   opts = opts || {};
@@ -24591,7 +24587,7 @@ function buildNodeCard(n){
   return card;
 }
 function mkAddBtn(label,fn){ const b=document.createElement('button'); b.textContent=label; b.addEventListener('click',fn); return b; }
-function addBlock(n,type){ n.blocks.push(normalizeBlock(type==='paragraph' ? {type:'paragraph', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''})); afterStructureChange('段落を追加'); }
+function addBlock(n,type){ n.blocks.push(normalizeBlock(type==='paragraph' ? {type:'paragraph', paragraph_style:'level_0', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''})); afterStructureChange('段落を追加'); }
 function addTableBlock(n){ n.blocks.push(normalizeBlock({type:'table', caption:'', headers:['項目','内容','備考'], rows:[['','','']]})); afterStructureChange('表を追加'); }
 function addFigureBlock(n){ n.blocks.push(normalizeBlock({type:'figure', caption:''})); afterStructureChange('画像を追加'); }
 function delBlock(n,b){ n.blocks=n.blocks.filter(x=>x!==b); afterStructureChange('段落を削除'); }
@@ -24612,10 +24608,14 @@ function buildBlock(n,b){
   if(b.type==='paragraph'){
     b.revision_instruction = b.revision_instruction || '';
     b.revision_history = Array.isArray(b.revision_history) ? b.revision_history : [];
+    const row=document.createElement('div'); row.className='paragraph-editor'; row.style.paddingLeft=(getParagraphStyleConfig(b.paragraph_style).indent*12)+'px';
+    const select=document.createElement('select'); select.className='paragraph-style-select';
+    Object.entries(PARAGRAPH_STYLE_CONFIGS).forEach(([value,cfg])=>{ const option=document.createElement('option'); option.value=value; option.textContent=cfg.label; option.selected=b.paragraph_style===value; if(option.selected&&value!=='level_0') option.textContent=getParagraphDisplayPrefix(b,n.blocks)||cfg.label; select.appendChild(option); });
+    select.addEventListener('change',()=>{ b.paragraph_style=select.value; renderEditor(); debouncePreview(); pushHistory('段落タイプを変更'); });
     const ta=document.createElement('textarea'); ta.className='ci-input'; ta.rows=3; ta.value=b.text;
-    ta.placeholder='本文（改行で段落区切り）';
+    ta.placeholder='本文（ブロック内改行は同一段落）';
     ta.addEventListener('input',()=>{ b.text=ta.value; debouncePreview(); pushHistoryDebounced('段落を編集'); });
-    bb.appendChild(ta);
+    row.appendChild(select); row.appendChild(ta); bb.appendChild(row);
     bb.appendChild(buildParagraphAiFix(n,b));
 
   } else if(b.type==='table'){
@@ -24841,7 +24841,7 @@ function selectedTreeForGenerate(scopeNode){
 }
 function buildSectionContext(node){
   return (node.blocks||[]).map(b=>{
-    if(b.type==='paragraph') return { type:'paragraph', text:b.text||'' };
+    if(b.type==='paragraph') return { type:'paragraph', paragraph_style:b.paragraph_style||'level_0', text:b.text||'' };
     if(b.type==='table') return { type:'table', caption:b.caption||'' };
     if(b.type==='figure') return { type:'figure', caption:b.caption||'' };
     if(b.type==='table_placeholder') return { type:'table_placeholder', caption:b.caption||'' };
@@ -24854,6 +24854,7 @@ function buildParagraphFixPayload(node, block){
     stage: 'paragraph_fix',
     target_block_id: block.id || '',
     paragraph_text: block.text || '',
+    paragraph_style: block.paragraph_style || 'level_0',
     instruction: block.revision_instruction || '',
     section_title: node.title || '',
     section_number: node.display_number || '',
@@ -25132,7 +25133,6 @@ function applyGenerated(data){
     showToast('本文読込結果に chapters[] がありません。Dify の出力形式を確認してください。', true);
     throw new Error('本文読込結果に chapters[] がありません。Dify の出力形式を確認してください。');
   }
-  walkAll(ing.chapters, n=>{ n.blocks=mergeConsecutiveParagraphBlocks(n.blocks); });
   if(ing.cover) { Object.assign(doc.cover, cleanObj(ing.cover)); fillCoverInputs(); }
   // index incoming by id and by source_template_number
   const byId={}, byStn={};
@@ -25348,10 +25348,12 @@ function collectRenderedMediaForExport(){
   return collectMediaFromDocument(tmp);
 }
 function blocksToHtml(blocks){
+  const paragraphPrefixes=calculateParagraphNumbering(blocks);
   return (blocks||[]).map(b=>{
     try{
       if(b.type==='paragraph'){
-        return String(b.text||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>'<p>'+escH(l)+'</p>').join('');
+        const cfg=getParagraphStyleConfig(b.paragraph_style), prefix=paragraphPrefixes.get(b.id)||'';
+        return '<p style="text-indent:0;margin-left:'+cfg.indent*18+'pt"><span class="paragraph-prefix">'+escH(prefix)+'</span>'+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</p>';
       }
       if(b.type==='table'){
         const cap='<div class="word-cap">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</div>';
@@ -25590,9 +25592,11 @@ async function exportDocxLocal(){
         border:n.level===1?{bottom:{style:BorderStyle.SINGLE,size:12,color:'333333',space:4}}:undefined,
         children:[mkRun(n.display_number+'　'+(n.title||'(無題)'),{size,bold:true,gothic:true})]
       }));
+      const paragraphPrefixes=calculateParagraphNumbering(n.blocks);
       (n.blocks||[]).forEach(b=>{
         if(b.type==='paragraph'){
-          String(b.text||'').split('\n').map(l=>l.trim()).filter(Boolean).forEach(l=>bodyCh.push(para(l,{indent:200})));
+          const cfg=getParagraphStyleConfig(b.paragraph_style), prefix=paragraphPrefixes.get(b.id)||'';
+          bodyCh.push(para(prefix+String(b.text||''),{indent:cfg.indent*360}));
         } else if(b.type==='table'){
           bodyCh.push(captionParagraph(b,'表',{before:120,after:40}));
           bodyCh.push(buildDocxTable(b));
