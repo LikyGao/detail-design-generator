@@ -1,0 +1,50 @@
+name: Package standard_word_generator
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/package-standard-word-plugin.yml'
+      - 'plugins/personal/standard_word_generator/**'
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download official Dify plugin CLI
+        run: |
+          mkdir -p "$RUNNER_TEMP/dify-bin"
+          curl -fL \
+            https://github.com/langgenius/dify-plugin-daemon/releases/download/0.6.6/dify-plugin-linux-amd64 \
+            -o "$RUNNER_TEMP/dify-bin/dify"
+          chmod +x "$RUNNER_TEMP/dify-bin/dify"
+          "$RUNNER_TEMP/dify-bin/dify" version
+
+      - name: Read plugin version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(awk '/^version:/ {print $2; exit}' plugins/personal/standard_word_generator/manifest.yaml)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Plugin version: $VERSION"
+
+      - name: Package plugin with official CLI
+        shell: bash
+        run: |
+          OUTPUT="standard_word_generator_${{ steps.version.outputs.version }}.difypkg"
+          "$RUNNER_TEMP/dify-bin/dify" plugin package \
+            plugins/personal/standard_word_generator \
+            -o "$OUTPUT"
+          ls -lh "$OUTPUT"
+          sha256sum "$OUTPUT"
+
+      - name: Upload packaged plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: standard_word_generator_${{ steps.version.outputs.version }}
+          path: standard_word_generator_${{ steps.version.outputs.version }}.difypkg
+          if-no-files-found: error
+          retention-days: 7
