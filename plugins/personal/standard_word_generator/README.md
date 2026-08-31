@@ -1,4 +1,4 @@
-# Standard Word Generator v0.0.11
+# Standard Word Generator v0.0.12
 
 Dify用の標準Word生成プラグインです。v0.0.7の文書種別別テンプレート管理・章節Master・Word生成を維持し、Heading 1～3配下の通常本文抽出と精確取得を追加します。
 
