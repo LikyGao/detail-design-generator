@@ -1,0 +1,184 @@
+identity:
+  name: generate_standard_docx
+  author: likygao
+  label:
+    en_US: Generate Standard DOCX
+    zh_Hans: 生成标准DOCX
+    ja_JP: 標準DOCX生成
+description:
+  human:
+    en_US: Fill a selected standard template with cover data, revision history, headings, paragraphs, tables and images.
+    zh_Hans: 选择对应类型的标准模板，填入表纸、修改历史、章节、段落、表格和图片。
+    ja_JP: 指定文書種別の標準テンプレートへ、表紙、改訂履歴、章節、段落、表、画像を反映します。
+  llm: Generate a DOCX file from the standard template and JSON content.
+parameters:
+- name: client_name
+  type: string
+  required: true
+  label:
+    en_US: Client name
+    zh_Hans: 客户名
+    ja_JP: 顧客名
+  human_description:
+    en_US: Client name shown on the cover.
+    zh_Hans: 显示在表纸上的客户名。
+    ja_JP: 表紙に表示する顧客名です。
+  llm_description: Client name shown on the cover.
+  form: llm
+- name: project_name
+  type: string
+  required: true
+  label:
+    en_US: Project name
+    zh_Hans: 项目名
+    ja_JP: プロジェクト名
+  human_description:
+    en_US: Project name shown on the cover.
+    zh_Hans: 显示在表纸上的项目名。
+    ja_JP: 表紙に表示するプロジェクト名です。
+  llm_description: Project name shown on the cover.
+  form: llm
+- name: version
+  type: string
+  required: false
+  default: '1.0'
+  label:
+    en_US: Version
+    zh_Hans: 版数
+    ja_JP: 版数
+  human_description:
+    en_US: Document version.
+    zh_Hans: 文档版数。
+    ja_JP: 文書の版数です。
+  llm_description: Document version such as 1.0.
+  form: llm
+- name: issue_date
+  type: string
+  required: false
+  label:
+    en_US: Issue date
+    zh_Hans: 发行日
+    ja_JP: 発行日
+  human_description:
+    en_US: Issue date in YYYY/MM/DD.
+    zh_Hans: YYYY/MM/DD格式的发行日。
+    ja_JP: YYYY/MM/DD形式の発行日です。
+  llm_description: Issue date in YYYY/MM/DD.
+  form: llm
+- name: project_no
+  type: string
+  required: false
+  default: '-'
+  label:
+    en_US: Project No.
+    zh_Hans: 项目编号
+    ja_JP: プロジェクトNo
+  human_description:
+    en_US: Project identifier.
+    zh_Hans: 项目标识。
+    ja_JP: プロジェクト識別番号です。
+  llm_description: Project number.
+  form: llm
+- name: revision_history_json
+  type: string
+  required: false
+  label:
+    en_US: Revision history JSON
+    zh_Hans: 修改历史JSON
+    ja_JP: 改訂履歴JSON
+  human_description:
+    en_US: JSON array with issue_date, version, editor and description.
+    zh_Hans: 包含issue_date、version、editor、description的JSON数组。
+    ja_JP: issue_date、version、editor、descriptionを持つJSON配列です。
+  llm_description: JSON array of revision history entries.
+  form: llm
+- name: chapters_json
+  type: string
+  required: true
+  label:
+    en_US: Chapters JSON
+    zh_Hans: 章节JSON
+    ja_JP: 章節JSON
+  human_description:
+    en_US: JSON chapter tree. Each node may contain title, level, selected, blocks and children.
+    zh_Hans: JSON章节树。节点可包含title、level、selected、blocks、children。
+    ja_JP: JSON章節ツリー。各ノードはtitle、level、selected、blocks、childrenを持てます。
+  llm_description: JSON chapter tree with content blocks.
+  form: llm
+- name: output_filename
+  type: string
+  required: false
+  default: 基本設計書.docx
+  label:
+    en_US: Output filename
+    zh_Hans: 输出文件名
+    ja_JP: 出力ファイル名
+  human_description:
+    en_US: DOCX filename.
+    zh_Hans: DOCX文件名。
+    ja_JP: DOCXファイル名です。
+  llm_description: Output DOCX filename.
+  form: llm
+- name: document_type
+  type: select
+  required: false
+  options:
+  - value: server_storage
+    label:
+      en_US: Server / Storage
+      zh_Hans: 服务器・存储
+      ja_JP: サーバー・ストレージ
+  - value: network
+    label:
+      en_US: Network
+      zh_Hans: 网络
+      ja_JP: ネットワーク
+  - value: cloud
+    label:
+      en_US: Cloud
+      zh_Hans: 云
+      ja_JP: クラウド
+  - value: full
+    label:
+      en_US: Full
+      zh_Hans: 完整版
+      ja_JP: 全体版
+  label:
+    en_US: Document type
+    zh_Hans: 文档类型
+    ja_JP: 文書種別
+  human_description:
+    en_US: Optional template category. If omitted, full is preferred, then the v0.0.6 legacy template.
+    zh_Hans: 可选模板类型。省略时优先full，其次使用v0.0.6旧模板。
+    ja_JP: 任意のテンプレート種別です。未指定時はfull、次にv0.0.6旧テンプレートを使用します。
+  llm_description: Optional one of server_storage, network, cloud, full.
+  form: llm
+- name: template_id
+  type: string
+  required: false
+  label:
+    en_US: Expected template ID
+    zh_Hans: 预期模板ID
+    ja_JP: 期待テンプレートID
+  human_description:
+    en_US: Optional expected template ID. A mismatch returns an error instead of using another template.
+    zh_Hans: 可选的预期模板ID。不一致时返回错误，不会误用其他模板。
+    ja_JP: 任意の期待テンプレートIDです。不一致時は別テンプレートを使用せずエラーにします。
+  llm_description: Optional expected template ID.
+  form: llm
+- name: template_version
+  type: string
+  required: false
+  label:
+    en_US: Template version
+    zh_Hans: 模板版本
+    ja_JP: テンプレート版数
+  human_description:
+    en_US: Optional expected template version. A mismatch returns an error.
+    zh_Hans: 可选的预期模板版本。不一致时返回错误。
+    ja_JP: 任意の期待テンプレート版数です。不一致の場合はエラーになります。
+  llm_description: Optional expected template version.
+  form: llm
+extra:
+  python:
+    source: tools/generate_standard_docx.py

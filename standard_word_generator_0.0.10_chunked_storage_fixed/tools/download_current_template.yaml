@@ -1,0 +1,46 @@
+identity:
+  name: download_current_template
+  author: likygao
+  label:
+    en_US: Download Current Template
+    zh_Hans: 下载当前模板
+    ja_JP: 現行テンプレート出力
+description:
+  human:
+    en_US: Return the current standard DOCX template for a document type.
+    zh_Hans: 返回指定文档类型的当前标准DOCX模板。
+    ja_JP: 指定文書種別の現在の標準DOCXテンプレートを返します。
+  llm: Download the current standard Word template for a document type.
+parameters:
+- name: document_type
+  type: select
+  required: false
+  options:
+  - value: server_storage
+    label: {en_US: Server / Storage, zh_Hans: 服务器・存储, ja_JP: サーバー・ストレージ}
+  - value: network
+    label: {en_US: Network, zh_Hans: 网络, ja_JP: ネットワーク}
+  - value: cloud
+    label: {en_US: Cloud, zh_Hans: 云, ja_JP: クラウド}
+  - value: full
+    label: {en_US: Full, zh_Hans: 完整版, ja_JP: 全体版}
+  label: {en_US: Document type, zh_Hans: 文档类型, ja_JP: 文書種別}
+  human_description:
+    en_US: Optional. If omitted, the backward-compatible default selection is used.
+    zh_Hans: 可选。省略时使用向后兼容的默认选择。
+    ja_JP: 任意です。未指定時は後方互換の既定選択を使用します。
+  llm_description: Optional document type.
+  form: llm
+- name: template_version
+  type: string
+  required: false
+  label: {en_US: Template version, zh_Hans: 模板版本, ja_JP: テンプレート版数}
+  human_description:
+    en_US: Optional expected current version.
+    zh_Hans: 可选的预期当前版本。
+    ja_JP: 任意の期待現在版数です。
+  llm_description: Optional expected current template version.
+  form: llm
+extra:
+  python:
+    source: tools/download_current_template.py

@@ -1,0 +1,117 @@
+identity:
+  name: register_standard_template
+  author: likygao
+  label:
+    en_US: Register and Parse Standard Template
+    zh_Hans: 注册并解析标准模板
+    ja_JP: 標準テンプレート登録・解析
+description:
+  human:
+    en_US: Validate a DOCX, extract Heading 1-3 and ordinary section text, and replace the current template for one document type.
+    zh_Hans: 校验DOCX，提取Heading 1～3及章节普通正文，并覆盖指定文档类型的当前模板。
+    ja_JP: DOCXを検証し、Heading 1～3と章節通常本文を抽出して、指定文書種別の現在テンプレートを上書き登録します。
+  llm: Register and parse a standard Word template for a document type.
+parameters:
+- name: template_file
+  type: file
+  required: true
+  label:
+    en_US: Template DOCX
+    zh_Hans: 模板DOCX
+    ja_JP: テンプレートDOCX
+  human_description:
+    en_US: The new standard DOCX template.
+    zh_Hans: 新的标准DOCX模板。
+    ja_JP: 新しい標準DOCXテンプレートです。
+  llm_description: New standard DOCX template file.
+  form: llm
+- name: document_type
+  type: select
+  required: false
+  default: full
+  options:
+  - value: server_storage
+    label:
+      en_US: Server / Storage
+      zh_Hans: 服务器・存储
+      ja_JP: サーバー・ストレージ
+  - value: network
+    label:
+      en_US: Network
+      zh_Hans: 网络
+      ja_JP: ネットワーク
+  - value: cloud
+    label:
+      en_US: Cloud
+      zh_Hans: 云
+      ja_JP: クラウド
+  - value: full
+    label:
+      en_US: Full
+      zh_Hans: 完整版
+      ja_JP: 全体版
+  label:
+    en_US: Document type
+    zh_Hans: 文档类型
+    ja_JP: 文書種別
+  human_description:
+    en_US: Template category. Omitted legacy calls are treated as full.
+    zh_Hans: 模板类别。旧工作流未传时按full处理。
+    ja_JP: テンプレート種別です。旧ワークフローで未指定の場合はfullとして扱います。
+  llm_description: One of server_storage, network, cloud, full.
+  form: llm
+- name: template_version
+  type: string
+  required: false
+  label:
+    en_US: Template version
+    zh_Hans: 模板版本
+    ja_JP: テンプレート版数
+  human_description:
+    en_US: Current template version for this document type. If omitted, it is inferred from the filename when possible.
+    zh_Hans: 此文档类型当前模板的版本。省略时尽量从文件名推断。
+    ja_JP: この文書種別の現在テンプレート版数です。未指定時は可能であればファイル名から推定します。
+  llm_description: Template version such as 1.2.
+  form: llm
+extra:
+  python:
+    source: tools/register_standard_template.py
+output_schema:
+  type: object
+  properties:
+    document_type:
+      type: string
+      description: Registered document type.
+    template_id:
+      type: string
+      description: Registered template ID.
+    template_version:
+      type: string
+      description: Current template version.
+    template:
+      type: object
+      description: Template metadata.
+    master_json:
+      type: array
+      items:
+        type: object
+      description: Tree chapter master.
+    chapter_list_json:
+      type: array
+      items:
+        type: object
+      description: Flat chapter list.
+    master_json_text:
+      type: string
+      description: Tree chapter master serialized as JSON text.
+    chapter_list_json_text:
+      type: string
+      description: Flat chapter list serialized as JSON text.
+    section_content_summary:
+      type: object
+      description: Extracted section text counts.
+    warnings:
+      type: array
+      items:
+        type: string
+      description: Heading parse warnings.

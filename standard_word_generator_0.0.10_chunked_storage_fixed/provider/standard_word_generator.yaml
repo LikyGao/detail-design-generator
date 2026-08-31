@@ -1,0 +1,26 @@
+identity:
+  author: likygao
+  name: standard_word_generator
+  label:
+    en_US: Standard Word Generator
+    zh_Hans: 标准Word生成器
+    ja_JP: 標準Word生成
+  description:
+    en_US: Manage current DOCX templates by document type, extract chapter masters and section text, and generate design documents while preserving
+      template layout.
+    zh_Hans: 按文档类型管理当前DOCX模板、提取章节Master和章节正文，并在保留模板版式的情况下生成设计书。
+    ja_JP: 文書種別ごとの現行DOCXテンプレート管理、章節Master・章節本文抽出、テンプレートレイアウトを保持した設計書生成を行います。
+  icon: icon.svg
+  tags:
+  - productivity
+credentials_for_provider: {}
+tools:
+- tools/generate_standard_docx.yaml
+- tools/register_standard_template.yaml
+- tools/get_active_template_master.yaml
+- tools/get_template_section_texts.yaml
+- tools/get_template_status.yaml
+- tools/download_current_template.yaml
+extra:
+  python:
+    source: provider/standard_word_generator.py

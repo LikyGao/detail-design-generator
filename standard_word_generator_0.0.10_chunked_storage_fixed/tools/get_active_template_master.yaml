@@ -1,0 +1,82 @@
+identity:
+  name: get_active_template_master
+  author: likygao
+  label:
+    en_US: Get Active Template Chapter Master
+    zh_Hans: 获取当前模板章节Master
+    ja_JP: 現行テンプレート章節Master取得
+description:
+  human:
+    en_US: Return the tree master_json and flat chapter_list_json extracted from the current template of one document type.
+    zh_Hans: 返回从指定类型当前模板提取的树形master_json和扁平chapter_list_json。
+    ja_JP: 指定文書種別の現在テンプレートから抽出したツリー型master_jsonと扁平chapter_list_jsonを返します。
+  llm: Get chapter master data for the current standard template of a document type.
+parameters:
+- name: document_type
+  type: select
+  required: true
+  options:
+  - value: server_storage
+    label:
+      en_US: Server / Storage
+      zh_Hans: 服务器・存储
+      ja_JP: サーバー・ストレージ
+  - value: network
+    label:
+      en_US: Network
+      zh_Hans: 网络
+      ja_JP: ネットワーク
+  - value: cloud
+    label:
+      en_US: Cloud
+      zh_Hans: 云
+      ja_JP: クラウド
+  - value: full
+    label:
+      en_US: Full
+      zh_Hans: 完整版
+      ja_JP: 全体版
+  label:
+    en_US: Document type
+    zh_Hans: 文档类型
+    ja_JP: 文書種別
+  human_description:
+    en_US: Document type whose current chapter master should be returned.
+    zh_Hans: 需要获取当前章节Master的文档类型。
+    ja_JP: 現行章節Masterを取得する文書種別です。
+  llm_description: One of server_storage, network, cloud, full.
+  form: llm
+extra:
+  python:
+    source: tools/get_active_template_master.py
+output_schema:
+  type: object
+  properties:
+    document_type:
+      type: string
+      description: Requested document type.
+    template_id:
+      type: string
+      description: Current template ID.
+    template_version:
+      type: string
+      description: Current template version.
+    template:
+      type: object
+      description: Template metadata.
+    master_json:
+      type: array
+      items:
+        type: object
+      description: Tree chapter master.
+    chapter_list_json:
+      type: array
+      items:
+        type: object
+      description: Flat chapter list.
+    master_json_text:
+      type: string
+      description: Tree chapter master serialized as JSON text.
+    chapter_list_json_text:
+      type: string
+      description: Flat chapter list serialized as JSON text.

@@ -1,0 +1,29 @@
+identity:
+  name: get_template_status
+  author: likygao
+  label:
+    en_US: List Standard Templates
+    zh_Hans: 查看标准模板
+    ja_JP: 標準テンプレート一覧
+description:
+  human:
+    en_US: Show the current template and version registered for each document type.
+    zh_Hans: 显示各文档类型当前登记的模板与版本。
+    ja_JP: 各文書種別に現在登録されているテンプレートと版数を表示します。
+  llm: List current standard templates by document type.
+parameters: []
+extra:
+  python:
+    source: tools/get_template_status.py
+output_schema:
+  type: object
+  properties:
+    active_template:
+      type: object
+      description: Backward-compatible default selected template.
+    templates:
+      type: object
+      description: Current template metadata keyed by document type.
+    registered_count:
+      type: integer
+      description: Number of registered document types.

@@ -1,0 +1,119 @@
+identity:
+  name: get_template_section_texts
+  author: likygao
+  label:
+    en_US: Get Standard Template Section Texts
+    zh_Hans: 获取标准模板章节正文
+    ja_JP: 標準テンプレート章節本文取得
+description:
+  human:
+    en_US: Precisely return ordinary body paragraphs stored under selected Heading 1-3 sections of the current template.
+    zh_Hans: 精确返回当前模板指定Heading 1～3章节下保存的普通正文段落。
+    ja_JP: 現行テンプレートの指定Heading 1～3配下に保存された通常本文段落を正確に返します。
+  llm: Get exact standard-template body text for selected section IDs. Tables, images, captions, and Point content are excluded.
+parameters:
+- name: document_type
+  type: select
+  required: true
+  options:
+  - value: server_storage
+    label:
+      en_US: Server / Storage
+      zh_Hans: 服务器・存储
+      ja_JP: サーバー・ストレージ
+  - value: network
+    label:
+      en_US: Network
+      zh_Hans: 网络
+      ja_JP: ネットワーク
+  - value: cloud
+    label:
+      en_US: Cloud
+      zh_Hans: 云
+      ja_JP: クラウド
+  - value: full
+    label:
+      en_US: Full
+      zh_Hans: 完整版
+      ja_JP: 全体版
+  label:
+    en_US: Document type
+    zh_Hans: 文档类型
+    ja_JP: 文書種別
+  human_description:
+    en_US: Document type whose current template text should be returned.
+    zh_Hans: 需要取得当前模板正文的文档类型。
+    ja_JP: 現行テンプレート本文を取得する文書種別です。
+  llm_description: One of server_storage, network, cloud, full.
+  form: llm
+- name: template_id
+  type: string
+  required: false
+  label:
+    en_US: Expected template ID
+    zh_Hans: 预期模板ID
+    ja_JP: 期待テンプレートID
+  human_description:
+    en_US: Optional expected template ID. A mismatch returns an error instead of using another template.
+    zh_Hans: 可选的预期模板ID。不一致时返回错误，不会误用其他模板。
+    ja_JP: 任意の期待テンプレートIDです。不一致時は別テンプレートを使用せずエラーにします。
+  llm_description: Optional template ID returned by the chapter master tool.
+  form: llm
+- name: template_version
+  type: string
+  required: false
+  label:
+    en_US: Expected template version
+    zh_Hans: 预期模板版本
+    ja_JP: 期待テンプレート版数
+  human_description:
+    en_US: Optional expected template version. A mismatch returns an error.
+    zh_Hans: 可选的预期模板版本。不一致时返回错误。
+    ja_JP: 任意の期待テンプレート版数です。不一致の場合はエラーになります。
+  llm_description: Optional template version returned by the chapter master tool.
+  form: llm
+- name: section_ids_json
+  type: string
+  required: false
+  label:
+    en_US: Section IDs JSON
+    zh_Hans: 章节ID JSON
+    ja_JP: 章節ID JSON
+  human_description:
+    en_US: JSON array of section IDs, or a chapter tree/list containing id fields. Empty returns all sections.
+    zh_Hans: 章节ID数组，或含id字段的章节树/列表。留空时返回全部章节。
+    ja_JP: 章節ID配列、またはidを含む章節ツリー/リストです。空欄時は全章節を返します。
+  llm_description: JSON such as ["1","1-1"] or the confirmed chapter tree JSON.
+  form: llm
+extra:
+  python:
+    source: tools/get_template_section_texts.py
+output_schema:
+  type: object
+  properties:
+    document_type:
+      type: string
+    template_id:
+      type: string
+    template_version:
+      type: string
+    template:
+      type: object
+    requested_section_ids:
+      type: array
+      items:
+        type: string
+    returned_section_count:
+      type: number
+    missing_section_ids:
+      type: array
+      items:
+        type: string
+    section_contents:
+      type: array
+      items:
+        type: object
+    section_contents_json_text:
+      type: string
+    reference_text:
+      type: string
