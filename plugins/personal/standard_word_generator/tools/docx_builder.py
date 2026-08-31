@@ -287,6 +287,10 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
         paragraph_properties = deepcopy(prototype)
         _remove_numbering_properties(paragraph_properties)
         paragraph._p.insert(0, paragraph_properties)
+        # A prototype can point at a list style whose numPr lives in styles.xml.
+        # Keep the copied direct formatting, but use a non-list paragraph style so
+        # literal prefixes are not combined with inherited automatic numbering.
+        paragraph.style = "Normal"
 
     prefix = calculate_paragraph_prefix(paragraph_style, counters)
     if prototype is None:
