@@ -16,11 +16,13 @@ from docx.oxml.ns import qn
 from docx.shared import Inches
 
 from tools.chapter_parser import _paragraph_structure
+from tools.paragraph_numbering import calculate_paragraph_prefix
 
 
 MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 PARAGRAPH_STYLES = {f"level_{level}" for level in range(7)}
 PARAGRAPH_FALLBACK_INDENTS = {0: 0, 1: 360, 2: 720, 3: 1080, 4: 1440, 5: 1800, 6: 2160}
+PARAGRAPH_PREFIX_SEPARATOR = " "
 
 
 def _replace_paragraph_text(paragraph, text: str) -> None:
@@ -262,22 +264,13 @@ def _collect_paragraph_prototypes(document: Document) -> dict[str, Any]:
     return result
 
 
-def _fallback_prefix(paragraph_style: str, counters: dict[int, int]) -> str:
-    level = int(paragraph_style.rsplit("_", 1)[1])
-    if level in (1, 4, 6):
-        counters[level] = counters.get(level, 0) + 1
-        for deeper in tuple(key for key in counters if key > level):
-            counters.pop(deeper, None)
-    if level == 1:
-        return f"（{counters[level]}）"
-    if level in (2, 5):
-        return "・"
-    if level == 3:
-        return "➢"
-    if level in (4, 6):
-        value = counters[level]
-        return chr(0x2460 + value - 1) if 1 <= value <= 20 else f"({value})"
-    return ""
+def _remove_numbering_properties(paragraph_properties) -> None:
+    """Remove template numbering while retaining its other paragraph formatting."""
+    if paragraph_properties is None:
+        return
+    num_properties = paragraph_properties.find(qn("w:numPr"))
+    if num_properties is not None:
+        paragraph_properties.remove(num_properties)
 
 
 def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: dict[str, Any],
@@ -291,19 +284,15 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
     if prototype is not None:
         if paragraph._p.pPr is not None:
             paragraph._p.remove(paragraph._p.pPr)
-        paragraph._p.insert(0, deepcopy(prototype))
-        # Native numbering owns the visible marker; update logical counters for descendants.
-        level = int(paragraph_style.rsplit("_", 1)[1])
-        if level in (1, 4, 6):
-            counters[level] = counters.get(level, 0) + 1
-            for deeper in tuple(key for key in counters if key > level):
-                counters.pop(deeper, None)
-        paragraph.add_run(text)
-        return
+        paragraph_properties = deepcopy(prototype)
+        _remove_numbering_properties(paragraph_properties)
+        paragraph._p.insert(0, paragraph_properties)
 
-    prefix = _fallback_prefix(paragraph_style, counters)
-    paragraph.paragraph_format.left_indent = Inches(PARAGRAPH_FALLBACK_INDENTS[int(paragraph_style[-1])] / 1440)
-    paragraph.add_run(f"{prefix}{text}")
+    prefix = calculate_paragraph_prefix(paragraph_style, counters)
+    if prototype is None:
+        paragraph.paragraph_format.left_indent = Inches(PARAGRAPH_FALLBACK_INDENTS[int(paragraph_style[-1])] / 1440)
+    separator = PARAGRAPH_PREFIX_SEPARATOR if prefix and text else ""
+    paragraph.add_run(f"{prefix}{separator}{text}")
 
 
 def _add_blocks(
