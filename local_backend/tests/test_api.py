@@ -25,7 +25,16 @@ def register(client, template_bytes, document_type="server_storage"):
 
 
 def test_health(client):
-    assert client.get("/api/health").json() == {"status": "ok"}
+    response = client.get("/api/health")
+    assert response.json() == {"status": "ok"}
+    assert response.headers["X-Detail-Design-Generator"] == "1"
+
+
+def test_activate_desktop_window(client, monkeypatch):
+    import local_backend.app as module
+
+    monkeypatch.setattr(module.window_manager, "activate", lambda: True)
+    assert client.post("/api/app/activate").json() == {"status": "ok", "activated": True}
 
 
 @pytest.mark.parametrize("document_type", ["server_storage", "network", "cloud", "full"])

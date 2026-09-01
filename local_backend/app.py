@@ -7,9 +7,10 @@ from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
+from .desktop import window_manager
 from .services.template_service import TemplateService
 from .services.word_service import generate_word
 
@@ -39,7 +40,15 @@ class WordRequest(BaseModel):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    # The private marker lets the launcher distinguish this application from
+    # an unrelated HTTP service on the configured port without changing the
+    # response body consumed by existing clients.
+    return JSONResponse({"status": "ok"}, headers={"X-Detail-Design-Generator": "1"})
+
+
+@app.post("/api/app/activate")
+def activate_app():
+    return {"status": "ok", "activated": window_manager.activate()}
 
 
 @app.get("/")
