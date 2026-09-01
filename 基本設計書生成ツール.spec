@@ -36,8 +36,15 @@ for package in (
     "multipart",
     "python_multipart",
     "PIL",
+    "webview",
 ):
     hiddenimports += collect_submodules(package)
+
+# pywebview loads its GUI backend and bundled JavaScript at runtime.
+webview_datas, webview_binaries, webview_imports = collect_all("webview")
+datas += webview_datas
+binaries += webview_binaries
+hiddenimports += webview_imports
 
 # The local backend intentionally imports this namespace package after adding
 # PLUGIN_ROOT to sys.path.  Listing its runtime modules makes that dynamic
@@ -57,4 +64,4 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name="基本設計書生成ツール", debug=False,
-          bootloader_ignore_signals=False, strip=False, upx=True, console=True)
+          bootloader_ignore_signals=False, strip=False, upx=True, console=False)
