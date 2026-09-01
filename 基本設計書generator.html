@@ -129,6 +129,16 @@
   .rev-toolbar{display:flex;gap:10px;align-items:center;margin:6px 0 18px}
   /* ── Blocks editor ── */
   .blocks{display:flex;flex-direction:column;gap:10px}
+  .paragraph-item{display:flex;flex-direction:column;gap:7px}
+  .paragraph-children{display:flex;flex-direction:column;gap:8px;margin:0 0 0 18px;padding:0 0 0 12px;border-left:1px solid var(--border)}
+  .paragraph-children:empty{display:none}
+  .paragraph-item>.block{width:100%}
+  .paragraph-drag{background:transparent;border:0;color:var(--text-faint);cursor:grab;font-size:15px;line-height:1;padding:2px 4px;touch-action:none}
+  .paragraph-drag:active{cursor:grabbing}
+  .paragraph-insert{background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font:inherit;font-size:10.5px;padding:2px 7px;text-transform:none;letter-spacing:0}
+  .paragraph-insert:hover{border-color:var(--accent);color:var(--text)}
+  .paragraph-sort-ghost{opacity:.35}
+  .paragraph-sort-chosen>.block{border-color:var(--accent)}
   .block{border:1px solid var(--border);border-radius:8px;background:var(--bg);overflow:hidden}
   .block-h{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.06em}
   .block-h .btype{font-weight:700}
@@ -432,6 +442,7 @@
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
 <script>
 var docx = (function(exports) {
   "use strict";var __defProp = Object.defineProperty;
@@ -24575,7 +24586,7 @@ function buildNodeCard(n){
   const fgB=document.createElement('div'); fgB.className='fg';
   fgB.innerHTML='<div class="flabel">本文ブロック</div>';
   const blocksWrap=document.createElement('div'); blocksWrap.className='blocks';
-  n.blocks.forEach(b=>blocksWrap.appendChild(buildBlock(n,b)));
+  renderBlockHierarchy(n,blocksWrap);
   fgB.appendChild(blocksWrap);
   // add-block buttons
   const add=document.createElement('div'); add.className='addblock';
@@ -24588,18 +24599,84 @@ function buildNodeCard(n){
 }
 function mkAddBtn(label,fn){ const b=document.createElement('button'); b.textContent=label; b.addEventListener('click',fn); return b; }
 function addBlock(n,type){ n.blocks.push(normalizeBlock(type==='paragraph' ? {type:'paragraph', paragraph_style:'level_0', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''})); afterStructureChange('段落を追加'); }
+function insertParagraph(n,current,where){
+  const currentIndex=n.blocks.indexOf(current);
+  if(currentIndex<0) return;
+  let insertIndex=currentIndex;
+  if(where==='after'){
+    insertIndex=currentIndex+1;
+    const level=getParagraphStyleConfig(current.paragraph_style).indent;
+    while(insertIndex<n.blocks.length){
+      const next=n.blocks[insertIndex];
+      if(next.type!=='paragraph'||getParagraphStyleConfig(next.paragraph_style).indent<=level) break;
+      insertIndex++;
+    }
+  }
+  const added=normalizeBlock({type:'paragraph',paragraph_style:current.paragraph_style||'level_0',text:'',revision_instruction:'',revision_history:[]});
+  n.blocks.splice(insertIndex,0,added);
+  afterStructureChange('段落を追加');
+}
 function addTableBlock(n){ n.blocks.push(normalizeBlock({type:'table', caption:'', headers:['項目','内容','備考'], rows:[['','','']]})); afterStructureChange('表を追加'); }
 function addFigureBlock(n){ n.blocks.push(normalizeBlock({type:'figure', caption:''})); afterStructureChange('画像を追加'); }
 function delBlock(n,b){ n.blocks=n.blocks.filter(x=>x!==b); afterStructureChange('段落を削除'); }
 
+function renderBlockHierarchy(n,root){
+  const stack=[];
+  n.blocks.forEach(b=>{
+    if(b.type!=='paragraph'){
+      stack.length=0;
+      root.appendChild(buildBlock(n,b));
+      return;
+    }
+    const level=getParagraphStyleConfig(b.paragraph_style).indent;
+    while(stack.length&&stack[stack.length-1].level>=level) stack.pop();
+    const item=document.createElement('div'); item.className='paragraph-item'; item.dataset.blockId=b.id;
+    item.appendChild(buildBlock(n,b));
+    const children=document.createElement('div'); children.className='paragraph-children'; item.appendChild(children);
+    (stack.length?stack[stack.length-1].children:root).appendChild(item);
+    stack.push({level,children});
+  });
+  initParagraphSortables(n,root);
+}
+function initParagraphSortables(n,root){
+  if(typeof Sortable==='undefined') return;
+  [root,...root.querySelectorAll('.paragraph-children')].forEach((list,index)=>{
+    if(!list.querySelector(':scope > .paragraph-item')) return;
+    Sortable.create(list,{group:{name:'paragraph-siblings-'+n.id+'-'+index,pull:false,put:false},draggable:'.paragraph-item',handle:'.paragraph-drag',animation:150,ghostClass:'paragraph-sort-ghost',chosenClass:'paragraph-sort-chosen',onEnd:()=>syncBlockOrderFromEditor(n,root)});
+  });
+}
+function syncBlockOrderFromEditor(n,root){
+  const byId=new Map(n.blocks.map(b=>[b.id,b])), ordered=[];
+  function collect(container){
+    Array.from(container.children).forEach(el=>{
+      if(el.classList.contains('paragraph-item')){
+        const block=byId.get(el.dataset.blockId); if(block) ordered.push(block);
+        const children=el.querySelector(':scope > .paragraph-children'); if(children) collect(children);
+      }else if(el.classList.contains('block')){
+        const block=byId.get(el.dataset.blockId); if(block) ordered.push(block);
+      }
+    });
+  }
+  collect(root);
+  if(ordered.length!==n.blocks.length) return;
+  n.blocks=ordered;
+  renderEditor(); debouncePreview(); pushHistory('段落の並び順を変更');
+}
+
 function buildBlock(n,b){
   const el=document.createElement('div'); el.className='block';
+  el.dataset.blockId=b.id;
   const head=document.createElement('div'); head.className='block-h';
   const typeName = b.type==='paragraph'?'段落'
     : b.type==='table'?'表'
     : b.type==='figure'?'画像'
     : b.type==='table_placeholder'?'表（占位）':'図（占位）';
   head.innerHTML='<span class="btype">'+typeName+'</span>'+(b._ref?'<span class="bref">'+esc(b._ref)+'</span>':'');
+  if(b.type==='paragraph'){
+    const drag=document.createElement('button'); drag.type='button'; drag.className='paragraph-drag'; drag.textContent='⋮⋮'; drag.title='ドラッグして並び替え'; drag.setAttribute('aria-label','段落をドラッグして並び替え'); head.insertBefore(drag,head.firstChild);
+    const above=document.createElement('button'); above.type='button'; above.className='paragraph-insert'; above.textContent='上に追加'; above.addEventListener('click',()=>insertParagraph(n,b,'before')); head.appendChild(above);
+    const below=document.createElement('button'); below.type='button'; below.className='paragraph-insert'; below.textContent='下に追加'; below.addEventListener('click',()=>insertParagraph(n,b,'after')); head.appendChild(below);
+  }
   const del=document.createElement('button'); del.className='bdel'; del.textContent='✕'; del.title='ブロック削除';
   del.addEventListener('click',()=>delBlock(n,b)); head.appendChild(del);
   el.appendChild(head);
