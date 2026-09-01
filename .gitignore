@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+dist/
+build/
+local_backend/data/*
+!local_backend/data/.gitkeep

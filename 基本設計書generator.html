@@ -23529,8 +23529,7 @@ var __async = (__this, __arguments, generator) => {
 
 /* ── Dify config（実運用ではキー/URLを差し替え） ───────────── */
 const DIFY_API_URL             = "https://api.dify.ricoh.com/v1/workflows/run";
-const DIFY_WORKFLOW_API_URL    = "https://api.dify.ai/v1/workflows/run";
-const DIFY_TEMPLATE_API_KEY    = "app-nYF68CJV3Scjj5XdVitHxwRr"; // 標準テンプレートデータ取得API
+const LOCAL_API_URL            = "http://127.0.0.1:8765";
 const DIFY_CHAPTER_API_KEY     = "app-FMhoRqPLcu46L2lvSsMulHRi"; // Stage① ①章節確認_v4_四版本共通版
 const DIFY_GEN_API_KEY         = "app-0PKalbE3Kdjk4F49Ym3xuTm1"; // Stage② ②本文生成_v4_標準本文読込
 
@@ -24192,12 +24191,7 @@ async function callDifyPlan(){
     status.style.color='var(--text-muted)'; status.textContent='標準テンプレートデータを取得しています…';
     let templateOutputs;
     try{
-      templateOutputs=await difyCall(
-        DIFY_TEMPLATE_API_KEY,
-        { document_type: doc.document_type },
-        DIFY_WORKFLOW_API_URL,
-        true
-      );
+      templateOutputs=await localApiCall('/api/template-data', { document_type: doc.document_type });
       const required=['template_id','template_version','master_json','chapter_list_json'];
       const isEmpty=value=>value===undefined || value===null ||
         (typeof value==='string' && !value.trim()) ||
@@ -25236,6 +25230,17 @@ function renderMissing(){
   } else { box.innerHTML=''; box.classList.remove('show'); }
 }
 
+async function localApiCall(path, body){
+  try{
+    const response=await fetch(LOCAL_API_URL+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!response.ok){const error=await response.json().catch(()=>({}));throw new Error(error.detail||('HTTP '+response.status));}
+    return await response.json();
+  }catch(error){
+    if(error instanceof TypeError) throw new Error('ローカルサービスに接続できません。基本設計書生成ツールを起動してから再度お試しください。');
+    throw error;
+  }
+}
+
 /* shared Dify fetch */
 async function difyCall(apiKey, inputs, apiUrl=DIFY_API_URL, returnOutputs=false){
   const res = await fetch(apiUrl, {
@@ -25737,108 +25742,31 @@ function buildWordOutputFilename(cover){
 }
 
 async function exportDocx(){
-  const btn=document.getElementById('exportBtn');
-  const old=btn.innerHTML;
-  btn.disabled=true;
-  btn.innerHTML='<span class="spinner"></span> 標準Word生成中...';
-  const workflowUrl='https://api.dify.ai/v1/workflows/run';
-  const outputFileUrl=(value)=>{
-    const seen=new Set();
-    const visit=(item)=>{
-      if(!item || seen.has(item)) return '';
-      if(typeof item==='string') return /^https?:\/\//i.test(item) ? item : '';
-      if(typeof item!=='object') return '';
-      seen.add(item);
-      if(typeof item.url==='string' && /^https?:\/\//i.test(item.url)) return item.url;
-      if(typeof item.remote_url==='string' && /^https?:\/\//i.test(item.remote_url)) return item.remote_url;
-      if(Array.isArray(item)){
-        for(const entry of item){ const url=visit(entry); if(url) return url; }
-      }
-      return '';
-    };
-    return visit(value);
-  };
-  const downloadBlob=(blob,fileName)=>{
-    const objectUrl=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=objectUrl; a.download=fileName; document.body.appendChild(a); a.click();
-    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(objectUrl); },1000);
-  };
+  const btn=document.getElementById('exportBtn'); const old=btn.innerHTML;
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 標準Word生成中...';
   try{
+    renumber();
     const cover=doc.cover||{};
-    const today=new Date();
-    const todayText=today.getFullYear()+'/'+pad2(today.getMonth()+1)+'/'+pad2(today.getDate());
     const outputFilename=buildWordOutputFilename(cover);
-    const revisionHistory=Array.isArray(doc.revision_history) ? doc.revision_history : [{
-      issue_date:cover.issue_date||todayText,
-      version:cover.version||'1.0',
-      editor:'',
-      description:'新規作成'
-    }];
-    const payload={
-      inputs:{
-        document_type:doc.document_type,
-        client_name:cover.client_name||'',
-        project_name:cover.project_name||'',
-        version:cover.version||'1.0',
-        issue_date:cover.issue_date||'',
-        project_no:cover.project_no||'-',
-        revision_history_json:JSON.stringify(revisionHistory),
-        chapters_json:JSON.stringify(doc.chapters||[]),
-        output_filename:outputFilename
-      },
-      response_mode:'blocking',
-      user:'detail-design-generator'
-    };
-    const response=await fetch(workflowUrl,{
-      method:'POST',
-      headers:{Authorization:'Bearer app-hVehsMqZ3QwFnQ5EY9R1hbaW','Content-Type':'application/json'},
-      body:JSON.stringify(payload)
+    const revisionHistory=Array.isArray(doc.revision_history) ? doc.revision_history : [];
+    const response=await fetch(LOCAL_API_URL+'/api/generate-word', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({document_type:doc.document_type, client_name:cover.client_name||'',
+        project_name:cover.project_name||'', version:cover.version||'1.0', issue_date:cover.issue_date||'',
+        project_no:cover.project_no||'-', revision_history_json:JSON.stringify(revisionHistory),
+        chapters_json:JSON.stringify(doc.chapters||[]), output_filename:outputFilename})
     });
-    const responseText=await response.text();
-    let result;
-    try{ result=JSON.parse(responseText); }
-    catch(parseError){
-      console.error('Dify Word workflow returned non-JSON:',response.status,responseText,parseError);
-      throw new Error('HTTP '+response.status+'：Dify APIからJSON以外の応答が返されました');
-    }
-    if(!response.ok){
-      const message=result.message||result.error||result.detail||'Dify Word API request failed';
-      console.error('Dify Word workflow error:',response.status,result);
-      throw new Error('HTTP '+response.status+'：'+message);
-    }
-    const outputs=(result.data&&result.data.outputs)||result.outputs||{};
-    const fileUrl=outputFileUrl(outputs.word_file)||outputFileUrl(outputs.files);
-    if(!fileUrl){
-      console.error('Dify Word workflow did not return a Word file URL:',result);
-      throw new Error(result.message||result.error||'Dify APIの応答にWordファイルURLがありません');
-    }
-    try{
-      const fileResponse=await fetch(fileUrl);
-      if(!fileResponse.ok) throw new Error('HTTP '+fileResponse.status+'：Wordファイルの取得に失敗しました');
-      const blob=await fileResponse.blob();
-      const sample=await blob.slice(0,512).text();
-      if(/application\/json/i.test(blob.type)||/^\s*[{[]/.test(sample)){
-        console.error('Dify Word file URL returned JSON instead of DOCX:',fileUrl,blob.type,sample);
-        throw new Error('WordファイルURLがDOCXではなくエラーJSONを返しました');
-      }
-      downloadBlob(blob,outputFilename);
-    }catch(fileError){
-      // CORS で Blob 化できない場合だけ、ブラウザに URL を直接ダウンロードさせる。
-      if(fileError instanceof TypeError){
-        console.error('Could not fetch Dify Word file because of CORS; using direct download:',fileError,fileUrl);
-        const a=document.createElement('a'); a.href=fileUrl; a.download=outputFilename; a.target='_blank';
-        document.body.appendChild(a); a.click(); setTimeout(()=>document.body.removeChild(a),1000);
-      }else throw fileError;
-    }
+    if(!response.ok){ const error=await response.json().catch(()=>({})); throw new Error(error.detail||('HTTP '+response.status)); }
+    const blob=await response.blob();
+    const url=URL.createObjectURL(blob); const a=document.createElement('a');
+    a.href=url; a.download=outputFilename; document.body.appendChild(a); a.click();
+    setTimeout(()=>{document.body.removeChild(a); URL.revokeObjectURL(url);},1000);
     showToast('✓ 標準テンプレートからWordファイルを出力しました');
   }catch(error){
-    console.error('Dify Word export failed:',error);
-    showToast('Word 出力に失敗：'+(error.message||error),true);
-  }finally{
-    btn.disabled=false;
-    btn.innerHTML=old;
-  }
+    console.error('Local Word export failed:',error);
+    const message=error instanceof TypeError ? 'ローカルサービスに接続できません。基本設計書生成ツールを起動してから再度お試しください。' : (error.message||error);
+    showToast('Word 出力に失敗：'+message,true);
+  }finally{ btn.disabled=false; btn.innerHTML=old; }
 }
 
 /* ============================================================
