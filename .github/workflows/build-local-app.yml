@@ -1,0 +1,64 @@
+name: Build local Windows app
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r local_backend/requirements.txt
+      - run: pytest -q
+      - run: pyinstaller --noconfirm 基本設計書生成ツール.spec
+      - name: Smoke test packaged executable
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path 'dist/基本設計書生成ツール.exe'
+          $stdout = Join-Path $env:RUNNER_TEMP 'local-app.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'local-app.stderr.log'
+          $process = Start-Process -FilePath $exe -PassThru `
+            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+
+          try {
+            $healthy = $false
+            foreach ($attempt in 1..60) {
+              if ($process.HasExited) {
+                throw "Packaged executable exited before becoming healthy (exit code $($process.ExitCode))."
+              }
+              try {
+                $response = Invoke-WebRequest -Uri 'http://127.0.0.1:8765/api/health' `
+                  -Method Get -TimeoutSec 2
+                if ($response.Content -eq '{"status":"ok"}') {
+                  $healthy = $true
+                  break
+                }
+              } catch {
+                # A one-file executable needs time to extract and start Uvicorn.
+              }
+              Start-Sleep -Seconds 1
+            }
+
+            if (-not $healthy) {
+              throw 'Health endpoint did not return {"status":"ok"} within 60 seconds.'
+            }
+            Write-Host 'Packaged executable health check returned {"status":"ok"}.'
+          } finally {
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+              $process.WaitForExit()
+            }
+            Write-Host '--- executable stdout ---'
+            if (Test-Path $stdout) { Get-Content $stdout }
+            Write-Host '--- executable stderr ---'
+            if (Test-Path $stderr) { Get-Content $stderr }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 基本設計書生成ツール-Windows
+          path: dist/基本設計書生成ツール.exe
+          if-no-files-found: error

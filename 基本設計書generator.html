@@ -129,15 +129,19 @@
   .rev-toolbar{display:flex;gap:10px;align-items:center;margin:6px 0 18px}
   /* ── Blocks editor ── */
   .blocks{display:flex;flex-direction:column;gap:10px}
-  .paragraph-item{display:flex;flex-direction:column;gap:7px}
-  .paragraph-children{display:flex;flex-direction:column;gap:8px;margin:0 0 0 18px;padding:0 0 0 12px;border-left:1px solid var(--border)}
+  .paragraph-item{display:flex;flex-direction:column;gap:8px;padding:7px;border:1px solid var(--border);border-radius:7px;background:var(--bg);box-shadow:0 2px 7px rgba(25,38,52,.12)}
+  .paragraph-children{display:flex;flex-direction:column;gap:8px;margin:0;padding:1px 0 0 14px}
   .paragraph-children:empty{display:none}
-  .paragraph-item>.block{width:100%}
+  .paragraph-item>.block{width:100%;border:0;box-shadow:none;background:transparent;overflow:visible}
+  .paragraph-item .paragraph-item{box-shadow:0 1px 4px rgba(25,38,52,.09)}
+  .paragraph-item .paragraph-item .paragraph-item{box-shadow:0 1px 2px rgba(25,38,52,.06)}
   .paragraph-drag{background:transparent;border:0;color:var(--text-faint);cursor:grab;font-size:15px;line-height:1;padding:2px 4px;touch-action:none}
   .paragraph-drag:active{cursor:grabbing}
   .paragraph-insert{background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font:inherit;font-size:10.5px;padding:2px 7px;text-transform:none;letter-spacing:0}
   .paragraph-insert:hover{border-color:var(--accent);color:var(--text)}
-  .paragraph-sort-ghost{opacity:.35}
+  .paragraph-sort-ghost{opacity:1!important;border:1px dashed var(--accent);background:var(--accent-glow);min-height:42px;position:relative}
+  .paragraph-sort-ghost>*{visibility:hidden}
+  .paragraph-sort-ghost:before{content:'ここに移動';visibility:visible;position:absolute;inset:50% 12px auto;transform:translateY(-50%);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);padding:3px;text-align:center;color:var(--accent);font-size:11px;font-weight:700}
   .paragraph-sort-chosen>.block{border-color:var(--accent)}
   .block{border:1px solid var(--border);border-radius:8px;background:var(--bg);overflow:hidden}
   .block-h{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.06em}
@@ -146,7 +150,9 @@
   .block-h .bdel{margin-left:auto;background:transparent;border:none;color:var(--text-faint);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px}
   .block-h .bdel:hover{color:var(--red);background:rgba(255,107,107,.1)}
   .block-body{padding:10px}
-  .paragraph-editor{display:flex;align-items:flex-start;gap:8px}.paragraph-style-select{width:92px;flex:0 0 92px;padding:8px 6px}.paragraph-editor .ci-input{flex:1}.paragraph-prefix{display:inline-block;white-space:pre}
+  .paragraph-editor{display:flex;align-items:flex-start;gap:8px}.paragraph-style-select{width:92px;flex:0 0 92px;height:32px;padding:4px 6px;font-size:12.5px;line-height:1.35;align-self:flex-start}.paragraph-editor .ci-input{flex:1;min-width:0;min-height:32px;height:32px;padding:5px 9px;line-height:20px;resize:none;overflow-y:hidden}.paragraph-editor>.aifix-btn{flex:0 0 auto;min-height:32px;height:32px}.paragraph-editor.ai-expanded .ci-input{width:auto}.paragraph-prefix{display:inline-block;white-space:pre}
+  .paragraph-drag-summary{display:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:12px;text-transform:none;letter-spacing:0}
+  .paragraph-item.drag-compact{padding:4px 7px;gap:0}.paragraph-item.drag-compact>.block>.block-h{border-bottom:0;padding:5px 7px}.paragraph-item.drag-compact>.block>.block-h .btype,.paragraph-item.drag-compact>.block>.block-h .paragraph-insert,.paragraph-item.drag-compact>.block>.block-h .bdel{display:none}.paragraph-item.drag-compact>.block>.block-h .paragraph-drag-summary{display:block}.paragraph-item.drag-compact>.block>.block-body,.paragraph-item.drag-compact>.paragraph-children{display:none}
   .ph-box{border:1px dashed var(--border);border-radius:7px;padding:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
   .ph-tag{font-family:monospace;font-size:12px;color:var(--accent);font-weight:700}
   .ph-note{font-size:11px;color:var(--text-faint)}
@@ -287,8 +293,8 @@
   .rev-node{border-radius:4px;margin-bottom:6px}.rev-node.lv2{margin-left:16px}.rev-node.lv3{margin-left:32px}.rev-row{gap:8px;padding:8px 10px}.rev-title-in{font-size:12.5px}.rev-actions{gap:4px}.rev-actions button{border-radius:3px;padding:3px 7px;background:#fff}.rev-lvtag,.rev-src{border-radius:3px}.blocks{gap:8px}.block{border-radius:4px}.block-h{padding:5px 8px;background:#f6f8fa}.block-body{padding:8px}.ph-box,.fig-drop,.tbl-wrap{border-radius:4px}.addblock{gap:6px}.addblock button,.tbl-actions button{border-radius:3px;background:#fff;padding:4px 8px}.aifix{padding-top:8px}.aifix-label{color:#2f5f82}.aifix-btn{background:#1769aa;border:1px solid #1769aa;border-radius:4px;min-height:30px;padding:4px 10px;font-size:12px}.aifix-btn:hover{background:#12588f;opacity:1}.point-btn{border-radius:3px;background:#fff8e6;color:#8a5a00;padding:2px 7px}.point-popup{border-radius:6px;box-shadow:0 8px 22px rgba(20,32,45,.18)}
   #previewArea{background:#e5e7eb}.preview-pane-header{background:#fff;color:#465563;padding:7px 12px}#previewContent{padding:16px;gap:14px}.word-page{box-shadow:0 2px 10px rgba(0,0,0,.18)}.toast{border-radius:5px;box-shadow:0 6px 18px rgba(20,32,45,.18);padding:9px 14px}
   @media (max-width:900px){.app-shell,.app-shell.chapter-select-mode{grid-template-columns:185px 1fr}.app-shell.preview-open{grid-template-columns:185px minmax(380px,1fr) minmax(330px,40%)}header{padding:0 9px}.hbadge,.step-arrow{display:none}.step{padding:3px 5px}.stepper{gap:1px}main{padding:14px}}@media (max-width:680px){.app-shell,.app-shell.chapter-select-mode{grid-template-columns:160px 1fr}.app-shell.preview-open{grid-template-columns:160px minmax(330px,1fr) minmax(300px,42%)}.hlogo{font-size:11px}.stepper{display:none}.cover-grid,.plan-form{grid-template-columns:1fr}.pf.wide{grid-column:auto}main{padding:12px}.phase-desc{font-size:11.5px}}
-  /* Keep paragraph AI actions in the block footer, with a stable right-aligned entry. */
-  .paragraph-aifix{gap:6px}.paragraph-aifix>.aifix-btn{align-self:flex-end}.paragraph-aifix .aifix-panel{display:flex;align-items:center;gap:8px;width:100%}.paragraph-aifix .aifix-panel[hidden]{display:none}.paragraph-aifix .aifix-label{flex:0 0 auto;white-space:nowrap}.paragraph-aifix .aifix-panel>.aifix-row:not(.aifix-actions){flex:1;min-width:180px}.paragraph-aifix .aifix-panel>.aifix-row input{width:100%;min-height:32px;padding:6px 9px}.paragraph-aifix .aifix-actions{flex:0 0 auto;gap:6px;justify-content:flex-end}.paragraph-aifix .aifix-btn.compact,.paragraph-aifix .aifix-close{border-radius:4px;min-height:32px;height:32px;padding:0 14px;font-size:13px;font-weight:600;line-height:1;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}.paragraph-aifix .aifix-close{background:var(--surface);border:1px solid var(--border);color:var(--text-main);cursor:pointer;font-family:inherit}.paragraph-aifix .aifix-close:hover{background:var(--surface2);border-color:var(--accent)}.ai-decision-line{color:var(--text-main);font-weight:600}.ai-reason-line{color:var(--text-secondary);margin-top:-3px}.card[data-nodeid]{scroll-margin-top:12px}
+  /* Paragraph AI actions: the closed-state entry shares the editor row. */
+  .paragraph-aifix{gap:6px;padding-top:8px}.paragraph-aifix .aifix-panel{display:flex;align-items:center;gap:8px;width:100%}.paragraph-aifix .aifix-panel[hidden]{display:none}.paragraph-aifix .aifix-label{flex:0 0 auto;white-space:nowrap}.paragraph-aifix .aifix-panel>.aifix-row:not(.aifix-actions){flex:1;min-width:180px}.paragraph-aifix .aifix-panel>.aifix-row input{width:100%;min-height:32px;padding:6px 9px}.paragraph-aifix .aifix-actions{flex:0 0 auto;gap:6px;justify-content:flex-end}.paragraph-aifix .aifix-btn.compact,.paragraph-aifix .aifix-close{border-radius:4px;min-height:32px;height:32px;padding:0 14px;font-size:13px;font-weight:600;line-height:1;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}.paragraph-aifix .aifix-close{background:var(--surface);border:1px solid var(--border);color:var(--text-main);cursor:pointer;font-family:inherit}.paragraph-aifix .aifix-close:hover{background:var(--surface2);border-color:var(--accent)}.ai-decision-line{color:var(--text-main);font-weight:600}.ai-reason-line{color:var(--text-secondary);margin-top:-3px}.card[data-nodeid]{scroll-margin-top:12px}
   @media (max-width:680px){.paragraph-aifix .aifix-panel{flex-wrap:wrap}.paragraph-aifix .aifix-panel>.aifix-row:not(.aifix-actions){flex-basis:100%}.paragraph-aifix .aifix-actions{margin-left:auto}}
   @media (prefers-color-scheme: dark){:root{--bg:#1f242a;--surface:#282e35;--surface2:#303740;--border:#596570;--accent:#69b7ea;--accent2:#69b7ea;--accent-glow:rgba(105,183,234,.18);--text-main:#edf1f4;--text-secondary:#cbd3db;--text-muted:#b8c2cb;--text-faint:#a2adb8;--text-disabled:#8e9aa6;--text:var(--text-main);--green:#78cfa6;--red:#ffaaa3;--amber:#f4cc7d;--number-badge:#3a444e;--heading1:#b5ddf6;--heading2:#c6dced;--heading3:#c0d8e4;--text-label:#b8c1cc;--heading-primary:#9fc4e5}header,.sidebar,.card,.dify-card,details>summary,.ebtn.ghost,.dify-btn.clear,.dify-btn.sample,.rev-actions button,.addblock button,.tbl-actions button{background:var(--surface)}main{background:var(--bg)}.cardh,.dify-cardh,.block-h{background:var(--surface2)}.hlogo{color:var(--text-main)}.hbadge{background:#34414c;border-color:#596570;color:var(--text-secondary)}.step{color:var(--text-muted)}.step .sdot{color:var(--text-secondary)}.step.active{background:#253d4e;border-color:#5a91b7;color:var(--text-main)}.step.done{color:var(--text-secondary)}.step-arrow{color:var(--text-faint)}.slabel,.flabel,.pf label,.clabel,.hint,.nav-empty,.phase-head .plabel,.phase-desc,.fig-meta,.status.muted{color:var(--text-muted)}.phase-head .ptitle{color:var(--heading-primary)}.navi{color:var(--text-secondary)}.navi.lv1{color:var(--heading1)}.navi.lv3{color:var(--text-muted)}.navi:hover{background:#303b45;color:var(--text-main)}.navi.active{background:#294455;color:#e7f4fc}.navi .nnum{background:#3b4651;color:var(--text-secondary)}input[type=text],textarea,.ci-input,.pf input,.pf textarea{background:#20262c;border-color:#687582;color:var(--text-main)}input::placeholder,textarea::placeholder{color:var(--text-faint);opacity:1}.ebtn.ghost,.dify-btn.clear,.dify-btn.sample{color:var(--text-secondary);border-color:#687582}.ebtn.ghost:hover,.dify-btn.clear:hover,.dify-btn.sample:hover{background:#37414b;color:var(--text-main)}.ebtn:disabled,.dify-btn:disabled{opacity:1;background:#3a424b;border-color:#56616d;color:var(--text-disabled)}.nav-add,.nav-ctrl button{background:#303840;border-color:#687582;color:var(--text-secondary)}.nav-add:hover,.nav-ctrl button:hover{color:var(--text-main)}table.tbl-edit th{background:#353d46}table.tbl-edit th,table.tbl-edit td{border-color:#687582}.aifix-close{background:var(--surface);border-color:#687582;color:var(--text-main)}.aifix-label{color:var(--heading2)}.ai-decision-line{color:var(--text-main)}.ai-reason-line{color:var(--text-secondary)}.point-popup{background:var(--surface2)}#previewArea{background:#3b4148}}
 
@@ -23529,8 +23535,7 @@ var __async = (__this, __arguments, generator) => {
 
 /* ── Dify config（実運用ではキー/URLを差し替え） ───────────── */
 const DIFY_API_URL             = "https://api.dify.ricoh.com/v1/workflows/run";
-const DIFY_WORKFLOW_API_URL    = "https://api.dify.ai/v1/workflows/run";
-const DIFY_TEMPLATE_API_KEY    = "app-nYF68CJV3Scjj5XdVitHxwRr"; // 標準テンプレートデータ取得API
+const LOCAL_API_URL            = "http://127.0.0.1:8765";
 const DIFY_CHAPTER_API_KEY     = "app-FMhoRqPLcu46L2lvSsMulHRi"; // Stage① ①章節確認_v4_四版本共通版
 const DIFY_GEN_API_KEY         = "app-0PKalbE3Kdjk4F49Ym3xuTm1"; // Stage② ②本文生成_v4_標準本文読込
 
@@ -24192,12 +24197,7 @@ async function callDifyPlan(){
     status.style.color='var(--text-muted)'; status.textContent='標準テンプレートデータを取得しています…';
     let templateOutputs;
     try{
-      templateOutputs=await difyCall(
-        DIFY_TEMPLATE_API_KEY,
-        { document_type: doc.document_type },
-        DIFY_WORKFLOW_API_URL,
-        true
-      );
+      templateOutputs=await localApiCall('/api/template-data', { document_type: doc.document_type });
       const required=['template_id','template_version','master_json','chapter_list_json'];
       const isEmpty=value=>value===undefined || value===null ||
         (typeof value==='string' && !value.trim()) ||
@@ -24642,7 +24642,12 @@ function initParagraphSortables(n,root){
   if(typeof Sortable==='undefined') return;
   [root,...root.querySelectorAll('.paragraph-children')].forEach((list,index)=>{
     if(!list.querySelector(':scope > .paragraph-item')) return;
-    Sortable.create(list,{group:{name:'paragraph-siblings-'+n.id+'-'+index,pull:false,put:false},draggable:'.paragraph-item',handle:'.paragraph-drag',animation:150,ghostClass:'paragraph-sort-ghost',chosenClass:'paragraph-sort-chosen',onEnd:()=>syncBlockOrderFromEditor(n,root)});
+    const restoreDragView=()=>Array.from(list.children).forEach(el=>el.classList.remove('drag-compact'));
+    Sortable.create(list,{group:{name:'paragraph-siblings-'+n.id+'-'+index,pull:false,put:false},draggable:'.paragraph-item',handle:'.paragraph-drag',animation:120,ghostClass:'paragraph-sort-ghost',chosenClass:'paragraph-sort-chosen',
+      onStart:()=>Array.from(list.children).forEach(el=>{ if(el.classList.contains('paragraph-item')) el.classList.add('drag-compact'); }),
+      onEnd:()=>{ restoreDragView(); syncBlockOrderFromEditor(n,root); },
+      onUnchoose:restoreDragView
+    });
   });
 }
 function syncBlockOrderFromEditor(n,root){
@@ -24674,6 +24679,9 @@ function buildBlock(n,b){
   head.innerHTML='<span class="btype">'+typeName+'</span>'+(b._ref?'<span class="bref">'+esc(b._ref)+'</span>':'');
   if(b.type==='paragraph'){
     const drag=document.createElement('button'); drag.type='button'; drag.className='paragraph-drag'; drag.textContent='⋮⋮'; drag.title='ドラッグして並び替え'; drag.setAttribute('aria-label','段落をドラッグして並び替え'); head.insertBefore(drag,head.firstChild);
+    const summary=document.createElement('span'); summary.className='paragraph-drag-summary';
+    summary.textContent=(getParagraphDisplayPrefix(b,n.blocks)+' '+String(b.text||'').split(/\r?\n/)[0]).trim()||'（空の段落）';
+    head.insertBefore(summary,head.querySelector('.btype').nextSibling);
     const above=document.createElement('button'); above.type='button'; above.className='paragraph-insert'; above.textContent='上に追加'; above.addEventListener('click',()=>insertParagraph(n,b,'before')); head.appendChild(above);
     const below=document.createElement('button'); below.type='button'; below.className='paragraph-insert'; below.textContent='下に追加'; below.addEventListener('click',()=>insertParagraph(n,b,'after')); head.appendChild(below);
   }
@@ -24689,11 +24697,13 @@ function buildBlock(n,b){
     const select=document.createElement('select'); select.className='paragraph-style-select';
     Object.entries(PARAGRAPH_STYLE_CONFIGS).forEach(([value,cfg])=>{ const option=document.createElement('option'); option.value=value; option.textContent=cfg.label; option.selected=b.paragraph_style===value; if(option.selected&&value!=='level_0') option.textContent=getParagraphDisplayPrefix(b,n.blocks)||cfg.label; select.appendChild(option); });
     select.addEventListener('change',()=>{ b.paragraph_style=select.value; renderEditor(); debouncePreview(); pushHistory('段落タイプを変更'); });
-    const ta=document.createElement('textarea'); ta.className='ci-input'; ta.rows=3; ta.value=b.text;
+    const ta=document.createElement('textarea'); ta.className='ci-input'; ta.rows=1; ta.value=b.text;
     ta.placeholder='本文（ブロック内改行は同一段落）';
-    ta.addEventListener('input',()=>{ b.text=ta.value; debouncePreview(); pushHistoryDebounced('段落を編集'); });
-    row.appendChild(select); row.appendChild(ta); bb.appendChild(row);
-    bb.appendChild(buildParagraphAiFix(n,b));
+    const resize=()=>{ ta.style.height='32px'; ta.style.height=Math.max(32,ta.scrollHeight)+'px'; };
+    ta.addEventListener('input',()=>{ resize(); b.text=ta.value; debouncePreview(); pushHistoryDebounced('段落を編集'); });
+    row.appendChild(select); row.appendChild(ta);
+    const aiFix=buildParagraphAiFix(n,b,row); bb.appendChild(row); bb.appendChild(aiFix);
+    requestAnimationFrame(resize);
 
   } else if(b.type==='table'){
     buildTableEditor(n,b,bb);
@@ -24842,7 +24852,7 @@ function convertPlaceholder(n,b){
   afterStructureChange('変更');
 }
 
-function buildParagraphAiFix(n,b){
+function buildParagraphAiFix(n,b,editorRow){
   const wrap=document.createElement('div'); wrap.className='aifix paragraph-aifix';
   const toggle=document.createElement('button'); toggle.type='button'; toggle.className='aifix-btn'; toggle.textContent='AI修正';
   const panel=document.createElement('div'); panel.className='aifix-panel'; panel.hidden=true;
@@ -24856,11 +24866,11 @@ function buildParagraphAiFix(n,b){
   const fix=document.createElement('button'); fix.type='button'; fix.className='aifix-btn compact'; fix.textContent='AI修正';
   fix.addEventListener('click',()=>fixParagraphWithAi(n,b,fix));
   const close=document.createElement('button'); close.type='button'; close.className='aifix-close'; close.textContent='閉じる';
-  close.addEventListener('click',()=>{ panel.hidden=true; toggle.hidden=false; });
+  close.addEventListener('click',()=>{ panel.hidden=true; toggle.hidden=false; editorRow.classList.remove('ai-expanded'); });
   actions.appendChild(fix); actions.appendChild(close);
   panel.appendChild(label); panel.appendChild(row); panel.appendChild(actions);
-  toggle.addEventListener('click',()=>{ panel.hidden=false; toggle.hidden=true; });
-  wrap.appendChild(toggle); wrap.appendChild(panel);
+  toggle.addEventListener('click',()=>{ panel.hidden=false; toggle.hidden=true; editorRow.classList.add('ai-expanded'); });
+  editorRow.appendChild(toggle); wrap.appendChild(panel);
   return wrap;
 }
 
@@ -25234,6 +25244,17 @@ function renderMissing(){
       doc.missing_items.map(m=>'・'+esc(m.item||'')+'：'+esc(m.reason||'')).join('<br>');
     box.classList.add('show');
   } else { box.innerHTML=''; box.classList.remove('show'); }
+}
+
+async function localApiCall(path, body){
+  try{
+    const response=await fetch(LOCAL_API_URL+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!response.ok){const error=await response.json().catch(()=>({}));throw new Error(error.detail||('HTTP '+response.status));}
+    return await response.json();
+  }catch(error){
+    if(error instanceof TypeError) throw new Error('ローカルサービスに接続できません。基本設計書生成ツールを起動してから再度お試しください。');
+    throw error;
+  }
 }
 
 /* shared Dify fetch */
@@ -25737,108 +25758,31 @@ function buildWordOutputFilename(cover){
 }
 
 async function exportDocx(){
-  const btn=document.getElementById('exportBtn');
-  const old=btn.innerHTML;
-  btn.disabled=true;
-  btn.innerHTML='<span class="spinner"></span> 標準Word生成中...';
-  const workflowUrl='https://api.dify.ai/v1/workflows/run';
-  const outputFileUrl=(value)=>{
-    const seen=new Set();
-    const visit=(item)=>{
-      if(!item || seen.has(item)) return '';
-      if(typeof item==='string') return /^https?:\/\//i.test(item) ? item : '';
-      if(typeof item!=='object') return '';
-      seen.add(item);
-      if(typeof item.url==='string' && /^https?:\/\//i.test(item.url)) return item.url;
-      if(typeof item.remote_url==='string' && /^https?:\/\//i.test(item.remote_url)) return item.remote_url;
-      if(Array.isArray(item)){
-        for(const entry of item){ const url=visit(entry); if(url) return url; }
-      }
-      return '';
-    };
-    return visit(value);
-  };
-  const downloadBlob=(blob,fileName)=>{
-    const objectUrl=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=objectUrl; a.download=fileName; document.body.appendChild(a); a.click();
-    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(objectUrl); },1000);
-  };
+  const btn=document.getElementById('exportBtn'); const old=btn.innerHTML;
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 標準Word生成中...';
   try{
+    renumber();
     const cover=doc.cover||{};
-    const today=new Date();
-    const todayText=today.getFullYear()+'/'+pad2(today.getMonth()+1)+'/'+pad2(today.getDate());
     const outputFilename=buildWordOutputFilename(cover);
-    const revisionHistory=Array.isArray(doc.revision_history) ? doc.revision_history : [{
-      issue_date:cover.issue_date||todayText,
-      version:cover.version||'1.0',
-      editor:'',
-      description:'新規作成'
-    }];
-    const payload={
-      inputs:{
-        document_type:doc.document_type,
-        client_name:cover.client_name||'',
-        project_name:cover.project_name||'',
-        version:cover.version||'1.0',
-        issue_date:cover.issue_date||'',
-        project_no:cover.project_no||'-',
-        revision_history_json:JSON.stringify(revisionHistory),
-        chapters_json:JSON.stringify(doc.chapters||[]),
-        output_filename:outputFilename
-      },
-      response_mode:'blocking',
-      user:'detail-design-generator'
-    };
-    const response=await fetch(workflowUrl,{
-      method:'POST',
-      headers:{Authorization:'Bearer app-hVehsMqZ3QwFnQ5EY9R1hbaW','Content-Type':'application/json'},
-      body:JSON.stringify(payload)
+    const revisionHistory=Array.isArray(doc.revision_history) ? doc.revision_history : [];
+    const response=await fetch(LOCAL_API_URL+'/api/generate-word', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({document_type:doc.document_type, client_name:cover.client_name||'',
+        project_name:cover.project_name||'', version:cover.version||'1.0', issue_date:cover.issue_date||'',
+        project_no:cover.project_no||'-', revision_history_json:JSON.stringify(revisionHistory),
+        chapters_json:JSON.stringify(doc.chapters||[]), output_filename:outputFilename})
     });
-    const responseText=await response.text();
-    let result;
-    try{ result=JSON.parse(responseText); }
-    catch(parseError){
-      console.error('Dify Word workflow returned non-JSON:',response.status,responseText,parseError);
-      throw new Error('HTTP '+response.status+'：Dify APIからJSON以外の応答が返されました');
-    }
-    if(!response.ok){
-      const message=result.message||result.error||result.detail||'Dify Word API request failed';
-      console.error('Dify Word workflow error:',response.status,result);
-      throw new Error('HTTP '+response.status+'：'+message);
-    }
-    const outputs=(result.data&&result.data.outputs)||result.outputs||{};
-    const fileUrl=outputFileUrl(outputs.word_file)||outputFileUrl(outputs.files);
-    if(!fileUrl){
-      console.error('Dify Word workflow did not return a Word file URL:',result);
-      throw new Error(result.message||result.error||'Dify APIの応答にWordファイルURLがありません');
-    }
-    try{
-      const fileResponse=await fetch(fileUrl);
-      if(!fileResponse.ok) throw new Error('HTTP '+fileResponse.status+'：Wordファイルの取得に失敗しました');
-      const blob=await fileResponse.blob();
-      const sample=await blob.slice(0,512).text();
-      if(/application\/json/i.test(blob.type)||/^\s*[{[]/.test(sample)){
-        console.error('Dify Word file URL returned JSON instead of DOCX:',fileUrl,blob.type,sample);
-        throw new Error('WordファイルURLがDOCXではなくエラーJSONを返しました');
-      }
-      downloadBlob(blob,outputFilename);
-    }catch(fileError){
-      // CORS で Blob 化できない場合だけ、ブラウザに URL を直接ダウンロードさせる。
-      if(fileError instanceof TypeError){
-        console.error('Could not fetch Dify Word file because of CORS; using direct download:',fileError,fileUrl);
-        const a=document.createElement('a'); a.href=fileUrl; a.download=outputFilename; a.target='_blank';
-        document.body.appendChild(a); a.click(); setTimeout(()=>document.body.removeChild(a),1000);
-      }else throw fileError;
-    }
+    if(!response.ok){ const error=await response.json().catch(()=>({})); throw new Error(error.detail||('HTTP '+response.status)); }
+    const blob=await response.blob();
+    const url=URL.createObjectURL(blob); const a=document.createElement('a');
+    a.href=url; a.download=outputFilename; document.body.appendChild(a); a.click();
+    setTimeout(()=>{document.body.removeChild(a); URL.revokeObjectURL(url);},1000);
     showToast('✓ 標準テンプレートからWordファイルを出力しました');
   }catch(error){
-    console.error('Dify Word export failed:',error);
-    showToast('Word 出力に失敗：'+(error.message||error),true);
-  }finally{
-    btn.disabled=false;
-    btn.innerHTML=old;
-  }
+    console.error('Local Word export failed:',error);
+    const message=error instanceof TypeError ? 'ローカルサービスに接続できません。基本設計書生成ツールを起動してから再度お試しください。' : (error.message||error);
+    showToast('Word 出力に失敗：'+message,true);
+  }finally{ btn.disabled=false; btn.innerHTML=old; }
 }
 
 /* ============================================================
