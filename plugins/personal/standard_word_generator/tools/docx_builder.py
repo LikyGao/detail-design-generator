@@ -21,7 +21,9 @@ from tools.paragraph_numbering import calculate_paragraph_prefix
 
 MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 PARAGRAPH_STYLES = {f"level_{level}" for level in range(7)}
-PARAGRAPH_FALLBACK_INDENTS = {0: 0, 1: 360, 2: 720, 3: 1080, 4: 1440, 5: 1800, 6: 2160}
+# Derived from the standard template's numbering levels (twips), not a synthetic
+# one-character-per-level ladder.  Explicit block/template values always win.
+PARAGRAPH_FALLBACK_INDENTS = {0: 0, 1: 170, 2: 340, 3: 510, 4: 510, 5: 794, 6: 794}
 PARAGRAPH_PREFIX_SEPARATOR = " "
 
 
@@ -319,7 +321,12 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
         paragraph.style = "Normal"
 
     _restore_body_indents(paragraph, block, paragraph_style)
-    prefix = calculate_paragraph_prefix(paragraph_style, counters)
+    prefix = calculate_paragraph_prefix(
+        paragraph_style,
+        counters,
+        str(block.get("list_group_id") or "") or None,
+        str(block.get("marker_type") or "") or None,
+    )
     separator = PARAGRAPH_PREFIX_SEPARATOR if prefix and text else ""
     paragraph.add_run(f"{prefix}{separator}{text}")
 
@@ -333,8 +340,9 @@ def _add_blocks(
     caption_counters: dict[str, int],
     paragraph_prototypes: dict[str, Any],
 ) -> None:
-    paragraph_counters: dict[int, int] = {}
-    for block in blocks or []:
+    paragraph_counters: dict = {}
+    blocks = _inherit_adjacent_list_groups(blocks or [])
+    for block in blocks:
         if not isinstance(block, dict):
             continue
         block_type = str(block.get("type") or "paragraph")
@@ -384,6 +392,40 @@ def _add_blocks(
             )
             paragraph = document.add_paragraph("（図は別途作成）")
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+
+def _inherit_adjacent_list_groups(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach newly inserted numbered paragraphs to an adjacent explicit group.
+
+    Unknown JSON fields already pass through the tool unchanged.  This operates on
+    a shallow copy, so persisted template metadata and caller input are untouched.
+    """
+    result = [dict(block) if isinstance(block, dict) else block for block in blocks]
+    numbered = {"level_1", "level_4", "level_6"}
+    for index, block in enumerate(result):
+        if not isinstance(block, dict) or block.get("type", "paragraph") != "paragraph":
+            continue
+        style = str(block.get("paragraph_style") or "level_0")
+        if style not in numbered or block.get("list_group_id"):
+            continue
+        adjacent_groups = []
+        for direction in (-1, 1):
+            cursor = index + direction
+            while 0 <= cursor < len(result):
+                candidate = result[cursor]
+                if not isinstance(candidate, dict) or candidate.get("type", "paragraph") != "paragraph":
+                    break
+                candidate_style = str(candidate.get("paragraph_style") or "level_0")
+                if candidate_style == style and candidate.get("list_group_id"):
+                    adjacent_groups.append(str(candidate["list_group_id"]))
+                    break
+                # Descriptive bullets/children may sit inside one numbered item.
+                if candidate_style in numbered:
+                    break
+                cursor += direction
+        if adjacent_groups and len(set(adjacent_groups)) == 1:
+            block["list_group_id"] = adjacent_groups[0]
+    return result
 
 
 def _chapter_number_from_node(node: dict[str, Any], fallback: int) -> str:
