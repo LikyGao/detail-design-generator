@@ -1,3 +1,4 @@
+# packaging trigger for PR #71
 name: Package standard_word_generator
 
 on:
