@@ -137,8 +137,10 @@
   .paragraph-item .paragraph-item .paragraph-item{box-shadow:0 1px 2px rgba(25,38,52,.06)}
   .paragraph-drag{background:transparent;border:0;color:var(--text-faint);cursor:grab;font-size:15px;line-height:1;padding:2px 4px;touch-action:none}
   .paragraph-drag:active{cursor:grabbing}
-  .paragraph-insert{background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font:inherit;font-size:10.5px;padding:2px 7px;text-transform:none;letter-spacing:0}
-  .paragraph-insert:hover{border-color:var(--accent);color:var(--text)}
+  .paragraph-row-actions{display:flex;align-items:flex-start;gap:6px;flex:0 0 auto}.paragraph-row-actions[hidden]{display:none}
+  .paragraph-action{display:inline-flex;align-items:center;justify-content:center;height:32px;min-width:32px;padding:0 9px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font:inherit;font-size:13px;line-height:1;white-space:nowrap}.paragraph-action:hover{border-color:var(--accent);color:var(--text)}
+  .paragraph-delete:hover{border-color:var(--red);color:var(--red);background:rgba(255,107,107,.1)}
+  .paragraph-add-wrap{position:relative}.paragraph-add-menu{position:absolute;z-index:20;top:calc(100% + 4px);right:0;min-width:104px;padding:4px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.22)}.paragraph-add-menu[hidden]{display:none}.paragraph-add-menu button{display:block;width:100%;padding:6px 9px;background:transparent;border:0;border-radius:4px;color:var(--text);cursor:pointer;font:inherit;font-size:11.5px;text-align:left;white-space:nowrap}.paragraph-add-menu button:hover{background:var(--surface);color:var(--accent)}
   .paragraph-sort-ghost{opacity:1!important;border:1px dashed var(--accent);background:var(--accent-glow);min-height:42px;position:relative}
   .paragraph-sort-ghost>*{visibility:hidden}
   .paragraph-sort-ghost:before{content:'ここに移動';visibility:visible;position:absolute;inset:50% 12px auto;transform:translateY(-50%);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);padding:3px;text-align:center;color:var(--accent);font-size:11px;font-weight:700}
@@ -150,9 +152,9 @@
   .block-h .bdel{margin-left:auto;background:transparent;border:none;color:var(--text-faint);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px}
   .block-h .bdel:hover{color:var(--red);background:rgba(255,107,107,.1)}
   .block-body{padding:10px}
-  .paragraph-editor{display:flex;align-items:flex-start;gap:8px}.paragraph-style-select{width:92px;flex:0 0 92px;height:32px;padding:4px 6px;font-size:12.5px;line-height:1.35;align-self:flex-start}.paragraph-editor .ci-input{flex:1;min-width:0;min-height:32px;height:32px;padding:5px 9px;line-height:20px;resize:none;overflow-y:hidden}.paragraph-editor>.aifix-btn{flex:0 0 auto;min-height:32px;height:32px}.paragraph-editor.ai-expanded .ci-input{width:auto}.paragraph-prefix{display:inline-block;white-space:pre}
+  .paragraph-editor{display:flex;align-items:flex-start;gap:8px}.paragraph-editor>.paragraph-drag{height:32px;flex:0 0 auto}.paragraph-style-select{width:92px;flex:0 0 92px;height:32px;padding:4px 6px;font-size:12.5px;line-height:1.35;align-self:flex-start}.paragraph-editor .ci-input{flex:1;min-width:0;min-height:32px;height:32px;padding:5px 9px;line-height:20px;resize:none;overflow-y:hidden}.paragraph-editor .aifix-btn{flex:0 0 auto;min-height:32px;height:32px}.paragraph-editor.ai-expanded .ci-input{width:auto}.paragraph-prefix{display:inline-block;white-space:pre}
   .paragraph-drag-summary{display:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:12px;text-transform:none;letter-spacing:0}
-  .paragraph-item.drag-compact{padding:4px 7px;gap:0}.paragraph-item.drag-compact>.block>.block-h{border-bottom:0;padding:5px 7px}.paragraph-item.drag-compact>.block>.block-h .btype,.paragraph-item.drag-compact>.block>.block-h .paragraph-insert,.paragraph-item.drag-compact>.block>.block-h .bdel{display:none}.paragraph-item.drag-compact>.block>.block-h .paragraph-drag-summary{display:block}.paragraph-item.drag-compact>.block>.block-body,.paragraph-item.drag-compact>.paragraph-children{display:none}
+  .paragraph-item.drag-compact{padding:4px 7px;gap:0}.paragraph-item.drag-compact>.block>.block-body{padding:5px 7px}.paragraph-item.drag-compact>.block>.block-body .paragraph-editor{padding-left:0!important;align-items:center}.paragraph-item.drag-compact>.block>.block-body .paragraph-style-select,.paragraph-item.drag-compact>.block>.block-body .ci-input,.paragraph-item.drag-compact>.block>.block-body .paragraph-row-actions,.paragraph-item.drag-compact>.block>.block-body .paragraph-aifix{display:none}.paragraph-item.drag-compact>.block>.block-body .paragraph-drag-summary{display:block;flex:1}.paragraph-item.drag-compact>.paragraph-children{display:none}
   .ph-box{border:1px dashed var(--border);border-radius:7px;padding:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
   .ph-tag{font-family:monospace;font-size:12px;color:var(--accent);font-weight:700}
   .ph-note{font-size:11px;color:var(--text-faint)}
@@ -24683,23 +24685,20 @@ function buildBlock(n,b){
     : b.type==='figure'?'画像'
     : b.type==='table_placeholder'?'表（占位）':'図（占位）';
   head.innerHTML='<span class="btype">'+typeName+'</span>'+(b._ref?'<span class="bref">'+esc(b._ref)+'</span>':'');
-  if(b.type==='paragraph'){
-    const drag=document.createElement('button'); drag.type='button'; drag.className='paragraph-drag'; drag.textContent='⋮⋮'; drag.title='ドラッグして並び替え'; drag.setAttribute('aria-label','段落をドラッグして並び替え'); head.insertBefore(drag,head.firstChild);
-    const summary=document.createElement('span'); summary.className='paragraph-drag-summary';
-    summary.textContent=(getParagraphDisplayPrefix(b,n.blocks)+' '+String(b.text||'').split(/\r?\n/)[0]).trim()||'（空の段落）';
-    head.insertBefore(summary,head.querySelector('.btype').nextSibling);
-    const above=document.createElement('button'); above.type='button'; above.className='paragraph-insert'; above.textContent='上に追加'; above.addEventListener('click',()=>insertParagraph(n,b,'before')); head.appendChild(above);
-    const below=document.createElement('button'); below.type='button'; below.className='paragraph-insert'; below.textContent='下に追加'; below.addEventListener('click',()=>insertParagraph(n,b,'after')); head.appendChild(below);
+  if(b.type!=='paragraph'){
+    const del=document.createElement('button'); del.className='bdel'; del.textContent='✕'; del.title='ブロック削除';
+    del.addEventListener('click',()=>delBlock(n,b)); head.appendChild(del);
+    el.appendChild(head);
   }
-  const del=document.createElement('button'); del.className='bdel'; del.textContent='✕'; del.title='ブロック削除';
-  del.addEventListener('click',()=>delBlock(n,b)); head.appendChild(del);
-  el.appendChild(head);
   const bb=document.createElement('div'); bb.className='block-body';
 
   if(b.type==='paragraph'){
     b.revision_instruction = b.revision_instruction || '';
     b.revision_history = Array.isArray(b.revision_history) ? b.revision_history : [];
     const row=document.createElement('div'); row.className='paragraph-editor'; row.style.paddingLeft=(getParagraphStyleConfig(b.paragraph_style).indent*12)+'px';
+    const drag=document.createElement('button'); drag.type='button'; drag.className='paragraph-drag'; drag.textContent='⋮⋮'; drag.title='ドラッグして並び替え'; drag.setAttribute('aria-label','段落をドラッグして並び替え');
+    const summary=document.createElement('span'); summary.className='paragraph-drag-summary';
+    summary.textContent=(getParagraphDisplayPrefix(b,n.blocks)+' '+String(b.text||'').split(/\r?\n/)[0]).trim()||'（空の段落）';
     const select=document.createElement('select'); select.className='paragraph-style-select';
     Object.entries(PARAGRAPH_STYLE_CONFIGS).forEach(([value,cfg])=>{ const option=document.createElement('option'); option.value=value; option.textContent=cfg.label; option.selected=b.paragraph_style===value; if(option.selected&&value!=='level_0') option.textContent=getParagraphDisplayPrefix(b,n.blocks)||cfg.label; select.appendChild(option); });
     select.addEventListener('change',()=>{ b.paragraph_style=select.value; renderEditor(); debouncePreview(); pushHistory('段落タイプを変更'); });
@@ -24707,8 +24706,18 @@ function buildBlock(n,b){
     ta.placeholder='本文（ブロック内改行は同一段落）';
     const resize=()=>{ ta.style.height='32px'; ta.style.height=Math.max(32,ta.scrollHeight)+'px'; };
     ta.addEventListener('input',()=>{ resize(); b.text=ta.value; debouncePreview(); pushHistoryDebounced('段落を編集'); });
-    row.appendChild(select); row.appendChild(ta);
-    const aiFix=buildParagraphAiFix(n,b,row); bb.appendChild(row); bb.appendChild(aiFix);
+    const actions=document.createElement('div'); actions.className='paragraph-row-actions';
+    const addWrap=document.createElement('div'); addWrap.className='paragraph-add-wrap';
+    const add=document.createElement('button'); add.type='button'; add.className='paragraph-action'; add.textContent='＋'; add.title='段落を追加'; add.setAttribute('aria-label','段落を追加'); add.setAttribute('aria-expanded','false');
+    const menu=document.createElement('div'); menu.className='paragraph-add-menu'; menu.hidden=true;
+    const closeMenu=()=>{ menu.hidden=true; add.setAttribute('aria-expanded','false'); document.removeEventListener('click',outsideMenu); };
+    const outsideMenu=e=>{ if(!addWrap.contains(e.target)) closeMenu(); };
+    add.addEventListener('click',()=>{ const opening=menu.hidden; closeMenu(); if(opening){ menu.hidden=false; add.setAttribute('aria-expanded','true'); setTimeout(()=>document.addEventListener('click',outsideMenu),0); } });
+    [['上に追加','before'],['下に追加','after']].forEach(([label,where])=>{ const option=document.createElement('button'); option.type='button'; option.textContent=label; option.addEventListener('click',()=>{ closeMenu(); insertParagraph(n,b,where); }); menu.appendChild(option); });
+    addWrap.appendChild(add); addWrap.appendChild(menu);
+    const del=document.createElement('button'); del.type='button'; del.className='paragraph-action paragraph-delete'; del.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11H8L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" fill="currentColor"/></svg>'; del.title='段落を削除'; del.setAttribute('aria-label','段落を削除'); del.addEventListener('click',()=>delBlock(n,b));
+    row.appendChild(drag); row.appendChild(summary); row.appendChild(select); row.appendChild(ta);
+    const aiFix=buildParagraphAiFix(n,b,row,actions); actions.appendChild(addWrap); actions.appendChild(del); row.appendChild(actions); bb.appendChild(row); bb.appendChild(aiFix);
     requestAnimationFrame(resize);
 
   } else if(b.type==='table'){
@@ -24858,7 +24867,7 @@ function convertPlaceholder(n,b){
   afterStructureChange('変更');
 }
 
-function buildParagraphAiFix(n,b,editorRow){
+function buildParagraphAiFix(n,b,editorRow,editorActions){
   const wrap=document.createElement('div'); wrap.className='aifix paragraph-aifix';
   const toggle=document.createElement('button'); toggle.type='button'; toggle.className='aifix-btn'; toggle.textContent='AI修正';
   const panel=document.createElement('div'); panel.className='aifix-panel'; panel.hidden=true;
@@ -24872,11 +24881,11 @@ function buildParagraphAiFix(n,b,editorRow){
   const fix=document.createElement('button'); fix.type='button'; fix.className='aifix-btn compact'; fix.textContent='AI修正';
   fix.addEventListener('click',()=>fixParagraphWithAi(n,b,fix));
   const close=document.createElement('button'); close.type='button'; close.className='aifix-close'; close.textContent='閉じる';
-  close.addEventListener('click',()=>{ panel.hidden=true; toggle.hidden=false; editorRow.classList.remove('ai-expanded'); });
+  close.addEventListener('click',()=>{ panel.hidden=true; editorActions.hidden=false; editorRow.classList.remove('ai-expanded'); });
   actions.appendChild(fix); actions.appendChild(close);
   panel.appendChild(label); panel.appendChild(row); panel.appendChild(actions);
-  toggle.addEventListener('click',()=>{ panel.hidden=false; toggle.hidden=true; editorRow.classList.add('ai-expanded'); });
-  editorRow.appendChild(toggle); wrap.appendChild(panel);
+  toggle.addEventListener('click',()=>{ panel.hidden=false; editorActions.hidden=true; editorRow.classList.add('ai-expanded'); });
+  editorActions.appendChild(toggle); wrap.appendChild(panel);
   return wrap;
 }
 
