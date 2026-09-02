@@ -1,8 +1,15 @@
-# Standard Word Generator v0.0.13
+# Standard Word Generator v0.0.14
 
 Dify用の標準Word生成プラグインです。v0.0.7の文書種別別テンプレート管理・章節Master・Word生成を維持し、Heading 1～3配下の通常本文抽出と精確取得を追加します。
 
-v0.0.13では、標準テンプレート本文の`list_group_id`、元のmarker種別、Wordの
+v0.0.14では、Word固有のnumbering情報を可視文字より優先し、`numId`から
+`abstractNumId`と`ilvl 0～5`を解決します。numbering levelの`numFmt`、`lvlText`、
+`pStyle`、indent、symbol fontと、段落styleの`basedOn`継承チェーンも保存します。
+これにより同じ「・」を使う別階層やWingdingsの矢印を圧縮せず、`paragraph_style`の
+`level_1`～`level_6`として再生成できます。可視marker判定はnumberingがない場合だけ
+fallbackとして使用します。
+
+また、標準テンプレート本文の`list_group_id`、元のmarker種別、Wordの
 `numId` / `abstractNumId` / `ilvl` / `startOverride`、および段落indentを保存します。
 同一list group内だけを再採番するため、独立した囲み番号列はそれぞれ①から始まり、
 「・」と「➢」も再生成時に維持されます。新規段落は隣接する同レベルのgroupを継承します。
