@@ -141,6 +141,7 @@
   .paragraph-action{display:inline-flex;align-items:center;justify-content:center;height:32px;min-width:32px;padding:0 9px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font:inherit;font-size:13px;line-height:1;white-space:nowrap}.paragraph-action:hover{border-color:var(--accent);color:var(--text)}
   .paragraph-delete:hover{border-color:var(--red);color:var(--red);background:rgba(255,107,107,.1)}
   .paragraph-add-wrap{position:relative}.paragraph-add-menu{position:absolute;z-index:20;top:calc(100% + 4px);right:0;min-width:104px;padding:4px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.22)}.paragraph-add-menu[hidden]{display:none}.paragraph-add-menu button{display:block;width:100%;padding:6px 9px;background:transparent;border:0;border-radius:4px;color:var(--text);cursor:pointer;font:inherit;font-size:11.5px;text-align:left;white-space:nowrap}.paragraph-add-menu button:hover{background:var(--surface);color:var(--accent)}
+  .node-card{overflow:visible}.cardh.node-title-row{padding:7px 10px;gap:8px;border-radius:inherit}.node-title-row .cnum{flex:0 0 auto}.node-title-row .node-title-input{flex:1;min-width:0;height:32px;padding:5px 9px}.node-title-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto}.cbody.node-card-body{padding:8px 10px 10px}.node-card-body:empty{display:none}.node-title-actions .paragraph-add-menu{min-width:136px}
   .paragraph-sort-ghost{opacity:1!important;border:1px dashed var(--accent);background:var(--accent-glow);min-height:42px;position:relative}
   .paragraph-sort-ghost>*{visibility:hidden}
   .paragraph-sort-ghost:before{content:'ここに移動';visibility:visible;position:absolute;inset:50% 12px auto;transform:translateY(-50%);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);padding:3px;text-align:center;color:var(--accent);font-size:11px;font-weight:700}
@@ -24354,6 +24355,14 @@ function addChildNode(parent){
   parent.children.push(newNode(Math.min(parent.level+1,3)));
   afterStructureChange('章節を追加');
 }
+function addSiblingNode(node,where){
+  function insert(nodes){
+    const index=nodes.indexOf(node);
+    if(index>=0){ nodes.splice(index+(where==='after'?1:0),0,newNode(node.level)); return true; }
+    return nodes.some(parent=>insert(parent.children||[]));
+  }
+  if(insert(doc.chapters)) afterStructureChange('章節を追加');
+}
 function removeNodeById(nodes,id){
   for(let i=0;i<nodes.length;i++){
     if(nodes[i].id===id){ nodes.splice(i,1); return true; }
@@ -24362,7 +24371,6 @@ function removeNodeById(nodes,id){
   return false;
 }
 function deleteNode(n){
-  if(n.level === 1) return;
   const hasContent = (n.children&&n.children.length) || (n.blocks&&n.blocks.length);
   const label = (n.title||'(無題)');
   if(hasContent && !confirm('「'+label+'」'+(n.children.length?'（子章節を含む）':'')+'を削除しますか？')) return;
@@ -24567,50 +24575,47 @@ function buildApplicabilityEditor(n){
 }
 
 function buildNodeCard(n){
-  const card=document.createElement('div'); card.className='card'; card.dataset.nodeid=n.id;
-  // header
-  const h=document.createElement('div'); h.className='cardh';
+  const card=document.createElement('div'); card.className='card node-card'; card.dataset.nodeid=n.id;
+  // Compact title row: number, editable title, and the common action buttons.
+  const h=document.createElement('div'); h.className='cardh node-title-row';
   const num=document.createElement('span'); num.className='cnum lv'+n.level; num.textContent=n.display_number;
-  const lab=document.createElement('span'); lab.className='clabel'; lab.textContent=levelName(n.level)+(n.source_template_number?'（テンプレ '+n.source_template_number+'）':'');
-  h.appendChild(num); h.appendChild(lab);
+  const tin=document.createElement('input'); tin.type='text'; tin.className='toi node-title-input'; tin.value=n.title; tin.placeholder='タイトル';
+  tin.addEventListener('input',()=>{ n.title=tin.value; renderNav(); debouncePreview(); pushHistoryDebounced('章節タイトルを編集'); });
+  h.appendChild(num); h.appendChild(tin);
   if(n.point){
     const pb=document.createElement('button'); pb.className='point-btn'; pb.textContent='Point！';
     pb.addEventListener('click',(e)=>showPoint(e,n.point)); h.appendChild(pb);
   }
-  const hc=document.createElement('div'); hc.className='rev-actions'; hc.style.marginLeft=n.point?'8px':'auto';
-  if(n.level<3){ const a=document.createElement('button'); a.textContent='＋ '+(n.level===1?'節':'小節'); a.addEventListener('click',()=>addChildNode(n)); hc.appendChild(a); }
-  if(n.level !== 1){ const dl=document.createElement('button'); dl.className='rev-del'; dl.textContent='🗑'; dl.title='この章節を削除'; dl.addEventListener('click',()=>deleteNode(n)); hc.appendChild(dl); }
-  h.appendChild(hc);
-  card.appendChild(h);
-  // body
-  const body=document.createElement('div'); body.className='cbody';
-  // title
-  const fgT=document.createElement('div'); fgT.className='fg';
-  fgT.innerHTML='<div class="flabel">タイトル</div>';
-  const twp=document.createElement('div'); twp.className='twp';
-  const pfx=document.createElement('span'); pfx.className='pfx'; pfx.textContent=n.display_number+'　';
-  const tin=document.createElement('input'); tin.type='text'; tin.className='toi'; tin.value=n.title; tin.placeholder='タイトル';
-  tin.addEventListener('input',()=>{ n.title=tin.value; renderNav(); debouncePreview(); pushHistoryDebounced('章節タイトルを編集'); });
-  twp.appendChild(pfx); twp.appendChild(tin); fgT.appendChild(twp);
-  const hint=document.createElement('div'); hint.className='hint'; hint.textContent='※ 番号「'+n.display_number+'」は章節ツリーから自動採番されます。';
-  fgT.appendChild(hint);
-  body.appendChild(fgT);
-  // blocks
-  const fgB=document.createElement('div'); fgB.className='fg';
-  fgB.innerHTML='<div class="flabel">本文ブロック</div>';
-  const blocksWrap=document.createElement('div'); blocksWrap.className='blocks';
-  renderBlockHierarchy(n,blocksWrap);
-  fgB.appendChild(blocksWrap);
-  // add-block buttons
-  const add=document.createElement('div'); add.className='addblock';
-  add.appendChild(mkAddBtn('＋ 段落', ()=>addBlock(n,'paragraph')));
-  add.appendChild(mkAddBtn('＋ 表を追加', ()=>addTableBlock(n)));
-  add.appendChild(mkAddBtn('＋ 画像を追加', ()=>addFigureBlock(n)));
-  fgB.appendChild(add); body.appendChild(fgB);
-  card.appendChild(body);
+  const actions=document.createElement('div'); actions.className='node-title-actions';
+  actions.appendChild(buildNodeAddMenu(n));
+  actions.appendChild(createDeleteButton('この章節を削除',()=>deleteNode(n)));
+  h.appendChild(actions); card.appendChild(h);
+
+  const body=document.createElement('div'); body.className='cbody node-card-body';
+  const blocks=document.createElement('div'); blocks.className='blocks';
+  renderBlockHierarchy(n,blocks);
+  if(n.blocks.length){ body.appendChild(blocks); card.appendChild(body); }
   return card;
 }
-function mkAddBtn(label,fn){ const b=document.createElement('button'); b.textContent=label; b.addEventListener('click',fn); return b; }
+function buildNodeAddMenu(n){
+  const wrap=document.createElement('div'); wrap.className='paragraph-add-wrap';
+  const add=document.createElement('button'); add.type='button'; add.className='paragraph-action'; add.textContent='＋'; add.title='追加'; add.setAttribute('aria-label','追加メニュー'); add.setAttribute('aria-expanded','false');
+  const menu=document.createElement('div'); menu.className='paragraph-add-menu'; menu.hidden=true;
+  const close=()=>{ menu.hidden=true; add.setAttribute('aria-expanded','false'); document.removeEventListener('click',outside); };
+  const outside=e=>{ if(!wrap.contains(e.target)) close(); };
+  add.addEventListener('click',()=>{ const opening=menu.hidden; close(); if(opening){ menu.hidden=false; add.setAttribute('aria-expanded','true'); setTimeout(()=>document.addEventListener('click',outside),0); } });
+  const levelLabel=n.level===1?'章':n.level===2?'節':'小節';
+  const items=[['上に'+levelLabel+'を追加',()=>addSiblingNode(n,'before')],['下に'+levelLabel+'を追加',()=>addSiblingNode(n,'after')]];
+  if(n.level<3) items.push([(n.level===1?'節':'小節')+'を追加',()=>addChildNode(n)]);
+  items.push(['表を追加',()=>addTableBlock(n)],['図を追加',()=>addFigureBlock(n)]);
+  items.forEach(([label,action])=>{ const option=document.createElement('button'); option.type='button'; option.textContent=label; option.addEventListener('click',()=>{ close(); action(); }); menu.appendChild(option); });
+  wrap.appendChild(add); wrap.appendChild(menu); return wrap;
+}
+function createDeleteButton(title,handler){
+  const button=document.createElement('button'); button.type='button'; button.className='paragraph-action paragraph-delete';
+  button.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11H8L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" fill="currentColor"/></svg>';
+  button.title=title; button.setAttribute('aria-label',title); button.addEventListener('click',handler); return button;
+}
 function addBlock(n,type){ n.blocks.push(normalizeBlock(type==='paragraph' ? {type:'paragraph', paragraph_style:'level_0', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''})); afterStructureChange('段落を追加'); }
 function insertParagraph(n,current,where){
   const currentIndex=n.blocks.indexOf(current);
@@ -24720,7 +24725,7 @@ function buildBlock(n,b){
     add.addEventListener('click',()=>{ const opening=menu.hidden; closeMenu(); if(opening){ menu.hidden=false; add.setAttribute('aria-expanded','true'); setTimeout(()=>document.addEventListener('click',outsideMenu),0); } });
     [['上に追加','before'],['下に追加','after']].forEach(([label,where])=>{ const option=document.createElement('button'); option.type='button'; option.textContent=label; option.addEventListener('click',()=>{ closeMenu(); insertParagraph(n,b,where); }); menu.appendChild(option); });
     addWrap.appendChild(add); addWrap.appendChild(menu);
-    const del=document.createElement('button'); del.type='button'; del.className='paragraph-action paragraph-delete'; del.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11H8L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" fill="currentColor"/></svg>'; del.title='段落を削除'; del.setAttribute('aria-label','段落を削除'); del.addEventListener('click',()=>delBlock(n,b));
+    const del=createDeleteButton('段落を削除',()=>delBlock(n,b));
     row.appendChild(drag); row.appendChild(summary); row.appendChild(select); row.appendChild(ta);
     const aiFix=buildParagraphAiFix(n,b,row,actions); actions.appendChild(addWrap); actions.appendChild(del); row.appendChild(actions); bb.appendChild(row); bb.appendChild(aiFix);
     requestAnimationFrame(resize);
