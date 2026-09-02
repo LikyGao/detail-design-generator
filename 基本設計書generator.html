@@ -141,6 +141,7 @@
   .paragraph-action{display:inline-flex;align-items:center;justify-content:center;height:32px;min-width:32px;padding:0 9px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font:inherit;font-size:13px;line-height:1;white-space:nowrap}.paragraph-action:hover{border-color:var(--accent);color:var(--text)}
   .paragraph-delete:hover{border-color:var(--red);color:var(--red);background:rgba(255,107,107,.1)}
   .paragraph-add-wrap{position:relative}.paragraph-add-menu{position:absolute;z-index:20;top:calc(100% + 4px);right:0;min-width:104px;padding:4px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.22)}.paragraph-add-menu[hidden]{display:none}.paragraph-add-menu button{display:block;width:100%;padding:6px 9px;background:transparent;border:0;border-radius:4px;color:var(--text);cursor:pointer;font:inherit;font-size:11.5px;text-align:left;white-space:nowrap}.paragraph-add-menu button:hover{background:var(--surface);color:var(--accent)}
+  .paragraph-add-menu-divider{height:1px;margin:4px 5px;background:var(--border)}
   .node-card{overflow:visible}.cardh.node-title-row{padding:7px 10px;gap:8px;border-radius:inherit}.node-title-row .cnum{flex:0 0 auto}.node-title-row .node-title-input{flex:1;min-width:0;height:32px;padding:5px 9px}.node-title-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto}.cbody.node-card-body{padding:8px 10px 10px}.node-card-body:empty{display:none}.node-title-actions .paragraph-add-menu{min-width:136px}
   .paragraph-sort-ghost{opacity:1!important;border:1px dashed var(--accent);background:var(--accent-glow);min-height:42px;position:relative}
   .paragraph-sort-ghost>*{visibility:hidden}
@@ -24617,32 +24618,42 @@ function createDeleteButton(title,handler){
   button.title=title; button.setAttribute('aria-label',title); button.addEventListener('click',handler); return button;
 }
 function addBlock(n,type){ n.blocks.push(normalizeBlock(type==='paragraph' ? {type:'paragraph', paragraph_style:'level_0', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''})); afterStructureChange('段落を追加'); }
+function findBlockInsertIndexAfterSubtree(n,current){
+  const currentIndex=n.blocks.indexOf(current);
+  if(currentIndex<0) return -1;
+  let insertIndex=currentIndex+1;
+  const level=getParagraphStyleConfig(current.paragraph_style).indent;
+  while(insertIndex<n.blocks.length){
+    const next=n.blocks[insertIndex];
+    if(next.type!=='paragraph'||getParagraphStyleConfig(next.paragraph_style).indent<=level) break;
+    insertIndex++;
+  }
+  return insertIndex;
+}
 function insertParagraph(n,current,where){
   const currentIndex=n.blocks.indexOf(current);
   if(currentIndex<0) return;
-  let insertIndex=currentIndex;
-  if(where==='after'){
-    insertIndex=currentIndex+1;
-    const level=getParagraphStyleConfig(current.paragraph_style).indent;
-    while(insertIndex<n.blocks.length){
-      const next=n.blocks[insertIndex];
-      if(next.type!=='paragraph'||getParagraphStyleConfig(next.paragraph_style).indent<=level) break;
-      insertIndex++;
-    }
-  }
+  const insertIndex=where==='after'?findBlockInsertIndexAfterSubtree(n,current):currentIndex;
   const added=normalizeBlock({type:'paragraph',paragraph_style:current.paragraph_style||'level_0',text:'',revision_instruction:'',revision_history:[]});
   n.blocks.splice(insertIndex,0,added);
   afterStructureChange('段落を追加');
 }
 function addTableBlock(n){ n.blocks.push(normalizeBlock({type:'table', caption:'', headers:['項目','内容','備考'], rows:[['','','']]})); afterStructureChange('表を追加'); }
 function addFigureBlock(n){ n.blocks.push(normalizeBlock({type:'figure', caption:''})); afterStructureChange('画像を追加'); }
+function insertBlockAfterParagraph(n,current,block,label){
+  const insertIndex=findBlockInsertIndexAfterSubtree(n,current);
+  if(insertIndex<0) return;
+  n.blocks.splice(insertIndex,0,normalizeBlock(block));
+  afterStructureChange(label);
+}
 function delBlock(n,b){ n.blocks=n.blocks.filter(x=>x!==b); afterStructureChange('段落を削除'); }
 
 function renderBlockHierarchy(n,root){
   const stack=[];
   n.blocks.forEach(b=>{
     if(b.type!=='paragraph'){
-      stack.length=0;
+      // Content blocks do not belong to the paragraph hierarchy, but the next
+      // paragraph must still be resolved against the hierarchy before them.
       root.appendChild(buildBlock(n,b));
       return;
     }
@@ -24723,7 +24734,9 @@ function buildBlock(n,b){
     const closeMenu=()=>{ menu.hidden=true; add.setAttribute('aria-expanded','false'); document.removeEventListener('click',outsideMenu); };
     const outsideMenu=e=>{ if(!addWrap.contains(e.target)) closeMenu(); };
     add.addEventListener('click',()=>{ const opening=menu.hidden; closeMenu(); if(opening){ menu.hidden=false; add.setAttribute('aria-expanded','true'); setTimeout(()=>document.addEventListener('click',outsideMenu),0); } });
-    [['上に追加','before'],['下に追加','after']].forEach(([label,where])=>{ const option=document.createElement('button'); option.type='button'; option.textContent=label; option.addEventListener('click',()=>{ closeMenu(); insertParagraph(n,b,where); }); menu.appendChild(option); });
+    [['上に段落を追加','before'],['下に段落を追加','after']].forEach(([label,where])=>{ const option=document.createElement('button'); option.type='button'; option.textContent=label; option.addEventListener('click',()=>{ closeMenu(); insertParagraph(n,b,where); }); menu.appendChild(option); });
+    const divider=document.createElement('div'); divider.className='paragraph-add-menu-divider'; divider.setAttribute('role','separator'); menu.appendChild(divider);
+    [['表を追加',()=>insertBlockAfterParagraph(n,b,{type:'table',caption:'',headers:['項目','内容','備考'],rows:[['','','']]},'表を追加')],['図を追加',()=>insertBlockAfterParagraph(n,b,{type:'figure',caption:''},'画像を追加')]].forEach(([label,action])=>{ const option=document.createElement('button'); option.type='button'; option.textContent=label; option.addEventListener('click',()=>{ closeMenu(); action(); }); menu.appendChild(option); });
     addWrap.appendChild(add); addWrap.appendChild(menu);
     const del=createDeleteButton('段落を削除',()=>delBlock(n,b));
     row.appendChild(drag); row.appendChild(summary); row.appendChild(select); row.appendChild(ta);
