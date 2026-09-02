@@ -188,6 +188,8 @@
   .preview-page-shell{position:relative;margin:0 auto 24px;flex:none}
   .preview-page-shell:last-child{margin-bottom:0}
   .preview-page-shell>.word-page{position:absolute;left:0;top:0;transform-origin:top left}
+  .preview-sync-highlight{background:rgba(76,155,219,.10)!important;box-shadow:inset 0 0 0 1px rgba(76,155,219,.28);transition:background .25s,box-shadow .25s}
+  @media print{.preview-sync-highlight{background:transparent!important;box-shadow:none!important}}
   .word-page{box-sizing:border-box;background:#fff;color:#000;width:210mm;min-width:210mm;min-height:297mm;padding:20mm;font-family:Century,'ＭＳ 明朝','MS Mincho','Yu Mincho','游明朝',serif;font-size:10.5pt;line-height:1.75;box-shadow:0 4px 20px rgba(0,0,0,.4);border-radius:0;overflow:visible}
   .word-cover{display:flex;flex-direction:column;justify-content:flex-start;align-items:center;text-align:center;gap:0;padding-top:42mm}
   .word-cover .wc-top{display:flex;flex-direction:column;align-items:center;gap:14px}
@@ -447,7 +449,7 @@
   </main>
 
   <div id="previewArea">
-    <div class="preview-pane-header"><button class="ebtn ghost" onclick="printPreview()" style="margin-left:auto;padding:5px 12px;font-size:12px">🖨 印刷 / PDF</button></div>
+    <div class="preview-pane-header"><span>プレビュー</span><div><button class="ebtn ghost" onclick="openPreviewWindow()" style="padding:5px 12px;font-size:12px">別ウィンドウで開く</button> <button class="ebtn ghost" onclick="printPreview()" style="padding:5px 12px;font-size:12px">🖨 印刷 / PDF</button></div></div>
     <div id="previewContent"></div>
   </div>
 </div>
@@ -23637,6 +23639,14 @@ const PHASE = { INPUT:'input', CHAPTERS:'chapters', EDIT:'edit' };
 let phase = PHASE.INPUT;
 let doc = emptyDoc();
 let _previewOpen = false, _previewTimer = null, _previewResizeFrame = null;
+let _activePreviewTarget = {nodeId:null, blockId:null}, _previewSyncTimer = null, _previewHighlightTimer = null;
+let _previewWindow = null, _previewRevision = 0;
+const PREVIEW_CHANNEL_NAME = 'detail-design-preview';
+function createPreviewChannel(){
+  if(typeof BroadcastChannel==='undefined') return null;
+  try{ return new BroadcastChannel(PREVIEW_CHANNEL_NAME); }catch(error){ console.warn('BroadcastChannel unavailable; using postMessage fallback.',error); return null; }
+}
+const _previewChannel = createPreviewChannel();
 
 function emptyDoc(){
   return {
@@ -24347,22 +24357,24 @@ function newNode(level){
 }
 function afterStructureChange(label='変更'){ normalizeSelectionHierarchy(doc.chapters); renumber(); renderNav(); renderChapterSelector(); renderEditor(); refreshPreview(); pushHistory(label); }
 function addChapterNode(){
-  doc.chapters.push(newNode(1)); afterStructureChange('章節を追加');
+  const added=newNode(1); doc.chapters.push(added); afterStructureChange('章節を追加'); setActivePreviewTarget(added.id,null,true);
   showToast('章を追加しました。タイトルを入力してください。');
 }
 function addChildNode(parent){
   parent.selected=true;
   ensureParentsSelected(parent.id);
-  parent.children.push(newNode(Math.min(parent.level+1,3)));
+  const added=newNode(Math.min(parent.level+1,3)); parent.children.push(added);
   afterStructureChange('章節を追加');
+  setActivePreviewTarget(added.id,null,true);
 }
 function addSiblingNode(node,where){
+  let added=null;
   function insert(nodes){
     const index=nodes.indexOf(node);
-    if(index>=0){ nodes.splice(index+(where==='after'?1:0),0,newNode(node.level)); return true; }
+    if(index>=0){ added=newNode(node.level); nodes.splice(index+(where==='after'?1:0),0,added); return true; }
     return nodes.some(parent=>insert(parent.children||[]));
   }
-  if(insert(doc.chapters)) afterStructureChange('章節を追加');
+  if(insert(doc.chapters)){ afterStructureChange('章節を追加'); setActivePreviewTarget(added.id,null,true); }
 }
 function removeNodeById(nodes,id){
   for(let i=0;i<nodes.length;i++){
@@ -24448,6 +24460,7 @@ function scrollToNode(id,navEl){
   }
   document.querySelectorAll('.navi.active').forEach(e=>e.classList.remove('active'));
   if(navEl) navEl.classList.add('active');
+  setActivePreviewTarget(id,null,true);
 }
 
 function renderChapterSelector(){
@@ -24581,6 +24594,7 @@ function buildNodeCard(n){
   const h=document.createElement('div'); h.className='cardh node-title-row';
   const num=document.createElement('span'); num.className='cnum lv'+n.level; num.textContent=n.display_number;
   const tin=document.createElement('input'); tin.type='text'; tin.className='toi node-title-input'; tin.value=n.title; tin.placeholder='タイトル';
+  tin.addEventListener('focus',()=>setActivePreviewTarget(n.id,null,true));
   tin.addEventListener('input',()=>{ n.title=tin.value; renderNav(); debouncePreview(); pushHistoryDebounced('章節タイトルを編集'); });
   h.appendChild(num); h.appendChild(tin);
   if(n.point){
@@ -24617,7 +24631,7 @@ function createDeleteButton(title,handler){
   button.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11H8L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" fill="currentColor"/></svg>';
   button.title=title; button.setAttribute('aria-label',title); button.addEventListener('click',handler); return button;
 }
-function addBlock(n,type){ n.blocks.push(normalizeBlock(type==='paragraph' ? {type:'paragraph', paragraph_style:'level_0', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''})); afterStructureChange('段落を追加'); }
+function addBlock(n,type){ const added=normalizeBlock(type==='paragraph' ? {type:'paragraph', paragraph_style:'level_0', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''}); n.blocks.push(added); afterStructureChange('段落を追加'); setActivePreviewTarget(n.id,added.id,true); }
 function findBlockInsertIndexAfterSubtree(n,current){
   const currentIndex=n.blocks.indexOf(current);
   if(currentIndex<0) return -1;
@@ -24637,6 +24651,7 @@ function insertParagraph(n,current,where){
   const added=normalizeBlock({type:'paragraph',paragraph_style:current.paragraph_style||'level_0',text:'',revision_instruction:'',revision_history:[]});
   n.blocks.splice(insertIndex,0,added);
   afterStructureChange('段落を追加');
+  setActivePreviewTarget(n.id,added.id,true);
 }
 function addTableBlock(n){ n.blocks.push(normalizeBlock({type:'table', caption:'', headers:['項目','内容','備考'], rows:[['','','']]})); afterStructureChange('表を追加'); }
 function addFigureBlock(n){ n.blocks.push(normalizeBlock({type:'figure', caption:''})); afterStructureChange('画像を追加'); }
@@ -24646,7 +24661,7 @@ function insertBlockAfterParagraph(n,current,block,label){
   n.blocks.splice(insertIndex,0,normalizeBlock(block));
   afterStructureChange(label);
 }
-function delBlock(n,b){ n.blocks=n.blocks.filter(x=>x!==b); afterStructureChange('段落を削除'); }
+function delBlock(n,b){ n.blocks=n.blocks.filter(x=>x!==b); afterStructureChange('段落を削除'); setActivePreviewTarget(n.id,null,true); }
 
 function renderBlockHierarchy(n,root){
   const stack=[];
@@ -24674,7 +24689,7 @@ function initParagraphSortables(n,root){
     const restoreDragView=()=>Array.from(list.children).forEach(el=>el.classList.remove('drag-compact'));
     Sortable.create(list,{group:{name:'paragraph-siblings-'+n.id+'-'+index,pull:false,put:false},draggable:'.paragraph-item',handle:'.paragraph-drag',animation:120,ghostClass:'paragraph-sort-ghost',chosenClass:'paragraph-sort-chosen',
       onStart:()=>Array.from(list.children).forEach(el=>{ if(el.classList.contains('paragraph-item')) el.classList.add('drag-compact'); }),
-      onEnd:()=>{ restoreDragView(); syncBlockOrderFromEditor(n,root); },
+      onEnd:(event)=>{ const blockId=event.item&&event.item.dataset.blockId; restoreDragView(); syncBlockOrderFromEditor(n,root); setActivePreviewTarget(n.id,blockId,true); },
       onUnchoose:restoreDragView
     });
   });
@@ -24700,6 +24715,7 @@ function syncBlockOrderFromEditor(n,root){
 function buildBlock(n,b){
   const el=document.createElement('div'); el.className='block';
   el.dataset.blockId=b.id;
+  el.dataset.nodeid=n.id;
   const head=document.createElement('div'); head.className='block-h';
   const typeName = b.type==='paragraph'?'段落'
     : b.type==='table'?'表'
@@ -25367,13 +25383,95 @@ function fillCoverInputs(){ Object.entries(COVER_IDS).forEach(([k,id])=>{ docume
 /* ============================================================
    PREVIEW (Word 風)
    ============================================================ */
+function previewNodeAncestry(nodeId){
+  let result=[];
+  function visit(nodes,path){
+    for(const node of nodes||[]){
+      const next=path.concat(node);
+      if(node.id===nodeId){ result=next; return true; }
+      if(visit(node.children,next)) return true;
+    }
+    return false;
+  }
+  visit(doc.chapters,[]);
+  return result.reverse().map(node=>node.id);
+}
+function previewTargetElement(root,target){
+  if(!root||!target) return null;
+  const all=Array.from(root.querySelectorAll('[data-preview-nodeid]'));
+  if(target.blockId){
+    const exact=all.find(el=>el.dataset.previewNodeid===target.nodeId&&el.dataset.previewBlockId===target.blockId);
+    if(exact) return exact;
+  }
+  for(const nodeId of previewNodeAncestry(target.nodeId)){
+    const node=all.find(el=>el.dataset.previewNodeid===nodeId&&!el.dataset.previewBlockId);
+    if(node) return node;
+  }
+  return null;
+}
+function setActivePreviewTarget(nodeId,blockId,immediate){
+  if(nodeId) _activePreviewTarget={nodeId,blockId:blockId||null};
+  if(immediate){ clearTimeout(_previewSyncTimer); scrollPreviewToActive(true); publishPreviewTarget(); }
+  else debouncePreviewTarget();
+}
+function debouncePreviewTarget(){
+  clearTimeout(_previewSyncTimer);
+  _previewSyncTimer=setTimeout(()=>{ scrollPreviewToActive(true); publishPreviewTarget(); },350);
+}
+function scrollPreviewToActive(smooth){
+  if(!_previewOpen) return;
+  const target=previewTargetElement(document.getElementById('previewContent'),_activePreviewTarget);
+  if(!target) return;
+  target.scrollIntoView({behavior:smooth?'smooth':'auto',block:'center'});
+  document.querySelectorAll('#previewContent .preview-sync-highlight').forEach(el=>el.classList.remove('preview-sync-highlight'));
+  target.classList.add('preview-sync-highlight');
+  clearTimeout(_previewHighlightTimer);
+  _previewHighlightTimer=setTimeout(()=>target.classList.remove('preview-sync-highlight'),1500);
+}
+function currentPreviewState(){
+  return {type:'preview-state',html:document.getElementById('previewContent').innerHTML,nodeId:_activePreviewTarget.nodeId,blockId:_activePreviewTarget.blockId,revision:++_previewRevision,updatedAt:Date.now()};
+}
+function sendPreviewMessage(message){
+  if(_previewChannel) _previewChannel.postMessage(message);
+  if(_previewWindow&&!_previewWindow.closed) _previewWindow.postMessage(message,'*');
+}
+function publishPreviewState(){ sendPreviewMessage(currentPreviewState()); }
+function publishPreviewTarget(){ sendPreviewMessage({type:'preview-target',nodeId:_activePreviewTarget.nodeId,blockId:_activePreviewTarget.blockId,revision:_previewRevision,updatedAt:Date.now()}); }
+function openPreviewWindow(){
+  if(_previewWindow&&!_previewWindow.closed){ _previewWindow.focus(); publishPreviewState(); return; }
+  buildPreview();
+  _previewWindow=window.open('','detail-design-preview-window');
+  if(!_previewWindow){ showToast('ポップアップがブロックされました。ブラウザで許可してください。',true); return; }
+  const css=Array.from(document.querySelectorAll('style')).map(style=>style.textContent).join('\n');
+  const initial=JSON.stringify(currentPreviewState()).replace(/<\//g,'<\\/');
+  const childScript=`
+    const root=document.getElementById('standalonePreview');
+    let active={nodeId:null,blockId:null}, highlightTimer=null, openerSeen=true;
+    function findTarget(target){
+      const all=Array.from(root.querySelectorAll('[data-preview-nodeid]'));
+      if(target.blockId){const exact=all.find(el=>el.dataset.previewNodeid===target.nodeId&&el.dataset.previewBlockId===target.blockId);if(exact)return exact;}
+      const node=all.find(el=>el.dataset.previewNodeid===target.nodeId&&!el.dataset.previewBlockId);
+      return node||null;
+    }
+    function scroll(){const el=findTarget(active);if(!el)return;el.scrollIntoView({behavior:'smooth',block:'center'});root.querySelectorAll('.preview-sync-highlight').forEach(x=>x.classList.remove('preview-sync-highlight'));el.classList.add('preview-sync-highlight');clearTimeout(highlightTimer);highlightTimer=setTimeout(()=>el.classList.remove('preview-sync-highlight'),1500);}
+    function receive(data){if(!data||!/^preview-/.test(data.type||''))return;if(data.type==='preview-state')root.innerHTML=data.html||'';active={nodeId:data.nodeId||active.nodeId,blockId:data.blockId||null};requestAnimationFrame(scroll);}
+    const initial=${initial}; receive(initial);
+    if(typeof BroadcastChannel!=='undefined'){try{const channel=new BroadcastChannel('${PREVIEW_CHANNEL_NAME}');channel.onmessage=e=>receive(e.data);}catch(error){console.warn('BroadcastChannel unavailable; using postMessage fallback.',error);}}
+    addEventListener('message',e=>{if(e.source===opener)receive(e.data);});
+    setInterval(()=>{if(openerSeen&&(!opener||opener.closed)){openerSeen=false;document.getElementById('previewStatus').textContent='主ウィンドウは閉じられました';}},1000);
+  `;
+  _previewWindow.document.open();
+  _previewWindow.document.write('<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>基本設計書プレビュー</title><style>'+css+'body{margin:0;background:#e5e7eb}#previewStatus{position:sticky;top:0;z-index:10;padding:7px 14px;background:#fff;color:#65717d;font:12px sans-serif;border-bottom:1px solid #ccd3da}#standalonePreview{padding:24px;overflow:auto;min-height:100vh}#standalonePreview .word-page{margin:0 auto 24px}</style></head><body><div id="previewStatus">基本設計書プレビュー</div><div id="standalonePreview"></div><scr'+'ipt>'+childScript+'</scr'+'ipt></body></html>');
+  _previewWindow.document.close();
+  _previewWindow.focus();
+}
 function togglePreview(){
   _previewOpen=!_previewOpen;
   const shell=document.getElementById('appShell');
   const btn=document.getElementById('previewToggleBtn');
   shell.classList.toggle('preview-open',_previewOpen);
   btn.classList.toggle('ghost',!_previewOpen);
-  if(_previewOpen){ buildPreview(); schedulePreviewScale(); }
+  if(_previewOpen){ buildPreview(); schedulePreviewScale(); requestAnimationFrame(()=>scrollPreviewToActive(true)); }
 }
 function schedulePreviewScale(){
   cancelAnimationFrame(_previewResizeFrame);
@@ -25403,7 +25501,13 @@ function adjustPreviewScale(){
 const previewResizeObserver=new ResizeObserver(()=>{ if(_previewOpen) schedulePreviewScale(); });
 previewResizeObserver.observe(document.getElementById('previewArea'));
 previewResizeObserver.observe(document.getElementById('previewContent'));
-function debouncePreview(){ if(!_previewOpen) return; clearTimeout(_previewTimer); _previewTimer=setTimeout(buildPreview,500); }
+function debouncePreview(){
+  clearTimeout(_previewTimer);
+  _previewTimer=setTimeout(()=>{
+    if(_previewOpen || (_previewWindow&&!_previewWindow.closed)) buildPreview();
+    debouncePreviewTarget();
+  },500);
+}
 function escH(s){ return esc(s); }
 function mediaTocLabel(item){
   const ref=String((item&&item.ref)||'').trim();
@@ -25472,32 +25576,33 @@ function collectRenderedMediaForExport(){
   tmp.innerHTML=buildPreviewHtml();
   return collectMediaFromDocument(tmp);
 }
-function blocksToHtml(blocks){
+function blocksToHtml(blocks,nodeId){
   const paragraphPrefixes=calculateParagraphNumbering(blocks);
   return (blocks||[]).map(b=>{
     try{
+      const syncAttrs=' data-preview-nodeid="'+escH(nodeId)+'" data-preview-block-id="'+escH(b.id)+'"';
       if(b.type==='paragraph'){
         const cfg=getParagraphStyleConfig(b.paragraph_style), prefix=paragraphPrefixes.get(b.id)||'';
         const separator=prefix&&b.text?'&nbsp;':'';
-        return '<p style="text-indent:0;margin-left:'+cfg.indent*18+'pt"><span class="paragraph-prefix">'+escH(prefix)+'</span>'+separator+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</p>';
+        return '<p'+syncAttrs+' style="text-indent:0;margin-left:'+cfg.indent*18+'pt"><span class="paragraph-prefix">'+escH(prefix)+'</span>'+separator+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</p>';
       }
       if(b.type==='table'){
         const cap='<div class="word-cap">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</div>';
         const head='<tr>'+(b.headers||[]).map(h=>'<th>'+escH(h)+'</th>').join('')+'</tr>';
         const body=(b.rows||[]).map(r=>'<tr>'+(r||[]).map(c=>'<td>'+escH(c)+'</td>').join('')+'</tr>').join('');
-        return '<div class="word-keep-together">'+cap+'<table class="word-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
+        return '<div class="word-keep-together"'+syncAttrs+'>'+cap+'<table class="word-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
       }
       if(b.type==='figure'){
         const cap='<div class="word-cap">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</div>';
         const img = b.imageData ? '<img class="word-fig-img" src="'+b.imageData+'">' : '<div class="word-ph">（画像未挿入）</div>';
-        return '<div class="word-keep-together">'+cap+img+'</div>';
+        return '<div class="word-keep-together"'+syncAttrs+'>'+cap+img+'</div>';
       }
       // placeholders
-      return '<div class="word-ph"><span class="wpref">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</span>'+(b.type==='table_placeholder'?'（表は別途作成）':'（図は別途作成）')+'</div>';
+      return '<div class="word-ph"'+syncAttrs+'><span class="wpref">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</span>'+(b.type==='table_placeholder'?'（表は別途作成）':'（図は別途作成）')+'</div>';
     }catch(e){ console.error('block render error',e,b); return '<div class="word-ph">（ブロック表示エラー）</div>'; }
   }).join('');
 }
-function refreshPreview(){ if(_previewOpen){ try{ buildPreview(); }catch(e){ console.error('preview error',e); } } }
+function refreshPreview(){ if(_previewOpen||(_previewWindow&&!_previewWindow.closed)){ try{ buildPreview(); }catch(e){ console.error('preview error',e); } } }
 function buildPreviewHtml(){
   let body='<section class="preview-flow word-body">';
   let chapterOpen=false;
@@ -25511,12 +25616,12 @@ function buildPreviewHtml(){
 
     const tag=n.level===1 ? 'h1' : n.level===2 ? 'h2' : 'h3';
 
-    body+='<div class="preview-unit">'+
+    body+='<div class="preview-unit" data-preview-nodeid="'+escH(n.id)+'">'+
       '<'+tag+'>'+
       escH(n.display_number)+'　'+
       escH(n.title||'(無題)')+
       '</'+tag+'>'+
-      (blocksToHtml(n.blocks)||'<p class="word-empty">（本文未入力）</p>')+
+      (blocksToHtml(n.blocks,n.id)||'<p class="word-empty">（本文未入力）</p>')+
       '</div>';
   });
 
@@ -25554,6 +25659,8 @@ function buildPreview(){
   paginatePreview(preview);
   updateDocumentIndexes(preview);
   schedulePreviewScale();
+  publishPreviewState();
+  requestAnimationFrame(()=>scrollPreviewToActive(false));
 }
 
 /* 印刷 / PDF：プレビューの体裁でそのまま印刷（別ウィンドウ） */
@@ -26005,7 +26112,19 @@ function loadSampleGenerated(){
 }
 
 /* ── init ── */
-window.addEventListener('DOMContentLoaded',()=>{ buildPlanForm(); renderDocumentProfileOptions(); updateDocumentTypeDisplay(); });
+window.addEventListener('DOMContentLoaded',()=>{
+  buildPlanForm(); renderDocumentProfileOptions(); updateDocumentTypeDisplay();
+  const editor=document.getElementById('sectionsContainer');
+  const syncFromEditor=(event,immediate)=>{
+    const nodeEl=event.target.closest&&event.target.closest('[data-nodeid]');
+    if(!nodeEl) return;
+    const blockEl=event.target.closest('[data-block-id]');
+    setActivePreviewTarget(nodeEl.dataset.nodeid,blockEl&&blockEl.dataset.blockId,immediate);
+  };
+  editor.addEventListener('click',event=>syncFromEditor(event,true),true);
+  editor.addEventListener('focusin',event=>syncFromEditor(event,true));
+  editor.addEventListener('input',event=>syncFromEditor(event,false));
+});
 </script>
 </body>
 </html>
