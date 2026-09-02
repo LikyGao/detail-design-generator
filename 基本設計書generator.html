@@ -23721,7 +23721,12 @@ function normalizeBlock(raw){
   if(t==='figure'){
     return { id: raw.id||uid(), type:'figure', caption: raw.caption||'', imageData: raw.imageData||'', fileName: raw.fileName||'', _w: raw._w||0, _h: raw._h||0 };
   }
-  return { id: raw.id||uid(), type:'paragraph', paragraph_style: PARAGRAPH_STYLE_CONFIGS[raw.paragraph_style]?raw.paragraph_style:'level_0', text: raw.text||raw.content||'', caption:'', revision_instruction: raw.revision_instruction||'', revision_history: Array.isArray(raw.revision_history) ? raw.revision_history.slice(0,2) : [] };
+  // Keep template paragraph structure metadata opaque to the editor.  The Word
+  // plugin owns its interpretation; text-only edits must not discard it.
+  const structureKeys=['list_group_id','marker_type','original_marker','number_format','level_text','list_level','num_id','abstract_num_id','numbering_start','start_override','level_restart','left_indent_twips','first_line_indent_twips','hanging_indent_twips','style','kind'];
+  const paragraph={ id: raw.id||uid(), type:'paragraph', paragraph_style: PARAGRAPH_STYLE_CONFIGS[raw.paragraph_style]?raw.paragraph_style:'level_0', text: raw.text||raw.content||'', caption:'', revision_instruction: raw.revision_instruction||'', revision_history: Array.isArray(raw.revision_history) ? raw.revision_history.slice(0,2) : [] };
+  structureKeys.forEach(key=>{ if(raw[key]!==undefined) paragraph[key]=raw[key]; });
+  return paragraph;
 }
 function normalizeBlocks(arr){ return Array.isArray(arr) ? arr.map(normalizeBlock) : []; }
 

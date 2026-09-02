@@ -131,8 +131,8 @@ def _resolve_numbering_format(document, num_id: str, ilvl: int) -> tuple[str, st
     return "", ""
 
 
-def _resolve_numbering_indent(document, num_id: str, ilvl: int) -> int | None:
-    """Resolve the level indentation stored in numbering.xml."""
+def _resolve_numbering_indent(document, num_id: str, ilvl: int) -> tuple[int | None, int | None, int | None]:
+    """Resolve left, first-line and hanging indents stored in numbering.xml."""
     try:
         root = document.part.numbering_part.element
         num = next((n for n in root.findall(qn("w:num")) if n.get(qn("w:numId")) == str(num_id)), None)
@@ -141,10 +141,13 @@ def _resolve_numbering_indent(document, num_id: str, ilvl: int) -> int | None:
         abstract = next((a for a in root.findall(qn("w:abstractNum")) if a.get(qn("w:abstractNumId")) == abstract_id), None)
         level = next((lvl for lvl in abstract.findall(qn("w:lvl")) if lvl.get(qn("w:ilvl"), "0") == str(ilvl)), None)
         ind = _first_child(_first_child(level, "w:pPr"), "w:ind")
-        raw = ind.get(qn("w:left")) or ind.get(qn("w:start")) if ind is not None else None
-        return int(raw) if raw is not None else None
+        def value(name: str) -> int | None:
+            raw = ind.get(qn(f"w:{name}")) if ind is not None else None
+            return int(raw) if raw is not None else None
+        left = value("left")
+        return (left if left is not None else value("start")), value("firstLine"), value("hanging")
     except (AttributeError, StopIteration, TypeError, ValueError):
-        return None
+        return None, None, None
 
 
 def _paragraph_indent_twips(paragraph) -> tuple[int | None, int | None, int | None]:
@@ -152,6 +155,7 @@ def _paragraph_indent_twips(paragraph) -> tuple[int | None, int | None, int | No
     sources = [paragraph._p.pPr]
     if paragraph.style is not None:
         sources.append(paragraph.style.element.pPr)
+    result: list[int | None] = [None, None, None]
     for p_pr in sources:
         ind = _first_child(p_pr, "w:ind")
         if ind is None:
@@ -164,8 +168,49 @@ def _paragraph_indent_twips(paragraph) -> tuple[int | None, int | None, int | No
             except (TypeError, ValueError):
                 return None
 
-        return value("left") or value("start"), value("firstLine"), value("hanging")
-    return None, None, None
+        values = (value("left") if value("left") is not None else value("start"),
+                  value("firstLine"), value("hanging"))
+        result = [old if old is not None else new for old, new in zip(result, values)]
+    return result[0], result[1], result[2]
+
+
+def _numbering_metadata(document, num_id: str, ilvl: int) -> dict[str, Any]:
+    """Capture group/restart facts which would otherwise be lost in JSON."""
+    try:
+        root = document.part.numbering_part.element
+        num = next(n for n in root.findall(qn("w:num")) if n.get(qn("w:numId")) == str(num_id))
+        abstract_el = _first_child(num, "w:abstractNumId")
+        abstract_id = str(abstract_el.get(qn("w:val")) or "")
+        abstract = next(a for a in root.findall(qn("w:abstractNum"))
+                        if a.get(qn("w:abstractNumId")) == abstract_id)
+        level = next(x for x in abstract.findall(qn("w:lvl"))
+                     if x.get(qn("w:ilvl"), "0") == str(ilvl))
+        start_el = _first_child(level, "w:start")
+        restart_el = _first_child(level, "w:lvlRestart")
+        override = next((x for x in num.findall(qn("w:lvlOverride"))
+                         if x.get(qn("w:ilvl"), "0") == str(ilvl)), None)
+        start_override_el = _first_child(override, "w:startOverride")
+        return {
+            "abstract_num_id": abstract_id,
+            "numbering_start": int(start_el.get(qn("w:val"))) if start_el is not None else 1,
+            "start_override": int(start_override_el.get(qn("w:val"))) if start_override_el is not None else None,
+            "level_restart": int(restart_el.get(qn("w:val"))) if restart_el is not None else None,
+        }
+    except (AttributeError, StopIteration, TypeError, ValueError):
+        return {"abstract_num_id": "", "numbering_start": None,
+                "start_override": None, "level_restart": None}
+
+
+def _literal_marker(text: str) -> tuple[str, str]:
+    match = re.match(r"^\s*([①-⑳]|・|➢|)", str(text or ""))
+    if not match:
+        return "", ""
+    marker = match.group(1)
+    if marker == "・":
+        return marker, "bullet"
+    if marker in {"➢", ""}:
+        return marker, "arrow"
+    return marker, "circle"
 
 
 def _paragraph_style(number_format: str, level_text: str, list_level: int | None,
@@ -195,7 +240,7 @@ def _paragraph_style(number_format: str, level_text: str, list_level: int | None
     return "level_0"
 
 
-def _paragraph_structure(document, paragraph) -> dict[str, Any]:
+def _paragraph_structure(document, paragraph, text: str = "") -> dict[str, Any]:
     style_name = paragraph.style.name if paragraph.style is not None else ""
     numbering = _numbering_values(paragraph)
     num_id = ""
@@ -220,11 +265,32 @@ def _paragraph_structure(document, paragraph) -> dict[str, Any]:
         kind = "paragraph"
 
     left_indent, first_line_indent, hanging_indent = _paragraph_indent_twips(paragraph)
-    if left_indent is None and numbering is not None:
-        left_indent = _resolve_numbering_indent(document, num_id, list_level or 0)
+    if numbering is not None:
+        native_indents = _resolve_numbering_indent(document, num_id, list_level or 0)
+        left_indent = left_indent if left_indent is not None else native_indents[0]
+        first_line_indent = first_line_indent if first_line_indent is not None else native_indents[1]
+        hanging_indent = hanging_indent if hanging_indent is not None else native_indents[2]
+    original_marker, marker_type = _literal_marker(text)
+    if not marker_type:
+        marker_type = ("bullet" if number_format == "bullet" and "・" in level_text else
+                       "arrow" if "➢" in level_text or "" in level_text else
+                       "circle" if "circle" in number_format.lower() else "")
+    if marker_type in {"bullet", "arrow"}:
+        kind = "bullet"
+    elif marker_type == "circle":
+        kind = "numbered"
     paragraph_style = _paragraph_style(
         number_format, level_text, list_level, left_indent, style_name
     )
+    if marker_type == "bullet":
+        paragraph_style = "level_5" if (list_level or 0) >= 4 or (left_indent or 0) >= 700 else "level_2"
+    elif marker_type == "arrow":
+        paragraph_style = "level_3"
+    elif marker_type == "circle":
+        paragraph_style = "level_6" if (list_level or 0) >= 5 or (left_indent or 0) >= 700 else "level_4"
+    metadata = (_numbering_metadata(document, num_id, list_level or 0) if numbering else
+                {"abstract_num_id": "", "numbering_start": None,
+                 "start_override": None, "level_restart": None})
     return {
         "style": style_name,
         "kind": kind,
@@ -232,6 +298,9 @@ def _paragraph_structure(document, paragraph) -> dict[str, Any]:
         "num_id": num_id,
         "number_format": number_format,
         "level_text": level_text,
+        "original_marker": original_marker or level_text,
+        "marker_type": marker_type,
+        **metadata,
         "paragraph_style": paragraph_style,
         "left_indent_twips": left_indent,
         "first_line_indent_twips": first_line_indent,
@@ -324,7 +393,25 @@ def parse_template_chapters(template_bytes: bytes) -> dict[str, Any]:
                     skipped_body_count += 1
                 continue
             section = section_by_id[current_section_id]
-            structure = _paragraph_structure(document, paragraph)
+            structure = _paragraph_structure(document, paragraph, text)
+            marker = str(structure.get("original_marker") or "")
+            if structure.get("num_id"):
+                # A Word num instance is the authoritative numbering-group boundary.
+                structure["list_group_id"] = f"word:{structure['num_id']}"
+            elif structure.get("marker_type") == "circle":
+                # Literal circled numbers have no numId.  A visible return to ①
+                # after ②+ is Word's strongest available restart signal.
+                state_by_style = section.setdefault("_literal_group_state", {})
+                state = state_by_style.setdefault(
+                    structure["paragraph_style"], {"group": 1, "last": 0}
+                )
+                value = ord(marker[0]) - 0x2460 + 1 if marker and "①" <= marker[0] <= "⑳" else 0
+                if value == 1 and state["last"] > 1:
+                    state["group"] += 1
+                state["last"] = value or state["last"]
+                structure["list_group_id"] = (
+                    f"literal:{current_section_id}:{structure['paragraph_style']}:{state['group']}"
+                )
             text = _strip_literal_paragraph_marker(text, structure["paragraph_style"])
             section["paragraphs"].append(
                 {
@@ -429,6 +516,7 @@ def parse_template_chapters(template_bytes: bytes) -> dict[str, Any]:
     body_character_count = 0
     sections_with_text = 0
     for section in section_contents:
+        section.pop("_literal_group_state", None)
         paragraphs = section["paragraphs"]
         section["text"] = "\n".join(str(item["text"]) for item in paragraphs)
         section["reference_text"] = _build_reference_text(paragraphs)

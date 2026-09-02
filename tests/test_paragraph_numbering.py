@@ -31,6 +31,57 @@ class ParagraphNumberingTest(unittest.TestCase):
             ["（1）", "①", "②", "（2）", "①"],
         )
 
+    def test_two_explicit_circle_groups_do_not_share_counters(self):
+        counters = {}
+        items = [("group-a", "level_4")] * 2 + [("group-b", "level_4")] * 3
+        self.assertEqual(
+            [calculate_paragraph_prefix(style, counters, group) for group, style in items],
+            ["①", "②", "①", "②", "③"],
+        )
+
+    def test_group_insert_and_delete_renumber_locally(self):
+        counters = {}
+        self.assertEqual(
+            [calculate_paragraph_prefix("level_4", counters, "same") for _ in range(3)],
+            ["①", "②", "③"],
+        )
+        counters = {}
+        self.assertEqual(
+            [calculate_paragraph_prefix("level_4", counters, "same") for _ in range(2)],
+            ["①", "②"],
+        )
+
+    def test_literal_bullet_is_classified_before_it_is_stripped(self):
+        if importlib.util.find_spec("docx") is None:
+            self.skipTest("python-docx is not installed")
+        from docx import Document
+        from tools.chapter_parser import _paragraph_structure, _strip_literal_paragraph_marker
+
+        document = Document()
+        paragraph = document.add_paragraph("・B")
+        structure = _paragraph_structure(document, paragraph, paragraph.text)
+        self.assertEqual(structure["marker_type"], "bullet")
+        self.assertEqual(structure["paragraph_style"], "level_2")
+        self.assertEqual(_strip_literal_paragraph_marker(paragraph.text, structure["paragraph_style"]), "B")
+
+    def test_bullet_circle_regression_visible_structure_and_indent(self):
+        if importlib.util.find_spec("docx") is None:
+            self.skipTest("python-docx is not installed")
+        from docx import Document
+        from tools.docx_builder import _add_body_paragraph
+
+        document = Document()
+        counters = {}
+        blocks = [
+            {"paragraph_style": "level_4", "marker_type": "circle", "list_group_id": "g", "text": "A", "left_indent_twips": 510},
+            {"paragraph_style": "level_5", "marker_type": "bullet", "text": "B", "left_indent_twips": 794},
+            {"paragraph_style": "level_6", "marker_type": "circle", "list_group_id": "nested", "text": "C", "left_indent_twips": 794},
+        ]
+        for block in blocks:
+            _add_body_paragraph(document, block, {}, counters)
+        self.assertEqual([p.text for p in document.paragraphs], ["① A", "・ B", "① C"])
+        self.assertEqual([p.paragraph_format.left_indent.twips for p in document.paragraphs], [510, 794, 794])
+
     def test_template_output_uses_literal_prefixes_without_effective_numbering(self):
         if importlib.util.find_spec("docx") is None:
             self.skipTest("python-docx is not installed")
@@ -88,7 +139,8 @@ class ParagraphNumberingTest(unittest.TestCase):
 
         indents = [paragraph.paragraph_format.left_indent.twips for paragraph in document.paragraphs]
         self.assertEqual(indents, list(PARAGRAPH_FALLBACK_INDENTS.values()))
-        self.assertEqual(indents, sorted(set(indents)))
+        self.assertEqual(indents, sorted(indents))
+        self.assertLessEqual(max(b - a for a, b in zip(indents, indents[1:])), 284)
         for paragraph in document.paragraphs:
             self.assertIsNone(_numbering_values(paragraph))
 
