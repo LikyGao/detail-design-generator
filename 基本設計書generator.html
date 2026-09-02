@@ -173,6 +173,44 @@
   .paragraph-editor{display:flex;align-items:flex-start;gap:8px}.paragraph-editor>.paragraph-drag{height:32px;flex:0 0 auto}.paragraph-style-select{width:92px;flex:0 0 92px;height:32px;padding:4px 6px;font-size:12.5px;line-height:1.35;align-self:flex-start}.paragraph-editor .ci-input{flex:1;min-width:0;min-height:32px;height:32px;padding:5px 9px;line-height:20px;resize:none;overflow-y:hidden}.paragraph-editor .aifix-btn{flex:0 0 auto;min-height:32px;height:32px}.paragraph-editor.ai-expanded .ci-input{width:auto}.paragraph-prefix{display:inline-block;white-space:pre}
   .paragraph-drag-summary{display:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:12px;text-transform:none;letter-spacing:0}
   .paragraph-item.drag-compact{padding:4px 7px;gap:0}.paragraph-item.drag-compact>.block>.block-body{padding:5px 7px}.paragraph-item.drag-compact>.block>.block-body .paragraph-editor{padding-left:0!important;align-items:center}.paragraph-item.drag-compact>.block>.block-body .paragraph-style-select,.paragraph-item.drag-compact>.block>.block-body .ci-input,.paragraph-item.drag-compact>.block>.block-body .paragraph-row-actions,.paragraph-item.drag-compact>.block>.block-body .paragraph-aifix{display:none}.paragraph-item.drag-compact>.block>.block-body .paragraph-drag-summary{display:block;flex:1}.paragraph-item.drag-compact>.paragraph-children{display:none}
+  /* Step 3 has three deliberately independent states: reading, one active
+     editor, and the temporary compact sorting scope. */
+  .read-display{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)}
+  .node-title-display{flex:1;min-width:0;font-size:13px;font-weight:650;line-height:1.55}
+  .node-card:not(.is-editing)>.node-title-row .node-title-input,
+  .node-card:not(.is-editing)>.node-title-row .node-title-actions{display:none}
+  .node-card.is-editing>.node-title-row .node-title-display{display:none}
+  .chapter-drag,.paragraph-drag{opacity:.35;transition:opacity .15s}
+  .chapter-drag:hover,.paragraph-drag:hover{opacity:1}
+  .paragraph-read{display:flex;flex:1;min-width:0;gap:5px;padding:5px 2px;line-height:1.65}
+  .paragraph-read-prefix{flex:0 0 auto;white-space:pre}
+  .paragraph-item:not(.is-editing) .paragraph-style-select,
+  .paragraph-item:not(.is-editing) .paragraph-editor>.ci-input,
+  .paragraph-item:not(.is-editing) .paragraph-row-actions,
+  .paragraph-item:not(.is-editing) .paragraph-aifix{display:none}
+  .paragraph-item.is-editing .paragraph-read{display:none}
+  .explanation-item{padding:2px 7px;border:0;border-left:2px solid var(--border);border-radius:3px;background:transparent;box-shadow:none;overflow:visible}
+  .explanation-item .paragraph-editor{padding-left:0!important}
+  .explanation-item .paragraph-read{padding:5px 7px}
+  .explanation-item:not(.is-editing) .paragraph-editor>.ci-input,
+  .explanation-item:not(.is-editing) .paragraph-row-actions,
+  .explanation-item:not(.is-editing) .paragraph-aifix{display:none}
+  .explanation-item.is-editing .paragraph-read{display:none}
+  .block:not(.is-editing)>.block-h{display:none}
+  .block:not(.is-editing) .edit-only{display:none!important}
+  .block.is-editing .read-only{display:none!important}
+  .block:not(.is-editing) .tbl-edit input{border-color:transparent;background:transparent;color:var(--text);pointer-events:none}
+  .block:not(.is-editing) .tbl-colh{padding-right:0}.block:not(.is-editing) .tbl-edit th:last-child,.block:not(.is-editing) .tbl-edit td:last-child{display:none}
+  .block:not(.is-editing) .coldel,.block:not(.is-editing) .tbl-rowdel,.block:not(.is-editing) .tbl-actions,.block:not(.is-editing) .tbl-paste{display:none}
+  .block-read-caption{font-size:12px;font-weight:650;margin:0 0 8px;color:var(--text)}
+  .block:not(.is-editing) .tbl-cap,.block:not(.is-editing) .fig-box>input,.block:not(.is-editing) .fig-remove,.block:not(.is-editing) .fig-drop{display:none}
+  .block:not(.is-editing) .ph-box input,.block:not(.is-editing) .ph-box button,.block:not(.is-editing) .ph-note{display:none}
+  .block.is-editing .block-read-caption{display:none}
+  .chapter-sort-scope>.node-card.drag-compact>.node-title-row .node-title-display{display:none}
+  .new-item-highlight{animation:newItemPulse 1.15s ease-out 1}
+  @keyframes newItemPulse{0%,100%{box-shadow:0 0 0 0 transparent}25%,70%{box-shadow:0 0 0 3px rgba(76,155,219,.42);border-color:var(--accent)}}
+  .confirm-dialog{max-width:430px;width:calc(100% - 32px);padding:0;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  .confirm-dialog::backdrop{background:rgba(0,0,0,.48)}.confirm-dialog-body{padding:20px}.confirm-dialog-message{white-space:pre-wrap;line-height:1.7}.confirm-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.confirm-dialog-actions button{padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer}.confirm-dialog-actions .danger{background:var(--red);border-color:var(--red);color:#fff}
   .ph-box{border:1px dashed var(--border);border-radius:7px;padding:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
   .ph-tag{font-family:monospace;font-size:12px;color:var(--accent);font-weight:700}
   .ph-note{font-size:11px;color:var(--text-faint)}
@@ -23656,6 +23694,9 @@ let phase = PHASE.INPUT;
 let doc = emptyDoc();
 let _previewOpen = false, _previewTimer = null, _previewResizeFrame = null;
 let _activePreviewTarget = {nodeId:null, blockId:null}, _previewSyncTimer = null, _previewHighlightTimer = null;
+let activeEditTarget = null;
+let pendingHighlightTarget = null;
+let _highlightTimer = null;
 let _previewWindow = null, _previewRevision = 0;
 const PREVIEW_CHANNEL_NAME = 'detail-design-preview';
 function createPreviewChannel(){
@@ -23690,7 +23731,7 @@ function pad2(n){ return String(n).padStart(2,'0'); }
 function showToast(msg,isErr){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' err':''); setTimeout(()=>t.classList.remove('show'),3500); }
 function levelName(l){ return l===1?'章':l===2?'節':'小節'; }
 const PARAGRAPH_STYLE_CONFIGS={
-  level_0:{label:'本文',symbol:'',indent:0,numbered:false}, level_1:{label:'（1）',symbol:'',indent:1,numbered:true},
+  level_0:{label:'説明',symbol:'',indent:0,numbered:false}, level_1:{label:'（1）',symbol:'',indent:1,numbered:true},
   level_2:{label:'　・',symbol:'・',indent:2,numbered:false}, level_3:{label:'　　➢',symbol:'➢',indent:3,numbered:false},
   level_4:{label:'　　　①',symbol:'',indent:4,numbered:true}, level_5:{label:'　　　　・',symbol:'・',indent:5,numbered:false},
   level_6:{label:'　　　　　①',symbol:'',indent:6,numbered:true}
@@ -24371,16 +24412,54 @@ function newNode(level){
     display_number: null
   };
 }
+function editTargetKey(target){ return target ? target.kind+':'+target.nodeId+':'+(target.blockId||'') : ''; }
+function activateEditTarget(target,options={}){
+  activeEditTarget=target ? {kind:target.kind,nodeId:target.nodeId,blockId:target.blockId||null} : null;
+  document.querySelectorAll('#sectionsContainer .is-editing').forEach(el=>el.classList.remove('is-editing'));
+  if(!activeEditTarget) return;
+  const selector=activeEditTarget.kind==='node'
+    ? '.node-card[data-nodeid="'+CSS.escape(activeEditTarget.nodeId)+'"]'
+    : '[data-nodeid="'+CSS.escape(activeEditTarget.nodeId)+'"][data-block-id="'+CSS.escape(activeEditTarget.blockId)+'"]';
+  const targetElement=document.querySelector('#sectionsContainer '+selector);
+  if(!targetElement) return;
+  targetElement.classList.add('is-editing');
+  const paragraphItem=targetElement.closest('.paragraph-item'); if(paragraphItem) paragraphItem.classList.add('is-editing');
+  if(options.focus!==false) requestAnimationFrame(()=>{
+    const input=targetElement.querySelector('textarea:not([hidden]), input:not([type="file"]):not([hidden]), select');
+    if(input){ input.focus({preventScroll:true}); if(input.tagName==='TEXTAREA') input.setSelectionRange(input.value.length,input.value.length); }
+  });
+}
+function queueNewItem(target){ activeEditTarget={kind:target.kind,nodeId:target.nodeId,blockId:target.blockId||null}; pendingHighlightTarget={...activeEditTarget}; }
+function applyPendingEditorState(){
+  activateEditTarget(activeEditTarget);
+  if(!pendingHighlightTarget) return;
+  const pending=pendingHighlightTarget; pendingHighlightTarget=null;
+  const selector=pending.kind==='node' ? '.node-card[data-nodeid="'+CSS.escape(pending.nodeId)+'"]' : '[data-nodeid="'+CSS.escape(pending.nodeId)+'"][data-block-id="'+CSS.escape(pending.blockId)+'"]';
+  const el=document.querySelector('#sectionsContainer '+selector); if(!el) return;
+  el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.add('new-item-highlight');
+  clearTimeout(_highlightTimer); _highlightTimer=setTimeout(()=>el.classList.remove('new-item-highlight'),1300);
+}
+function ensureConfirmDialog(){
+  let dialog=document.getElementById('sharedDeleteDialog'); if(dialog) return dialog;
+  dialog=document.createElement('dialog'); dialog.id='sharedDeleteDialog'; dialog.className='confirm-dialog';
+  dialog.innerHTML='<form method="dialog" class="confirm-dialog-body"><div class="confirm-dialog-message"></div><div class="confirm-dialog-actions"><button value="cancel">キャンセル</button><button value="confirm" class="danger">削除</button></div></form>';
+  document.body.appendChild(dialog); return dialog;
+}
+function confirmDeletion(message,onConfirm){
+  const dialog=ensureConfirmDialog(); dialog.querySelector('.confirm-dialog-message').textContent=message;
+  const closed=()=>{ dialog.removeEventListener('close',closed); if(dialog.returnValue==='confirm') onConfirm(); };
+  dialog.addEventListener('close',closed); dialog.returnValue='cancel'; dialog.showModal();
+}
 function afterStructureChange(label='変更'){ normalizeSelectionHierarchy(doc.chapters); renumber(); renderNav(); renderChapterSelector(); renderEditor(); refreshPreview(); pushHistory(label); }
 function addChapterNode(){
-  const added=newNode(1); doc.chapters.push(added); afterStructureChange('章節を追加'); setActivePreviewTarget(added.id,null,true);
+  const added=newNode(1); doc.chapters.push(added); queueNewItem({kind:'node',nodeId:added.id}); afterStructureChange('章節を追加'); setActivePreviewTarget(added.id,null,true);
   showToast('章を追加しました。タイトルを入力してください。');
 }
 function addChildNode(parent){
   parent.selected=true;
   ensureParentsSelected(parent.id);
   const added=newNode(Math.min(parent.level+1,3)); parent.children.push(added);
-  afterStructureChange('章節を追加');
+  queueNewItem({kind:'node',nodeId:added.id}); afterStructureChange('章節を追加');
   setActivePreviewTarget(added.id,null,true);
 }
 function addSiblingNode(node,where){
@@ -24390,7 +24469,7 @@ function addSiblingNode(node,where){
     if(index>=0){ added=newNode(node.level); nodes.splice(index+(where==='after'?1:0),0,added); return true; }
     return nodes.some(parent=>insert(parent.children||[]));
   }
-  if(insert(doc.chapters)){ afterStructureChange('章節を追加'); setActivePreviewTarget(added.id,null,true); }
+  if(insert(doc.chapters)){ queueNewItem({kind:'node',nodeId:added.id}); afterStructureChange('章節を追加'); setActivePreviewTarget(added.id,null,true); }
 }
 function removeNodeById(nodes,id){
   for(let i=0;i<nodes.length;i++){
@@ -24400,11 +24479,10 @@ function removeNodeById(nodes,id){
   return false;
 }
 function deleteNode(n){
-  const hasContent = (n.children&&n.children.length) || (n.blocks&&n.blocks.length);
-  const label = (n.title||'(無題)');
-  if(hasContent && !confirm('「'+label+'」'+(n.children.length?'（子章節を含む）':'')+'を削除しますか？')) return;
-  removeNodeById(doc.chapters,n.id);
-  afterStructureChange('章節を削除');
+  const label=((n.display_number?n.display_number+' ':'')+(n.title||'(無題)')).trim();
+  confirmDeletion('「'+label+'」を削除しますか？\n\n配下の章節、本文、表、図も削除されます。',()=>{
+    removeNodeById(doc.chapters,n.id); activeEditTarget=null; afterStructureChange('章節を削除');
+  });
 }
 
 /* ============================================================
@@ -24559,6 +24637,7 @@ function renderEditor(){
   doc.chapters.filter(n=>n.selected!==false).forEach(n=>root.appendChild(buildNodeCard(n)));
   c.appendChild(root);
   initChapterSortables(root);
+  applyPendingEditorState();
 }
 function buildApplicabilityEditor(n){
   const box = document.createElement('div');
@@ -24614,10 +24693,12 @@ function buildNodeCard(n){
   const drag=document.createElement('button'); drag.type='button'; drag.className='paragraph-drag chapter-drag'; drag.textContent='⋮⋮'; drag.title='ドラッグして並び替え'; drag.setAttribute('aria-label',levelName(n.level)+'をドラッグして並び替え');
   const num=document.createElement('span'); num.className='cnum lv'+n.level; num.textContent=n.display_number;
   const summary=document.createElement('span'); summary.className='chapter-drag-summary'; summary.textContent=n.title||'(無題)';
+  const titleDisplay=document.createElement('span'); titleDisplay.className='node-title-display read-display'; titleDisplay.textContent=n.title||'(無題)';
   const tin=document.createElement('input'); tin.type='text'; tin.className='toi node-title-input'; tin.value=n.title; tin.placeholder='タイトル';
   tin.addEventListener('focus',()=>setActivePreviewTarget(n.id,null,true));
   tin.addEventListener('input',()=>{ n.title=tin.value; renderNav(); debouncePreview(); pushHistoryDebounced('章節タイトルを編集'); });
-  h.appendChild(drag); h.appendChild(num); h.appendChild(summary); h.appendChild(tin);
+  h.appendChild(drag); h.appendChild(num); h.appendChild(summary); h.appendChild(titleDisplay); h.appendChild(tin);
+  h.addEventListener('click',(event)=>{ if(event.target.closest('.chapter-drag')) return; event.stopPropagation(); activateEditTarget({kind:'node',nodeId:n.id}); });
   if(n.point){
     const pb=document.createElement('button'); pb.className='point-btn'; pb.textContent='Point！';
     pb.addEventListener('click',(e)=>showPoint(e,n.point)); h.appendChild(pb);
@@ -24647,18 +24728,19 @@ function initChapterSortables(root){
     if(siblings.length<2) return;
     const parentId=list.dataset.parentNodeId||'';
     const restore=()=>{
-      list.classList.remove('chapter-sort-scope');
-      Array.from(list.children).forEach(el=>el.classList.remove('drag-compact'));
+      document.querySelectorAll('#sectionsContainer .chapter-sort-scope').forEach(el=>el.classList.remove('chapter-sort-scope'));
+      document.querySelectorAll('#sectionsContainer .drag-compact, #sectionsContainer .chapter-sort-ghost, #sectionsContainer .chapter-sort-chosen').forEach(el=>el.classList.remove('drag-compact','chapter-sort-ghost','chapter-sort-chosen'));
     };
     Sortable.create(list,{
       group:{name:'chapter-siblings-'+(parentId||'root'),pull:false,put:false},
       draggable:':scope > .node-card', handle:'.chapter-drag', animation:120,
       ghostClass:'chapter-sort-ghost', chosenClass:'chapter-sort-chosen',
       onStart:()=>{
+        activateEditTarget(null,{focus:false});
         // The root list is the global chapter sorting mode; nested lists scope
         // the compact view to sections/subsections under their current parent.
         list.classList.add('chapter-sort-scope');
-        Array.from(list.children).forEach(el=>{ if(el.classList.contains('node-card')) el.classList.add('drag-compact'); });
+        list.querySelectorAll(':scope > .node-card').forEach(el=>el.classList.add('drag-compact'));
       },
       onEnd:event=>{
         const nodeId=event.item&&event.item.dataset.nodeid;
@@ -24666,10 +24748,18 @@ function initChapterSortables(root){
         syncChapterSiblingOrder(list,parentId);
         setActivePreviewTarget(nodeId,null,true);
       },
-      onUnchoose:restore
+      onUnchoose:restore,
+      onChoose:event=>{ if(!event.item) restore(); }
     });
   });
 }
+function clearAllSortState(){
+  document.querySelectorAll('#sectionsContainer .chapter-sort-scope').forEach(el=>el.classList.remove('chapter-sort-scope'));
+  document.querySelectorAll('#sectionsContainer .drag-compact, #sectionsContainer .chapter-sort-ghost, #sectionsContainer .chapter-sort-chosen, #sectionsContainer .paragraph-sort-ghost, #sectionsContainer .paragraph-sort-chosen').forEach(el=>el.classList.remove('drag-compact','chapter-sort-ghost','chapter-sort-chosen','paragraph-sort-ghost','paragraph-sort-chosen'));
+}
+document.addEventListener('dragend',clearAllSortState);
+document.addEventListener('drop',()=>setTimeout(clearAllSortState,0));
+window.addEventListener('blur',clearAllSortState);
 
 function syncChapterSiblingOrder(list,parentId){
   const siblings=parentId ? ((findNode(parentId)||{}).children||[]) : doc.chapters;
@@ -24689,18 +24779,24 @@ function buildNodeAddMenu(n){
   const outside=e=>{ if(!wrap.contains(e.target)) close(); };
   add.addEventListener('click',()=>{ const opening=menu.hidden; close(); if(opening){ menu.hidden=false; add.setAttribute('aria-expanded','true'); setTimeout(()=>document.addEventListener('click',outside),0); } });
   const levelLabel=n.level===1?'章':n.level===2?'節':'小節';
-  const items=[['上に'+levelLabel+'を追加',()=>addSiblingNode(n,'before')],['下に'+levelLabel+'を追加',()=>addSiblingNode(n,'after')]];
+  const items=[['上に'+levelLabel+'を追加',()=>addSiblingNode(n,'before')],['下に'+levelLabel+'を追加',()=>addSiblingNode(n,'after')],['説明を追加',()=>addExplanationBlock(n)]];
   if(n.level<3) items.push([(n.level===1?'節':'小節')+'を追加',()=>addChildNode(n)]);
-  items.push(['表を追加',()=>addTableBlock(n)],['図を追加',()=>addFigureBlock(n)]);
-  items.forEach(([label,action])=>{ const option=document.createElement('button'); option.type='button'; option.textContent=label; option.addEventListener('click',()=>{ close(); action(); }); menu.appendChild(option); });
+  items.forEach(([label,action])=>{ const option=document.createElement('button'); option.type='button'; option.textContent=label; option.addEventListener('click',event=>{ event.stopPropagation(); close(); action(); }); menu.appendChild(option); });
+  const divider=document.createElement('div'); divider.className='paragraph-add-menu-divider'; divider.setAttribute('role','separator'); menu.appendChild(divider);
+  [['表を追加',()=>addTableBlock(n)],['図を追加',()=>addFigureBlock(n)]].forEach(([label,action])=>{ const option=document.createElement('button'); option.type='button'; option.textContent=label; option.addEventListener('click',event=>{ event.stopPropagation(); close(); action(); }); menu.appendChild(option); });
   wrap.appendChild(add); wrap.appendChild(menu); return wrap;
 }
 function createDeleteButton(title,handler){
   const button=document.createElement('button'); button.type='button'; button.className='paragraph-action paragraph-delete';
   button.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11H8L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" fill="currentColor"/></svg>';
-  button.title=title; button.setAttribute('aria-label',title); button.addEventListener('click',handler); return button;
+  button.title=title; button.setAttribute('aria-label',title); button.addEventListener('click',event=>{ event.stopPropagation(); handler(event); }); return button;
 }
-function addBlock(n,type){ const added=normalizeBlock(type==='paragraph' ? {type:'paragraph', paragraph_style:'level_0', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''}); n.blocks.push(added); afterStructureChange('段落を追加'); setActivePreviewTarget(n.id,added.id,true); }
+function addBlock(n,type){ const added=normalizeBlock(type==='paragraph' ? {type:'paragraph', paragraph_style:'level_1', text:'', revision_instruction:'', revision_history:[]} : {type, text:'', caption:''}); n.blocks.push(added); queueNewItem({kind:'block',nodeId:n.id,blockId:added.id}); afterStructureChange('段落を追加'); setActivePreviewTarget(n.id,added.id,true); }
+function addExplanationBlock(n){
+  const added=normalizeBlock({type:'paragraph',paragraph_style:'level_0',text:'',revision_instruction:'',revision_history:[]});
+  let index=0; while(index<n.blocks.length&&n.blocks[index].type==='paragraph'&&n.blocks[index].paragraph_style==='level_0') index++;
+  n.blocks.splice(index,0,added); queueNewItem({kind:'block',nodeId:n.id,blockId:added.id}); afterStructureChange('説明を追加'); setActivePreviewTarget(n.id,added.id,true);
+}
 function findBlockInsertIndexAfterSubtree(n,current){
   const currentIndex=n.blocks.indexOf(current);
   if(currentIndex<0) return -1;
@@ -24717,24 +24813,31 @@ function insertParagraph(n,current,where){
   const currentIndex=n.blocks.indexOf(current);
   if(currentIndex<0) return;
   const insertIndex=where==='after'?findBlockInsertIndexAfterSubtree(n,current):currentIndex;
-  const added=normalizeBlock({type:'paragraph',paragraph_style:current.paragraph_style||'level_0',text:'',revision_instruction:'',revision_history:[]});
+  const added=normalizeBlock({type:'paragraph',paragraph_style:current.paragraph_style==='level_0'?'level_1':(current.paragraph_style||'level_1'),text:'',revision_instruction:'',revision_history:[]});
   n.blocks.splice(insertIndex,0,added);
-  afterStructureChange('段落を追加');
+  queueNewItem({kind:'block',nodeId:n.id,blockId:added.id}); afterStructureChange('段落を追加');
   setActivePreviewTarget(n.id,added.id,true);
 }
-function addTableBlock(n){ n.blocks.push(normalizeBlock({type:'table', caption:'', headers:['項目','内容','備考'], rows:[['','','']]})); afterStructureChange('表を追加'); }
-function addFigureBlock(n){ n.blocks.push(normalizeBlock({type:'figure', caption:''})); afterStructureChange('画像を追加'); }
+function addTableBlock(n){ const added=normalizeBlock({type:'table', caption:'', headers:['項目','内容','備考'], rows:[['','','']]}); n.blocks.push(added); queueNewItem({kind:'block',nodeId:n.id,blockId:added.id}); afterStructureChange('表を追加'); }
+function addFigureBlock(n){ const added=normalizeBlock({type:'figure', caption:''}); n.blocks.push(added); queueNewItem({kind:'block',nodeId:n.id,blockId:added.id}); afterStructureChange('画像を追加'); }
 function insertBlockAfterParagraph(n,current,block,label){
   const insertIndex=findBlockInsertIndexAfterSubtree(n,current);
   if(insertIndex<0) return;
-  n.blocks.splice(insertIndex,0,normalizeBlock(block));
-  afterStructureChange(label);
+  const added=normalizeBlock(block); n.blocks.splice(insertIndex,0,added);
+  queueNewItem({kind:'block',nodeId:n.id,blockId:added.id}); afterStructureChange(label);
 }
-function delBlock(n,b){ n.blocks=n.blocks.filter(x=>x!==b); afterStructureChange('段落を削除'); setActivePreviewTarget(n.id,null,true); }
+function delBlock(n,b){
+  const noun=b.type==='paragraph'?(b.paragraph_style==='level_0'?'説明':'段落'):(b.type==='table'||b.type==='table_placeholder')?'表':'図';
+  const excerpt=b.type==='paragraph'&&b.text?'\n\n'+String(b.text).replace(/\s+/g,' ').slice(0,70):'';
+  confirmDeletion('この'+noun+'を削除しますか？'+excerpt,()=>{ n.blocks=n.blocks.filter(x=>x!==b); activeEditTarget=null; afterStructureChange(noun+'を削除'); setActivePreviewTarget(n.id,null,true); });
+}
 
 function renderBlockHierarchy(n,root){
   const stack=[];
   n.blocks.forEach(b=>{
+    if(b.type==='paragraph'&&b.paragraph_style==='level_0'){
+      stack.length=0; const explanation=buildBlock(n,b); explanation.classList.add('explanation-item'); root.appendChild(explanation); return;
+    }
     if(b.type!=='paragraph'){
       // Content blocks do not belong to the paragraph hierarchy, but the next
       // paragraph must still be resolved against the hierarchy before them.
@@ -24755,9 +24858,9 @@ function initParagraphSortables(n,root){
   if(typeof Sortable==='undefined') return;
   [root,...root.querySelectorAll('.paragraph-children')].forEach((list,index)=>{
     if(!list.querySelector(':scope > .paragraph-item')) return;
-    const restoreDragView=()=>Array.from(list.children).forEach(el=>el.classList.remove('drag-compact'));
+    const restoreDragView=()=>document.querySelectorAll('#sectionsContainer .paragraph-item.drag-compact, #sectionsContainer .paragraph-sort-ghost, #sectionsContainer .paragraph-sort-chosen').forEach(el=>el.classList.remove('drag-compact','paragraph-sort-ghost','paragraph-sort-chosen'));
     Sortable.create(list,{group:{name:'paragraph-siblings-'+n.id+'-'+index,pull:false,put:false},draggable:'.paragraph-item',handle:'.paragraph-drag',animation:120,ghostClass:'paragraph-sort-ghost',chosenClass:'paragraph-sort-chosen',
-      onStart:()=>Array.from(list.children).forEach(el=>{ if(el.classList.contains('paragraph-item')) el.classList.add('drag-compact'); }),
+      onStart:()=>{ activateEditTarget(null,{focus:false}); list.querySelectorAll(':scope > .paragraph-item').forEach(el=>el.classList.add('drag-compact')); },
       onEnd:(event)=>{ const blockId=event.item&&event.item.dataset.blockId; restoreDragView(); syncBlockOrderFromEditor(n,root); setActivePreviewTarget(n.id,blockId,true); },
       onUnchoose:restoreDragView
     });
@@ -24785,6 +24888,7 @@ function buildBlock(n,b){
   const el=document.createElement('div'); el.className='block';
   el.dataset.blockId=b.id;
   el.dataset.nodeid=n.id;
+  el.addEventListener('click',event=>{ event.stopPropagation(); activateEditTarget({kind:'block',nodeId:n.id,blockId:b.id},{focus:!event.target.matches('input,textarea,select,button')}); });
   const head=document.createElement('div'); head.className='block-h';
   const typeName = b.type==='paragraph'?'段落'
     : b.type==='table'?'表'
@@ -24799,6 +24903,7 @@ function buildBlock(n,b){
   const bb=document.createElement('div'); bb.className='block-body';
 
   if(b.type==='paragraph'){
+    const isExplanation=b.paragraph_style==='level_0';
     b.revision_instruction = b.revision_instruction || '';
     b.revision_history = Array.isArray(b.revision_history) ? b.revision_history : [];
     const row=document.createElement('div'); row.className='paragraph-editor'; row.style.paddingLeft=(getParagraphStyleConfig(b.paragraph_style).indent*12)+'px';
@@ -24806,13 +24911,16 @@ function buildBlock(n,b){
     const summary=document.createElement('span'); summary.className='paragraph-drag-summary';
     summary.textContent=(getParagraphDisplayPrefix(b,n.blocks)+' '+String(b.text||'').split(/\r?\n/)[0]).trim()||'（空の段落）';
     const select=document.createElement('select'); select.className='paragraph-style-select';
-    Object.entries(PARAGRAPH_STYLE_CONFIGS).forEach(([value,cfg])=>{ const option=document.createElement('option'); option.value=value; option.textContent=cfg.label; option.selected=b.paragraph_style===value; if(option.selected&&value!=='level_0') option.textContent=getParagraphDisplayPrefix(b,n.blocks)||cfg.label; select.appendChild(option); });
+    Object.entries(PARAGRAPH_STYLE_CONFIGS).filter(([value])=>value!=='level_0').forEach(([value,cfg])=>{ const option=document.createElement('option'); option.value=value; option.textContent=cfg.label; option.selected=b.paragraph_style===value; if(option.selected) option.textContent=getParagraphDisplayPrefix(b,n.blocks)||cfg.label; select.appendChild(option); });
     select.addEventListener('change',()=>{ b.paragraph_style=select.value; renderEditor(); debouncePreview(); pushHistory('段落タイプを変更'); });
     const ta=document.createElement('textarea'); ta.className='ci-input'; ta.rows=1; ta.value=b.text;
     ta.placeholder='本文（ブロック内改行は同一段落）';
     const resize=()=>{ ta.style.height='32px'; ta.style.height=Math.max(32,ta.scrollHeight)+'px'; };
     ta.addEventListener('input',()=>{ resize(); b.text=ta.value; debouncePreview(); pushHistoryDebounced('段落を編集'); });
     const actions=document.createElement('div'); actions.className='paragraph-row-actions';
+    const read=document.createElement('div'); read.className='paragraph-read read-display';
+    if(!isExplanation){ const prefix=document.createElement('span'); prefix.className='paragraph-read-prefix'; prefix.textContent=getParagraphDisplayPrefix(b,n.blocks); read.appendChild(prefix); }
+    const readText=document.createElement('span'); readText.textContent=b.text|| (isExplanation?'（空の説明）':'（空の段落）'); read.appendChild(readText);
     const addWrap=document.createElement('div'); addWrap.className='paragraph-add-wrap';
     const add=document.createElement('button'); add.type='button'; add.className='paragraph-action'; add.textContent='＋'; add.title='段落を追加'; add.setAttribute('aria-label','段落を追加'); add.setAttribute('aria-expanded','false');
     const menu=document.createElement('div'); menu.className='paragraph-add-menu'; menu.hidden=true;
@@ -24823,9 +24931,9 @@ function buildBlock(n,b){
     const divider=document.createElement('div'); divider.className='paragraph-add-menu-divider'; divider.setAttribute('role','separator'); menu.appendChild(divider);
     [['表を追加',()=>insertBlockAfterParagraph(n,b,{type:'table',caption:'',headers:['項目','内容','備考'],rows:[['','','']]},'表を追加')],['図を追加',()=>insertBlockAfterParagraph(n,b,{type:'figure',caption:''},'画像を追加')]].forEach(([label,action])=>{ const option=document.createElement('button'); option.type='button'; option.textContent=label; option.addEventListener('click',()=>{ closeMenu(); action(); }); menu.appendChild(option); });
     addWrap.appendChild(add); addWrap.appendChild(menu);
-    const del=createDeleteButton('段落を削除',()=>delBlock(n,b));
-    row.appendChild(drag); row.appendChild(summary); row.appendChild(select); row.appendChild(ta);
-    const aiFix=buildParagraphAiFix(n,b,row,actions); actions.appendChild(addWrap); actions.appendChild(del); row.appendChild(actions); bb.appendChild(row); bb.appendChild(aiFix);
+    const del=createDeleteButton(isExplanation?'説明を削除':'段落を削除',()=>delBlock(n,b));
+    if(!isExplanation) row.appendChild(drag); row.appendChild(summary); row.appendChild(read); if(!isExplanation) row.appendChild(select); row.appendChild(ta);
+    const aiFix=buildParagraphAiFix(n,b,row,actions); if(!isExplanation) actions.appendChild(addWrap); actions.appendChild(del); row.appendChild(actions); bb.appendChild(row); bb.appendChild(aiFix);
     requestAnimationFrame(resize);
 
   } else if(b.type==='table'){
@@ -24838,6 +24946,7 @@ function buildBlock(n,b){
     // placeholder (table_placeholder / figure_placeholder) → caption + convert button
     const box=document.createElement('div'); box.className='ph-box';
     box.innerHTML='<span class="ph-tag">【'+esc(b._ref||(b.type==='table_placeholder'?'表 -':'図 -'))+'】</span>';
+    const readCaption=document.createElement('div'); readCaption.className='block-read-caption read-only'; readCaption.textContent=b.caption|| (b.type==='table_placeholder'?'表':'図'); box.appendChild(readCaption);
     const cap=document.createElement('input'); cap.type='text'; cap.value=b.caption; cap.placeholder='キャプション（例：対象機器一覧）';
     cap.addEventListener('input',()=>{ b.caption=cap.value; debouncePreview(); pushHistoryDebounced('変更'); });
     const note=document.createElement('div'); note.className='ph-note';
@@ -24852,6 +24961,7 @@ function buildBlock(n,b){
 
 /* ---- table editor ---- */
 function buildTableEditor(n,b,bb){
+  const readCaption=document.createElement('div'); readCaption.className='block-read-caption read-only'; readCaption.textContent=b.caption||'表'; bb.appendChild(readCaption);
   const cap=document.createElement('input'); cap.type='text'; cap.className='tbl-cap'; cap.value=b.caption;
   cap.placeholder='表タイトル / caption（例：対象機器一覧）';
   cap.addEventListener('input',()=>{ b.caption=cap.value; debouncePreview(); pushHistoryDebounced('変更'); });
@@ -24867,7 +24977,7 @@ function buildTableEditor(n,b,bb){
     const inp=document.createElement('input'); inp.type='text'; inp.value=h; inp.placeholder='列名';
     inp.addEventListener('input',()=>{ b.headers[ci]=inp.value; debouncePreview(); pushHistoryDebounced('変更'); });
     const x=document.createElement('button'); x.className='coldel'; x.textContent='×'; x.title='列を削除';
-    x.addEventListener('click',()=>{ if(b.headers.length<=1){showToast('最低1列必要です。',true);return;} b.headers.splice(ci,1); b.rows.forEach(r=>r.splice(ci,1)); afterStructureChange('表を編集'); });
+    x.addEventListener('click',event=>{ event.stopPropagation(); if(b.headers.length<=1){showToast('最低1列必要です。',true);return;} confirmDeletion('この列を削除しますか？',()=>{ b.headers.splice(ci,1); b.rows.forEach(r=>r.splice(ci,1)); afterStructureChange('表を編集'); }); });
     cell.appendChild(inp); cell.appendChild(x); th.appendChild(cell); htr.appendChild(th);
   });
   htr.appendChild(document.createElement('th')); // corner for row-delete column
@@ -24884,7 +24994,7 @@ function buildTableEditor(n,b,bb){
     });
     const tdDel=document.createElement('td'); tdDel.className='tbl-rowdel-cell';
     const rdel=document.createElement('button'); rdel.className='tbl-rowdel'; rdel.textContent='✕'; rdel.title='行を削除';
-    rdel.addEventListener('click',()=>{ if(b.rows.length<=1){showToast('最低1行必要です。',true);return;} b.rows.splice(ri,1); afterStructureChange('表を編集'); });
+    rdel.addEventListener('click',event=>{ event.stopPropagation(); if(b.rows.length<=1){showToast('最低1行必要です。',true);return;} confirmDeletion('この行を削除しますか？',()=>{ b.rows.splice(ri,1); afterStructureChange('表を編集'); }); });
     tdDel.appendChild(rdel); tr.appendChild(tdDel); tbody.appendChild(tr);
   });
   table.appendChild(tbody); wrap.appendChild(table); bb.appendChild(wrap);
@@ -24932,6 +25042,7 @@ function parseTabular(text){
 /* ---- figure editor ---- */
 function buildFigureEditor(n,b,bb){
   const box=document.createElement('div'); box.className='fig-box';
+  const readCaption=document.createElement('div'); readCaption.className='block-read-caption read-only'; readCaption.textContent=b.caption||'図'; box.appendChild(readCaption);
   const cap=document.createElement('input'); cap.type='text'; cap.value=b.caption;
   cap.placeholder='画像タイトル / caption（例：システム構成図）';
   cap.addEventListener('input',()=>{ b.caption=cap.value; debouncePreview(); pushHistoryDebounced('変更'); });
@@ -24942,7 +25053,7 @@ function buildFigureEditor(n,b,bb){
     const meta=document.createElement('div'); meta.className='fig-meta';
     const name=document.createElement('span'); name.textContent='📎 '+(b.fileName||'画像')+(b._w?'（'+b._w+'×'+b._h+'）':'');
     const rm=document.createElement('button'); rm.className='fig-remove'; rm.textContent='画像を削除';
-    rm.addEventListener('click',()=>{ b.imageData=''; b.fileName=''; b._w=0; b._h=0; afterStructureChange('画像を削除'); });
+    rm.addEventListener('click',event=>{ event.stopPropagation(); confirmDeletion('この画像を削除しますか？',()=>{ b.imageData=''; b.fileName=''; b._w=0; b._h=0; afterStructureChange('画像を削除'); }); });
     meta.appendChild(name); meta.appendChild(rm); box.appendChild(meta);
   } else {
     const drop=document.createElement('div'); drop.className='fig-drop';
@@ -25026,6 +25137,16 @@ function showPoint(e,text){
 }
 function closePoint(){ if(_pointEl){ _pointEl.remove(); _pointEl=null; } }
 document.addEventListener('click',(e)=>{ if(_pointEl && !_pointEl.contains(e.target) && !e.target.classList.contains('point-btn')) closePoint(); });
+document.addEventListener('click',event=>{
+  if(!activeEditTarget) return;
+  if(event.target.closest('#sectionsContainer .node-title-row, #sectionsContainer [data-block-id], .paragraph-add-menu, .confirm-dialog')) return;
+  activateEditTarget(null,{focus:false});
+});
+document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape'||!activeEditTarget) return;
+  const dialog=document.getElementById('sharedDeleteDialog'); if(dialog&&dialog.open) return;
+  activateEditTarget(null,{focus:false});
+});
 
 /* ============================================================
    STAGE ② — GENERATE (本文生成) + 単節修正
