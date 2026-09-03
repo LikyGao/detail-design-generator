@@ -30,16 +30,19 @@ def _run_node(source: str):
     return json.loads(result.stdout)
 
 
-def test_paragraph_edit_css_is_scoped_to_direct_children():
+def test_paragraph_edit_css_matches_real_dom_and_is_scoped_to_current_item():
     required = [
         ".paragraph-item:not(.is-editing)>.block>.block-body>.paragraph-editor>.paragraph-style-select",
         ".paragraph-item:not(.is-editing)>.block>.block-body>.paragraph-editor>.ci-input",
-        ".paragraph-item.is-editing>.block>.block-body>.paragraph-read",
+        ".paragraph-item.is-editing>.block>.block-body>.paragraph-editor>.paragraph-read",
     ]
     for selector in required:
         assert selector in HTML
     assert ".paragraph-item:not(.is-editing) .paragraph-style-select" not in HTML
     assert ".paragraph-item.is-editing .paragraph-read" not in HTML
+    # buildBlock appends read view inside paragraph-editor, not block-body.
+    assert "row.appendChild(summary); row.appendChild(read);" in HTML
+    assert "bb.appendChild(row); bb.appendChild(aiFix)" in HTML
 
 
 def test_activate_edit_target_selects_actual_block_and_only_its_direct_wrapper():
@@ -85,7 +88,7 @@ console.log(JSON.stringify(snapshots));
         assert [key for key, value in snapshot["blocks"].items() if value] == [chosen]
 
 
-def test_document_numbering_continues_level_one_per_top_chapter_and_restarts_groups():
+def test_document_numbering_restarts_level_one_for_every_node_and_hierarchy():
     names = [
         "getParagraphNativeIlvl", "getParagraphStyleConfig", "paragraphNumberStart",
         "calculateParagraphNumbering", "calculateDocumentParagraphNumbering",
@@ -104,7 +107,7 @@ const p=(id,style,extra={{}})=>Object.assign({{id,type:'paragraph',paragraph_sty
 const chapters=[
  {{id:'chapter-6',blocks:[p('a1','level_1'),p('a2','level_1')],children:[
    {{id:'6-1',blocks:[p('a3','level_1')],children:[{{id:'6-1-1',blocks:[p('a4','level_1')],children:[]}}]}},
-   {{id:'6-3',blocks:[p('ga1','level_4',{{list_group_id:'group-A',num_id:'shared'}}),p('ga2','level_4',{{list_group_id:'group-A',num_id:'shared'}}),p('separator','level_2'),p('gb1','level_4',{{list_group_id:'group-B',num_id:'shared'}}),p('gb2','level_4',{{list_group_id:'group-B',num_id:'shared'}})],children:[]}}
+   {{id:'6-3',blocks:[p('parent-a','level_2'),p('ga1','level_4',{{list_group_id:'same',num_id:'shared'}}),p('ga2','level_4',{{list_group_id:'same',num_id:'shared'}}),p('parent-b','level_2'),p('parent-c','level_2'),p('parent-d','level_2'),p('gb1','level_4',{{list_group_id:'same',num_id:'shared'}}),p('gb2','level_4',{{list_group_id:'same',num_id:'shared'}}),p('gb3','level_4',{{list_group_id:'same',num_id:'shared'}})],children:[]}}
  ]}},
  {{id:'chapter-7',blocks:[p('b1','level_1')],children:[]}}
 ];
@@ -112,6 +115,6 @@ const result=calculateDocumentParagraphNumbering(chapters);
 console.log(JSON.stringify(Object.fromEntries(result)));
 """
     prefixes = _run_node(source)
-    assert [prefixes[key] for key in ("a1", "a2", "a3", "a4")] == ["（1）", "（2）", "（3）", "（4）"]
+    assert [prefixes[key] for key in ("a1", "a2", "a3", "a4")] == ["（1）", "（2）", "（1）", "（1）"]
     assert prefixes["b1"] == "（1）"
-    assert [prefixes[key] for key in ("ga1", "ga2", "gb1", "gb2")] == ["①", "②", "①", "②"]
+    assert [prefixes[key] for key in ("ga1", "ga2", "gb1", "gb2", "gb3")] == ["①", "②", "①", "②", "③"]

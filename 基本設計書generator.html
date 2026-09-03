@@ -188,7 +188,7 @@
   .paragraph-item:not(.is-editing)>.block>.block-body>.paragraph-editor>.ci-input,
   .paragraph-item:not(.is-editing)>.block>.block-body>.paragraph-editor>.paragraph-row-actions,
   .paragraph-item:not(.is-editing)>.block>.block-body>.paragraph-aifix{display:none}
-  .paragraph-item.is-editing>.block>.block-body>.paragraph-read{display:none}
+  .paragraph-item.is-editing>.block>.block-body>.paragraph-editor>.paragraph-read{display:none}
   .explanation-item{padding:2px 7px;border:0;border-left:2px solid var(--border);border-radius:3px;background:transparent;box-shadow:none;overflow:visible}
   .explanation-item .paragraph-editor{padding-left:0!important}
   .explanation-item .paragraph-read{padding:5px 7px}
@@ -23748,15 +23748,20 @@ function paragraphNumberStart(block){
 }
 function calculateParagraphNumbering(blocks,options={}){
   const prefixes=options.prefixes||new Map(), counters=options.counters||new Map();
-  const stack=[], fallbackRuns=new Map();
+  const stack=[], fallbackRuns=new Map(), counterKeysByLevel=new Map();
   (blocks||[]).forEach((b,index)=>{
     if(b.type!=='paragraph') return;
     const style=PARAGRAPH_STYLE_CONFIGS[b.paragraph_style]?b.paragraph_style:'level_0', cfg=getParagraphStyleConfig(style), level=getParagraphNativeIlvl(b)??-1;
+    // Word restarts a child list after any shallower hierarchy level is seen.
+    // Forget every deeper counter even when num_id/list_group_id is unchanged.
+    for(const [counterLevel,keys] of counterKeysByLevel){
+      if(counterLevel>level){ keys.forEach(key=>counters.delete(key)); counterKeysByLevel.delete(counterLevel); }
+    }
     while(stack.length&&stack[stack.length-1].level>=level) stack.pop();
     const parent=stack.length?stack[stack.length-1].block:null;
     let counterKey='';
     if(cfg.numbered){
-      if(style==='level_1'&&options.level1Scope) counterKey='level-1:'+options.level1Scope;
+      if(style==='level_1') counterKey='level-1:'+String(options.fallbackScope||'local');
       else if(b.list_group_id) counterKey='group:'+String(b.list_group_id)+':'+level;
       else if(b.num_id!=null&&String(b.num_id)!=='') counterKey='num:'+String(b.num_id)+':'+level;
       else {
@@ -23767,6 +23772,8 @@ function calculateParagraphNumbering(blocks,options={}){
       }
       const previous=counters.get(counterKey);
       counters.set(counterKey,previous==null?paragraphNumberStart(b):previous+1);
+      if(!counterKeysByLevel.has(level)) counterKeysByLevel.set(level,new Set());
+      counterKeysByLevel.get(level).add(counterKey);
     }
     let prefix=cfg.symbol, number=counterKey?counters.get(counterKey):0;
     if(style==='level_1') prefix='（'+number+'）';
@@ -23779,11 +23786,11 @@ function calculateParagraphNumbering(blocks,options={}){
 }
 function calculateDocumentParagraphNumbering(chapters){
   const prefixes=new Map();
-  (chapters||[]).forEach((top,topIndex)=>{
-    const counters=new Map(), level1Scope=String(top&&top.id||topIndex);
+  (chapters||[]).forEach(top=>{
     const visit=node=>{
       if(!node||node.selected===false) return;
-      calculateParagraphNumbering(node.blocks,{prefixes,counters,level1Scope,fallbackScope:String(node.id||'')});
+      // Every chapter/section node is an independent Word list scope.
+      calculateParagraphNumbering(node.blocks,{prefixes,counters:new Map(),fallbackScope:String(node.id||'')});
       (node.children||[]).forEach(visit);
     };
     visit(top);
