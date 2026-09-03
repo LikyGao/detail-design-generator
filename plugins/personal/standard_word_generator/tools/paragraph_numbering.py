@@ -3,12 +3,17 @@ from __future__ import annotations
 
 def calculate_paragraph_prefix(paragraph_style: str, counters: dict,
                                list_group_id: str | None = None,
-                               marker_type: str | None = None) -> str:
+                               marker_type: str | None = None,
+                               numbering_start: int | None = None) -> str:
     """Return the next marker, scoped to its explicit numbering group."""
     level = int(paragraph_style.rsplit("_", 1)[1])
     key = (str(list_group_id), level) if list_group_id else level
     if level in (1, 4, 6):
-        counters[key] = counters.get(key, 0) + 1
+        try:
+            initial = max(1, int(numbering_start)) - 1
+        except (TypeError, ValueError):
+            initial = 0
+        counters[key] = counters.get(key, initial) + 1
         if not list_group_id:
             for deeper in tuple(k for k in counters if isinstance(k, int) and k > level):
                 counters.pop(deeper, None)

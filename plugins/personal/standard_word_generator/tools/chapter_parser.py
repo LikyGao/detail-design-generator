@@ -63,72 +63,179 @@ def _first_child(element, tag: str):
     return element.find(qn(tag))
 
 
-def _numbering_values(paragraph) -> tuple[str, int] | None:
-    """Return (numId, ilvl) from direct or paragraph-style numbering properties."""
-    num_pr = None
-    p_pr = paragraph._p.pPr
-    if p_pr is not None:
-        num_pr = p_pr.numPr
+def _style_chain(paragraph) -> list[Any]:
+    """Return the paragraph style and all its basedOn ancestors, without looping."""
+    styles: list[Any] = []
+    style = paragraph.style
+    seen: set[str] = set()
+    while style is not None:
+        style_id = str(style.style_id or "")
+        if style_id in seen:
+            break
+        seen.add(style_id)
+        styles.append(style)
+        style = style.base_style
+    return styles
 
-    if num_pr is None and paragraph.style is not None:
-        style_p_pr = paragraph.style.element.pPr
-        if style_p_pr is not None:
-            num_pr = style_p_pr.numPr
 
-    if num_pr is None:
-        return None
+def _numbering_roots(document) -> tuple[Any, dict[str, Any], dict[str, Any]]:
+    part = getattr(document, "part", document)
+    root = part.numbering_part.element
+    nums = {str(n.get(qn("w:numId")) or ""): n for n in root.findall(qn("w:num"))}
+    abstracts = {
+        str(a.get(qn("w:abstractNumId")) or ""): a
+        for a in root.findall(qn("w:abstractNum"))
+    }
+    return root, nums, abstracts
 
-    num_id_el = _first_child(num_pr, "w:numId")
-    if num_id_el is None:
-        return None
-    num_id = str(num_id_el.get(qn("w:val")) or "").strip()
-    if not num_id:
-        return None
 
-    ilvl_el = _first_child(num_pr, "w:ilvl")
+def _abstract_for_num(document, num_id: str) -> tuple[Any | None, Any | None, str]:
     try:
-        ilvl = int(ilvl_el.get(qn("w:val"))) if ilvl_el is not None else 0
+        _, nums, abstracts = _numbering_roots(document)
+        num = nums.get(str(num_id))
+        abstract_ref = _first_child(num, "w:abstractNumId")
+        abstract_id = str(abstract_ref.get(qn("w:val")) or "") if abstract_ref is not None else ""
+        return num, abstracts.get(abstract_id), abstract_id
+    except (AttributeError, KeyError):
+        return None, None, ""
+
+
+def _level_for(abstract: Any, ilvl: int, num: Any | None = None) -> Any | None:
+    """Resolve a level, including a complete lvl supplied by lvlOverride."""
+    if num is not None:
+        override = next((item for item in num.findall(qn("w:lvlOverride"))
+                         if item.get(qn("w:ilvl"), "0") == str(ilvl)), None)
+        override_level = _first_child(override, "w:lvl")
+        if override_level is not None:
+            return override_level
+    if abstract is None:
+        return None
+    return next((item for item in abstract.findall(qn("w:lvl"))
+                 if item.get(qn("w:ilvl"), "0") == str(ilvl)), None)
+
+
+def _num_pr_values(num_pr) -> tuple[str, int | None]:
+    """Read values from one numPr without inventing a missing ilvl."""
+    if num_pr is None:
+        return "", None
+    num_id_el = _first_child(num_pr, "w:numId")
+    ilvl_el = _first_child(num_pr, "w:ilvl")
+    num_id = str(num_id_el.get(qn("w:val")) or "").strip() if num_id_el is not None else ""
+    try:
+        ilvl = int(ilvl_el.get(qn("w:val"))) if ilvl_el is not None else None
     except (TypeError, ValueError):
-        ilvl = 0
-    return num_id, max(0, ilvl)
+        ilvl = None
+    return num_id, max(0, ilvl) if ilvl is not None else None
 
 
-def _resolve_numbering_format(document, num_id: str, ilvl: int) -> tuple[str, str]:
+def _style_numbering_level(document, style_id: str,
+                           preferred_num_id: str = "") -> tuple[str, int] | None:
+    """Find the level whose pStyle exactly matches one style.
+
+    The caller invokes this once per style in inheritance order.  Deliberately
+    accepting only one style id prevents an ancestor level encountered earlier
+    in numbering.xml from overriding the concrete paragraph style.
+    """
+    if not style_id:
+        return None
+    try:
+        _, nums, abstracts = _numbering_roots(document)
+    except (AttributeError, KeyError):
+        return None
+    candidate_ids = ([preferred_num_id] if preferred_num_id in nums else [])
+    candidate_ids.extend(num_id for num_id in nums if num_id not in candidate_ids)
+    for num_id in candidate_ids:
+        num = nums[num_id]
+        abstract_ref = _first_child(num, "w:abstractNumId")
+        abstract_id = str(abstract_ref.get(qn("w:val")) or "") if abstract_ref is not None else ""
+        abstract = abstracts.get(abstract_id)
+        if abstract is None:
+            continue
+        for level in abstract.findall(qn("w:lvl")):
+            p_style = _first_child(level, "w:pStyle")
+            if p_style is not None and str(p_style.get(qn("w:val")) or "") == style_id:
+                try:
+                    return num_id, max(0, int(level.get(qn("w:ilvl"), "0")))
+                except (TypeError, ValueError):
+                    return num_id, 0
+    return None
+
+
+def _numbering_values(paragraph, document=None) -> tuple[str, int] | None:
+    """Resolve numId/ilvl through direct properties, basedOn, and level pStyle.
+
+    An omitted ilvl is not necessarily level zero: real templates commonly put the
+    level on the abstract numbering level's pStyle and inherit that style.
+    """
+    document = document or paragraph.part
+    direct_num_pr = paragraph._p.pPr.numPr if paragraph._p.pPr is not None else None
+    chain = _style_chain(paragraph)
+    direct_num_id, direct_ilvl = _num_pr_values(direct_num_pr)
+    if direct_num_id and direct_ilvl is not None:
+        return direct_num_id, direct_ilvl
+
+    # The concrete style always gets a chance to match pStyle before any
+    # numbering inherited through basedOn.
+    if chain:
+        own_match = _style_numbering_level(
+            document, str(chain[0].style_id or ""), direct_num_id
+        )
+        if own_match is not None:
+            return own_match
+        own_p_pr = chain[0].element.pPr
+        own_num_id, own_ilvl = _num_pr_values(
+            own_p_pr.numPr if own_p_pr is not None else None
+        )
+        if own_num_id:
+            if own_ilvl is not None:
+                return own_num_id, own_ilvl
+            own_match = _style_numbering_level(
+                document, str(chain[0].style_id or ""), own_num_id
+            )
+            if own_match is not None:
+                return own_match
+            return own_num_id, 0
+
+    # Only now fall back from the nearest basedOn parent to the farthest.
+    for style in chain[1:]:
+        parent_p_pr = style.element.pPr
+        parent_num_id, parent_ilvl = _num_pr_values(
+            parent_p_pr.numPr if parent_p_pr is not None else None
+        )
+        parent_match = _style_numbering_level(
+            document, str(style.style_id or ""), parent_num_id or direct_num_id
+        )
+        if parent_match is not None:
+            return parent_match
+        if parent_num_id:
+            return parent_num_id, parent_ilvl if parent_ilvl is not None else 0
+    return (direct_num_id, 0) if direct_num_id else None
+
+
+def _resolve_numbering_format(document, num_id: str, ilvl: int) -> tuple[str, str, str, str]:
     """Resolve Word numbering format and level text when numbering.xml is available."""
     try:
-        numbering_root = document.part.numbering_part.element
+        document.part.numbering_part.element
     except Exception:
-        return "", ""
+        return "", "", "", ""
 
-    abstract_id = ""
-    for num in numbering_root.findall(qn("w:num")):
-        if str(num.get(qn("w:numId")) or "") != str(num_id):
-            continue
-        abstract_id_el = _first_child(num, "w:abstractNumId")
-        if abstract_id_el is not None:
-            abstract_id = str(abstract_id_el.get(qn("w:val")) or "")
-        break
-    if not abstract_id:
-        return "", ""
-
-    for abstract in numbering_root.findall(qn("w:abstractNum")):
-        if str(abstract.get(qn("w:abstractNumId")) or "") != abstract_id:
-            continue
-        selected_level = None
-        for level_el in abstract.findall(qn("w:lvl")):
-            if str(level_el.get(qn("w:ilvl")) or "0") == str(ilvl):
-                selected_level = level_el
-                break
-        if selected_level is None:
-            return "", ""
+    num, abstract, _ = _abstract_for_num(document, num_id)
+    selected_level = _level_for(abstract, ilvl, num)
+    if selected_level is not None:
         num_fmt_el = _first_child(selected_level, "w:numFmt")
         level_text_el = _first_child(selected_level, "w:lvlText")
+        p_style_el = _first_child(selected_level, "w:pStyle")
+        fonts_el = _first_child(_first_child(selected_level, "w:rPr"), "w:rFonts")
         num_fmt = str(num_fmt_el.get(qn("w:val")) or "") if num_fmt_el is not None else ""
         level_text = (
             str(level_text_el.get(qn("w:val")) or "") if level_text_el is not None else ""
         )
-        return num_fmt, level_text
-    return "", ""
+        p_style = str(p_style_el.get(qn("w:val")) or "") if p_style_el is not None else ""
+        symbol_font = ""
+        if fonts_el is not None:
+            symbol_font = str(fonts_el.get(qn("w:ascii")) or fonts_el.get(qn("w:hAnsi")) or "")
+        return num_fmt, level_text, p_style, symbol_font
+    return "", "", "", ""
 
 
 def _resolve_numbering_indent(document, num_id: str, ilvl: int) -> tuple[int | None, int | None, int | None]:
@@ -153,8 +260,7 @@ def _resolve_numbering_indent(document, num_id: str, ilvl: int) -> tuple[int | N
 def _paragraph_indent_twips(paragraph) -> tuple[int | None, int | None, int | None]:
     """Return effective left/first-line/hanging indents as raw Word twips."""
     sources = [paragraph._p.pPr]
-    if paragraph.style is not None:
-        sources.append(paragraph.style.element.pPr)
+    sources.extend(style.element.pPr for style in _style_chain(paragraph))
     result: list[int | None] = [None, None, None]
     for p_pr in sources:
         ind = _first_child(p_pr, "w:ind")
@@ -214,7 +320,8 @@ def _literal_marker(text: str) -> tuple[str, str]:
 
 
 def _paragraph_style(number_format: str, level_text: str, list_level: int | None,
-                     left_indent_twips: int | None, style_name: str) -> str:
+                     left_indent_twips: int | None, style_name: str,
+                     symbol_font: str = "", marker_type: str = "") -> str:
     """Map native Word list semantics to the seven editor paragraph levels."""
     fmt = str(number_format or "").lower()
     marker = str(level_text or "").strip()
@@ -222,19 +329,22 @@ def _paragraph_style(number_format: str, level_text: str, list_level: int | None
     depth = list_level if isinstance(list_level, int) else None
 
     is_dot = "・" in marker or "bullet" in fmt or "bullet" in style_lower or "箇条" in style_name
-    is_arrow = "➢" in marker or "arrow" in style_lower
+    is_arrow = "➢" in marker or "arrow" in style_lower or "wingdings" in symbol_font.lower()
     is_circle = "①" in marker or "②" in marker or "circle" in fmt or "囲み" in style_name
     indent = max(0, left_indent_twips or 0)
-    if is_arrow:
+    marker_kind = str(marker_type or "").lower()
+    if marker_kind == "arrow" or is_arrow:
         return "level_3"
-    if is_circle:
+    if marker_kind == "circle" or is_circle:
         return "level_6" if (depth is not None and depth >= 5) or indent >= 2400 else "level_4"
-    if is_dot:
+    if marker_kind == "bullet" or is_dot:
         return "level_5" if (depth is not None and depth >= 4) or indent >= 1920 else "level_2"
-    # Multi-level definitions occasionally express every marker as a decimal
-    # placeholder; in that case ilvl remains the authoritative hierarchy signal.
-    if depth is not None and depth > 0:
-        return f"level_{min(depth + 1, 6)}"
+    if marker_kind == "decimal" or fmt in {"decimal", "decimalzero"}:
+        return "level_1"
+    # ilvl is a final structural fallback, not a direct editor-level index.
+    if depth is not None:
+        return {0: "level_1", 1: "level_2", 2: "level_4", 3: "level_3",
+                4: "level_5", 5: "level_6"}.get(depth, "level_6")
     if fmt and fmt != "none":
         return "level_1"
     return "level_0"
@@ -242,15 +352,19 @@ def _paragraph_style(number_format: str, level_text: str, list_level: int | None
 
 def _paragraph_structure(document, paragraph, text: str = "") -> dict[str, Any]:
     style_name = paragraph.style.name if paragraph.style is not None else ""
-    numbering = _numbering_values(paragraph)
+    numbering = _numbering_values(paragraph, document)
     num_id = ""
     list_level: int | None = None
     number_format = ""
     level_text = ""
+    numbering_p_style = ""
+    symbol_font = ""
 
     if numbering is not None:
         num_id, list_level = numbering
-        number_format, level_text = _resolve_numbering_format(document, num_id, list_level)
+        number_format, level_text, numbering_p_style, symbol_font = _resolve_numbering_format(
+            document, num_id, list_level
+        )
 
     style_lower = style_name.lower()
     if numbering is not None:
@@ -270,34 +384,48 @@ def _paragraph_structure(document, paragraph, text: str = "") -> dict[str, Any]:
         left_indent = left_indent if left_indent is not None else native_indents[0]
         first_line_indent = first_line_indent if first_line_indent is not None else native_indents[1]
         hanging_indent = hanging_indent if hanging_indent is not None else native_indents[2]
-    original_marker, marker_type = _literal_marker(text)
-    if not marker_type:
-        marker_type = ("bullet" if number_format == "bullet" and "・" in level_text else
-                       "arrow" if "➢" in level_text or "" in level_text else
-                       "circle" if "circle" in number_format.lower() else "")
+    literal_marker, literal_marker_type = _literal_marker(text)
+    native_marker_type = (
+        "arrow" if "wingdings" in symbol_font.lower() or "➢" in level_text or "" in level_text else
+        "circle" if "decimalenclosedcircle" in number_format.lower() or "circle" in number_format.lower() else
+        "bullet" if number_format.lower() == "bullet" else
+        "decimal" if number_format.lower() in {"decimal", "decimalzero"} else ""
+    )
+    marker_type = native_marker_type if numbering is not None else literal_marker_type
+    original_marker = level_text if numbering is not None else literal_marker
     if marker_type in {"bullet", "arrow"}:
         kind = "bullet"
     elif marker_type == "circle":
         kind = "numbered"
     paragraph_style = _paragraph_style(
-        number_format, level_text, list_level, left_indent, style_name
+        number_format, level_text, list_level, left_indent, style_name, symbol_font, marker_type
     )
-    if marker_type == "bullet":
+    # Literal markers are only a fallback when no native numbering semantics exist.
+    if numbering is None and marker_type == "bullet":
         paragraph_style = "level_5" if (list_level or 0) >= 4 or (left_indent or 0) >= 700 else "level_2"
-    elif marker_type == "arrow":
+    elif numbering is None and marker_type == "arrow":
         paragraph_style = "level_3"
-    elif marker_type == "circle":
+    elif numbering is None and marker_type == "circle":
         paragraph_style = "level_6" if (list_level or 0) >= 5 or (left_indent or 0) >= 700 else "level_4"
     metadata = (_numbering_metadata(document, num_id, list_level or 0) if numbering else
                 {"abstract_num_id": "", "numbering_start": None,
                  "start_override": None, "level_restart": None})
     return {
         "style": style_name,
+        "word_style_id": str(paragraph.style.style_id or "") if paragraph.style is not None else "",
+        "word_style_name": style_name,
+        "word_style_based_on_id": (
+            str(paragraph.style.base_style.style_id or "")
+            if paragraph.style is not None and paragraph.style.base_style is not None else ""
+        ),
         "kind": kind,
         "list_level": list_level,
+        "native_ilvl": list_level,
         "num_id": num_id,
         "number_format": number_format,
         "level_text": level_text,
+        "numbering_p_style": numbering_p_style,
+        "symbol_font": symbol_font,
         "original_marker": original_marker or level_text,
         "marker_type": marker_type,
         **metadata,

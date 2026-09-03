@@ -39,6 +39,101 @@ class ParagraphNumberingTest(unittest.TestCase):
             ["①", "②", "①", "②", "③"],
         )
 
+    def test_explicit_group_honors_numbering_start(self):
+        counters = {}
+        self.assertEqual(
+            [calculate_paragraph_prefix("level_4", counters, "restart", "circle", 3)
+             for _ in range(2)],
+            ["③", "④"],
+        )
+
+    def test_native_six_level_numbering_and_style_inheritance(self):
+        if importlib.util.find_spec("docx") is None:
+            self.skipTest("python-docx is not installed")
+        from docx import Document
+        from docx.enum.style import WD_STYLE_TYPE
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+        from tools.chapter_parser import _paragraph_structure
+
+        document = Document()
+        root = document.part.numbering_part.element
+        abstract = OxmlElement("w:abstractNum")
+        abstract.set(qn("w:abstractNumId"), "42")
+        formats = ["decimal", "bullet", "decimalEnclosedCircle", "bullet",
+                   "bullet", "decimalEnclosedCircle"]
+        markers = ["(%1)", "・", "%3", "\uf0d8", "・", "%6"]
+        style_ids = []
+        for ilvl, (number_format, marker) in enumerate(zip(formats, markers)):
+            style = document.styles.add_style(f"Native level {ilvl}", WD_STYLE_TYPE.PARAGRAPH)
+            if style_ids:
+                style.base_style = document.styles[style_ids[-1]]
+            style_ids.append(style.style_id)
+            level = OxmlElement("w:lvl")
+            level.set(qn("w:ilvl"), str(ilvl))
+            for tag, value in (("w:start", "1"), ("w:numFmt", number_format),
+                               ("w:lvlText", marker), ("w:pStyle", style.style_id)):
+                child = OxmlElement(tag)
+                child.set(qn("w:val"), value)
+                level.append(child)
+            p_pr = OxmlElement("w:pPr")
+            ind = OxmlElement("w:ind")
+            ind.set(qn("w:left"), str(240 * (ilvl + 1)))
+            ind.set(qn("w:hanging"), "120")
+            p_pr.append(ind)
+            level.append(p_pr)
+            if ilvl == 3:
+                r_pr = OxmlElement("w:rPr")
+                fonts = OxmlElement("w:rFonts")
+                fonts.set(qn("w:ascii"), "Wingdings")
+                fonts.set(qn("w:hAnsi"), "Wingdings")
+                r_pr.append(fonts)
+                level.append(r_pr)
+            abstract.append(level)
+        root.append(abstract)
+        num = OxmlElement("w:num")
+        num.set(qn("w:numId"), "42")
+        abstract_ref = OxmlElement("w:abstractNumId")
+        abstract_ref.set(qn("w:val"), "42")
+        num.append(abstract_ref)
+        root.append(num)
+
+        structures = []
+        for ilvl, style_id in enumerate(style_ids):
+            paragraph = document.add_paragraph(
+                f"body {ilvl}", style=document.styles[style_id]
+            )
+            structures.append(_paragraph_structure(document, paragraph, paragraph.text))
+
+        self.assertEqual([item["list_level"] for item in structures], list(range(6)))
+        self.assertEqual([item["paragraph_style"] for item in structures],
+                         ["level_1", "level_2", "level_4", "level_3", "level_5", "level_6"])
+        self.assertEqual([item["number_format"] for item in structures], formats)
+        self.assertEqual(structures[3]["symbol_font"], "Wingdings")
+        self.assertEqual(structures[3]["marker_type"], "arrow")
+        self.assertEqual(structures[1]["paragraph_style"], "level_2")
+        self.assertEqual(structures[4]["paragraph_style"], "level_5")
+        self.assertNotEqual(structures[1]["paragraph_style"], structures[4]["paragraph_style"])
+        self.assertEqual(structures[0]["left_indent_twips"], 240)
+        self.assertEqual(structures[5]["hanging_indent_twips"], 120)
+        self.assertEqual(structures[2]["word_style_id"], style_ids[2])
+        self.assertEqual(structures[2]["word_style_based_on_id"], style_ids[1])
+        self.assertEqual(structures[2]["native_ilvl"], 2)
+        self.assertEqual(structures[2]["numbering_p_style"], style_ids[2])
+
+        inherited = document.styles.add_style("Inherited only", WD_STYLE_TYPE.PARAGRAPH)
+        inherited.base_style = document.styles[style_ids[4]]
+        inherited_paragraph = document.add_paragraph("inherited", style=inherited)
+        inherited_structure = _paragraph_structure(
+            document, inherited_paragraph, inherited_paragraph.text
+        )
+        self.assertEqual(inherited_structure["native_ilvl"], 4)
+        self.assertEqual(inherited_structure["paragraph_style"], "level_5")
+
+    def test_real_native_level_prefix_order(self):
+        styles = ["level_1", "level_2", "level_4", "level_3", "level_5", "level_6"]
+        self.assertEqual(self.prefixes(styles), ["（1）", "・", "①", "➢", "・", "①"])
+
     def test_group_insert_and_delete_renumber_locally(self):
         counters = {}
         self.assertEqual(

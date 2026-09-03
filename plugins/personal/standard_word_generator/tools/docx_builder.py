@@ -326,6 +326,8 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
         counters,
         str(block.get("list_group_id") or "") or None,
         str(block.get("marker_type") or "") or None,
+        block.get("start_override") if block.get("start_override") is not None
+        else block.get("numbering_start"),
     )
     separator = PARAGRAPH_PREFIX_SEPARATOR if prefix and text else ""
     paragraph.add_run(f"{prefix}{separator}{text}")
