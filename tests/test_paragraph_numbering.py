@@ -405,5 +405,82 @@ class ParagraphNumberingTest(unittest.TestCase):
         self.assertIsNone(_numbering_values(hanging))
 
 
+class NativeCanonicalIndentGenerationTest(unittest.TestCase):
+    def test_native_numbering_materializes_distinct_canonical_indents(self):
+        if importlib.util.find_spec("docx") is None:
+            self.skipTest("python-docx is not installed")
+        from docx import Document
+        from docx.enum.style import WD_STYLE_TYPE
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+        from tools.chapter_parser import _numbering_values
+        from tools.docx_builder import _add_body_paragraph, _collect_paragraph_prototypes
+
+        document = Document()
+        root = document.part.numbering_part.element
+        abstract = OxmlElement("w:abstractNum")
+        abstract.set(qn("w:abstractNumId"), "123")
+        styles = {}
+        canonical = {1: (360, 120), 2: (720, 180), 4: (1320, 240), 5: (1740, 300)}
+        formats = {1: ("bullet", "・"), 2: ("decimalEnclosedCircle", "%3"),
+                   4: ("bullet", "・"), 5: ("decimalEnclosedCircle", "%6")}
+        for ilvl in range(6):
+            style = document.styles.add_style(f"Canonical native {ilvl}", WD_STYLE_TYPE.PARAGRAPH)
+            styles[ilvl] = style
+            level = OxmlElement("w:lvl")
+            level.set(qn("w:ilvl"), str(ilvl))
+            number_format, marker = formats.get(ilvl, ("decimal", f"%{ilvl + 1}"))
+            for tag, value in (("w:start", "1"), ("w:numFmt", number_format),
+                               ("w:lvlText", marker), ("w:pStyle", style.style_id)):
+                child = OxmlElement(tag); child.set(qn("w:val"), value); level.append(child)
+            if ilvl in canonical:
+                left, hanging = canonical[ilvl]
+                p_pr = OxmlElement("w:pPr")
+                indent = OxmlElement("w:ind")
+                indent.set(qn("w:left"), str(left)); indent.set(qn("w:hanging"), str(hanging))
+                p_pr.append(indent); level.append(p_pr)
+            abstract.append(level)
+        root.append(abstract)
+        num = OxmlElement("w:num"); num.set(qn("w:numId"), "123")
+        ref = OxmlElement("w:abstractNumId"); ref.set(qn("w:val"), "123")
+        num.append(ref); root.append(num)
+
+        for ilvl in (1, 2, 4, 5):
+            paragraph = document.add_paragraph(f"prototype {ilvl}", style=styles[ilvl])
+            num_pr = OxmlElement("w:numPr")
+            level = OxmlElement("w:ilvl"); level.set(qn("w:val"), str(ilvl))
+            number = OxmlElement("w:numId"); number.set(qn("w:val"), "123")
+            num_pr.extend((level, number)); paragraph._p.get_or_add_pPr().append(num_pr)
+
+        descriptors = _collect_paragraph_prototypes(document)
+        for paragraph in list(document.paragraphs):
+            paragraph._element.getparent().remove(paragraph._element)
+        blocks = [
+            {"id": "shallow-bullet", "type": "paragraph", "paragraph_style": "level_2", "text": "shallow bullet"},
+            {"id": "deep-bullet", "type": "paragraph", "paragraph_style": "level_5", "text": "deep bullet"},
+            {"id": "shallow-circle", "type": "paragraph", "paragraph_style": "level_4", "text": "shallow circle", "list_group_id": "circle-a"},
+            {"id": "deep-circle", "type": "paragraph", "paragraph_style": "level_6", "text": "deep circle", "list_group_id": "circle-b"},
+        ]
+        for block in blocks:
+            _add_body_paragraph(document, block, descriptors, {}, {})
+
+        generated = document.paragraphs
+        self.assertEqual([p.text for p in generated], [b["text"] for b in blocks])
+        self.assertEqual([_numbering_values(p) for p in generated],
+                         [("123", 1), ("123", 4), ("124", 2), ("125", 5)])
+        self.assertEqual([p.style.name for p in generated],
+                         [styles[i].name for i in (1, 4, 2, 5)])
+        self.assertEqual([p.paragraph_format.left_indent.twips for p in generated],
+                         [canonical[i][0] for i in (1, 4, 2, 5)])
+        self.assertEqual([p.paragraph_format.first_line_indent.twips for p in generated],
+                         [-canonical[i][1] for i in (1, 4, 2, 5)])
+        self.assertGreater(generated[1].paragraph_format.left_indent.twips,
+                           generated[0].paragraph_format.left_indent.twips)
+        self.assertGreater(generated[3].paragraph_format.left_indent.twips,
+                           generated[2].paragraph_format.left_indent.twips)
+        for paragraph in generated:
+            self.assertNotRegex(paragraph.text, r"^(?:・|[①-⑳]|➢|（\\d+）)")
+
+
 if __name__ == "__main__":
     unittest.main()
