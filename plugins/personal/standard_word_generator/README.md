@@ -1,4 +1,4 @@
-# Standard Word Generator v0.0.15
+# Standard Word Generator v0.0.20
 
 Dify用の標準Word生成プラグインです。v0.0.7の文書種別別テンプレート管理・章節Master・Word生成を維持し、Heading 1～3配下の通常本文抽出と精確取得を追加します。
 
@@ -52,6 +52,10 @@ fallbackとして使用します。
 ## 互換性
 
 既存ツール名と既存パラメーターを維持しています。v0.0.7で登録済みのテンプレートはMaster取得・Word生成に引き続き利用できますが、章節本文を利用するにはv0.0.8導入後に標準テンプレートを再登録してください。
+
+## 0.0.20
+
+Resets ungrouped child numbering when a level-1 paragraph begins a new hierarchy, including when level 1 uses its synthetic per-node scope, while preserving counters for explicit independent child list groups.
 
 ## 0.0.19
 
