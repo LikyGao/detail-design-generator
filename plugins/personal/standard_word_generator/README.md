@@ -52,3 +52,11 @@ fallbackとして使用します。
 ## 互換性
 
 既存ツール名と既存パラメーターを維持しています。v0.0.7で登録済みのテンプレートはMaster取得・Word生成に引き続き利用できますが、章節本文を利用するにはv0.0.8導入後に標準テンプレートを再登録してください。
+
+## 0.0.17
+
+Preserves native paragraph-style, numbering, hierarchy, indent, and list-group metadata end to end. Parsing is style-first (including locally cancelled numbering), and generation dynamically reuses template-native styles and automatic numbering with independent list restarts. Literal-marker generation remains only as a fallback when no native descriptor exists.
+
+## 0.0.17
+
+Preserves native paragraph-style, numbering, hierarchy, indent, and list-group metadata end to end. Parsing is style-first (including locally cancelled numbering), and generation dynamically reuses template-native styles and automatic numbering with independent list restarts. Literal-marker generation remains only as a fallback when no native descriptor exists.
