@@ -228,6 +228,66 @@ class ParagraphNumberingTest(unittest.TestCase):
         self.assertEqual([p.text for p in document.paragraphs], ["① A", "・ B", "① C"])
         self.assertEqual([p.paragraph_format.left_indent.twips for p in document.paragraphs], [510, 794, 794])
 
+    def test_body_paragraph_uses_existing_native_word_style_without_literal_prefix(self):
+        if importlib.util.find_spec("docx") is None:
+            self.skipTest("python-docx is not installed")
+        from docx import Document
+        from docx.enum.style import WD_STYLE_TYPE
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+
+        from tools.docx_builder import _add_body_paragraph
+
+        document = Document()
+        native_style = document.styles.add_style("スタイル4", WD_STYLE_TYPE.PARAGRAPH)
+        num_properties = OxmlElement("w:numPr")
+        level = OxmlElement("w:ilvl")
+        level.set(qn("w:val"), "3")
+        num_id = OxmlElement("w:numId")
+        num_id.set(qn("w:val"), "1")
+        num_properties.extend((level, num_id))
+        native_style.element.get_or_add_pPr().append(num_properties)
+
+        _add_body_paragraph(
+            document,
+            {
+                "paragraph_style": "level_4",
+                "word_style_name": "スタイル4",
+                "text": "OS",
+            },
+            {},
+            {},
+        )
+
+        paragraph = document.paragraphs[0]
+        self.assertEqual(paragraph.style.name, "スタイル4")
+        self.assertEqual(paragraph.text, "OS")
+        self.assertNotIn("①", paragraph.text)
+        self.assertIsNotNone(native_style.element.pPr.numPr)
+
+    def test_body_paragraph_falls_back_when_word_style_name_is_missing(self):
+        if importlib.util.find_spec("docx") is None:
+            self.skipTest("python-docx is not installed")
+        from docx import Document
+
+        from tools.docx_builder import _add_body_paragraph
+
+        document = Document()
+        _add_body_paragraph(
+            document,
+            {
+                "paragraph_style": "level_4",
+                "word_style_name": "存在しないスタイル",
+                "text": "OS",
+            },
+            {},
+            {},
+        )
+
+        paragraph = document.paragraphs[0]
+        self.assertEqual(paragraph.style.name, "Normal")
+        self.assertEqual(paragraph.text, "① OS")
+
     def test_template_output_uses_literal_prefixes_without_effective_numbering(self):
         if importlib.util.find_spec("docx") is None:
             self.skipTest("python-docx is not installed")

@@ -307,6 +307,18 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
     if paragraph_style not in PARAGRAPH_STYLES:
         paragraph_style = "level_0"
     text = str(block.get("text") or "").replace("\r\n", "\n").replace("\r", "\n")
+
+    word_style_name = str(block.get("word_style_name") or "")
+    if word_style_name:
+        try:
+            document.styles[word_style_name]
+        except KeyError:
+            pass
+        else:
+            paragraph = document.add_paragraph(style=word_style_name)
+            paragraph.add_run(text)
+            return
+
     paragraph = document.add_paragraph(style="Normal")
     prototype = prototypes.get(paragraph_style)
     if prototype is not None:
