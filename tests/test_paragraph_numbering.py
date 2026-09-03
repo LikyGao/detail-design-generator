@@ -48,6 +48,24 @@ class ParagraphNumberingTest(unittest.TestCase):
             ["（1）", "①", "②", "（2）", "①"],
         )
 
+    def test_synthetic_level_one_scope_resets_only_ungrouped_children(self):
+        counters = {}
+        sequence = [
+            ("level_1", "level-1:node-a"),
+            ("level_4", None),
+            ("level_4", None),
+            ("level_4", "explicit-child"),
+            ("level_1", "level-1:node-a"),
+            ("level_4", None),
+            ("level_4", "explicit-child"),
+            ("level_1", "level-1:node-b"),
+            ("level_4", None),
+        ]
+        self.assertEqual(
+            [calculate_paragraph_prefix(style, counters, group) for style, group in sequence],
+            ["（1）", "①", "②", "①", "（2）", "①", "②", "（1）", "①"],
+        )
+
     def test_two_explicit_circle_groups_do_not_share_counters(self):
         counters = {}
         items = [("group-a", "level_4")] * 2 + [("group-b", "level_4")] * 3
