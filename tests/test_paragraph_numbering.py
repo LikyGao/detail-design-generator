@@ -12,6 +12,23 @@ sys.path.insert(0, str(PLUGIN_ROOT))
 from tools.paragraph_numbering import calculate_paragraph_prefix
 
 
+def direct_num_values(paragraph):
+    """Read only paragraph-local numPr, bypassing style-first resolution."""
+    from docx.oxml.ns import qn
+
+    paragraph_properties = paragraph._p.pPr
+    if paragraph_properties is None:
+        return None
+    numbering_properties = paragraph_properties.find(qn("w:numPr"))
+    if numbering_properties is None:
+        return None
+    num_id = numbering_properties.find(qn("w:numId"))
+    ilvl = numbering_properties.find(qn("w:ilvl"))
+    if num_id is None or ilvl is None:
+        return None
+    return num_id.get(qn("w:val")), int(ilvl.get(qn("w:val")))
+
+
 class ParagraphNumberingTest(unittest.TestCase):
     def prefixes(self, styles):
         counters = {}
@@ -466,8 +483,25 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
 
         generated = document.paragraphs
         self.assertEqual([p.text for p in generated], [b["text"] for b in blocks])
-        self.assertEqual([_numbering_values(p) for p in generated],
+        # The parser deliberately resolves numbering style-first. These values
+        # therefore identify the canonical pStyle definition rather than the
+        # cloned paragraph-local numbering instances used for list restarts.
+        self.assertEqual([_numbering_values(p, document) for p in generated],
+                         [("123", 1), ("123", 4), ("123", 2), ("123", 5)])
+        self.assertEqual([direct_num_values(p) for p in generated],
                          [("123", 1), ("123", 4), ("124", 2), ("125", 5)])
+        numbering_by_id = {
+            item.get(qn("w:numId")): item
+            for item in document.part.numbering_part.element.findall(qn("w:num"))
+        }
+        self.assertTrue({"123", "124", "125"}.issubset(numbering_by_id))
+        for num_id, expected_ilvl in (("124", "2"), ("125", "5")):
+            override = numbering_by_id[num_id].find(qn("w:lvlOverride"))
+            self.assertIsNotNone(override)
+            self.assertEqual(override.get(qn("w:ilvl")), expected_ilvl)
+            self.assertEqual(
+                override.find(qn("w:startOverride")).get(qn("w:val")), "1"
+            )
         self.assertEqual([p.style.name for p in generated],
                          [styles[i].name for i in (1, 4, 2, 5)])
         self.assertEqual([p.paragraph_format.left_indent.twips for p in generated],
