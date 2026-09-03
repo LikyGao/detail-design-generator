@@ -15,7 +15,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Twips
 
-from tools.chapter_parser import _paragraph_structure
+from tools.chapter_parser import _paragraph_structure, _abstract_for_num, _level_for, _first_child
 from tools.paragraph_numbering import calculate_paragraph_prefix
 
 
@@ -253,17 +253,76 @@ def _add_figure(document: Document, block: dict[str, Any]) -> None:
     paragraph.add_run().add_picture(io.BytesIO(raw), width=Inches(6.1))
 
 
-def _collect_paragraph_prototypes(document: Document) -> dict[str, Any]:
-    """Capture template-native list paragraph properties before sample body removal."""
-    result: dict[str, Any] = {}
+def _collect_paragraph_prototypes(document: Document) -> dict[str, dict[str, Any]]:
+    """Build canonical, template-native style descriptors before body removal.
+
+    Descriptors are indexed independently by editor style, Word style id and
+    Word style name.  A paragraph-local cancellation is never copied: canonical
+    numbering and indentation come from styles.xml/numbering.xml as resolved by
+    the style-first parser.
+    """
+    result: dict[str, dict[str, Any]] = {}
     for paragraph in document.paragraphs:
         if paragraph.style and paragraph.style.name in {"Heading 1", "Heading 2", "Heading 3"}:
             continue
         structure = _paragraph_structure(document, paragraph)
         paragraph_style = structure.get("paragraph_style")
-        if paragraph_style in PARAGRAPH_STYLES - {"level_0"} and paragraph._p.pPr is not None:
-            result.setdefault(paragraph_style, deepcopy(paragraph._p.pPr))
+        if paragraph_style not in PARAGRAPH_STYLES - {"level_0"} or structure.get("native_ilvl") is None:
+            continue
+        style = paragraph.style
+        descriptor = {
+            **structure,
+            "style_id": str(style.style_id or ""),
+            "style_name": str(style.name or ""),
+            "canonical_pPr": deepcopy(style.element.pPr) if style.element.pPr is not None else None,
+        }
+        for key in (paragraph_style, f"id:{descriptor['style_id']}", f"name:{descriptor['style_name']}"):
+            result.setdefault(key, descriptor)
     return result
+
+
+def _descriptor_for(block: dict[str, Any], descriptors: dict[str, dict[str, Any]]):
+    for key in (f"id:{block.get('word_style_id', '')}",
+                f"name:{block.get('word_style_name', '')}",
+                str(block.get("paragraph_style") or "")):
+        if key and key in descriptors:
+            candidate = descriptors[key]
+            if isinstance(candidate, dict) and candidate.get("style_name"):
+                return candidate
+    return None
+
+
+def _set_native_num_pr(paragraph, num_id: str, ilvl: int) -> None:
+    p_pr = paragraph._p.get_or_add_pPr()
+    old = p_pr.find(qn("w:numPr"))
+    if old is not None:
+        p_pr.remove(old)
+    num_pr = OxmlElement("w:numPr")
+    level = OxmlElement("w:ilvl"); level.set(qn("w:val"), str(ilvl))
+    number = OxmlElement("w:numId"); number.set(qn("w:val"), str(num_id))
+    num_pr.extend((level, number)); p_pr.append(num_pr)
+
+
+def _numbering_instance_for_group(document, descriptor, group_id, instances):
+    base_num_id = str(descriptor.get("num_id") or "")
+    if not base_num_id or not group_id:
+        return base_num_id
+    key = (base_num_id, str(group_id))
+    if key in instances:
+        return instances[key]
+    root = document.part.numbering_part.element
+    nums = root.findall(qn("w:num"))
+    source = next((n for n in nums if n.get(qn("w:numId")) == base_num_id), None)
+    if source is None:
+        return base_num_id
+    new_id = str(max([int(n.get(qn("w:numId"), "0")) for n in nums] + [0]) + 1)
+    clone = deepcopy(source); clone.set(qn("w:numId"), new_id)
+    ilvl = int(descriptor.get("native_ilvl") or 0)
+    override = OxmlElement("w:lvlOverride"); override.set(qn("w:ilvl"), str(ilvl))
+    start = OxmlElement("w:startOverride"); start.set(qn("w:val"), "1")
+    override.append(start); clone.append(override); root.append(clone)
+    instances[key] = new_id
+    return new_id
 
 
 def _remove_numbering_properties(paragraph_properties) -> None:
@@ -302,12 +361,31 @@ def _restore_body_indents(paragraph, block: dict[str, Any], paragraph_style: str
 
 
 def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: dict[str, Any],
-                        counters: dict[int, int]) -> None:
+                        counters: dict[int, int], numbering_instances: dict | None = None) -> None:
+    numbering_instances = numbering_instances if numbering_instances is not None else {}
     paragraph_style = str(block.get("paragraph_style") or "level_0")
     if paragraph_style not in PARAGRAPH_STYLES:
         paragraph_style = "level_0"
     text = str(block.get("text") or "").replace("\r\n", "\n").replace("\r", "\n")
 
+    descriptor = _descriptor_for(block, prototypes)
+    if descriptor:
+        word_style_name = descriptor["style_name"]
+        try:
+            document.styles[word_style_name]
+        except KeyError:
+            pass
+        else:
+            paragraph = document.add_paragraph(style=word_style_name)
+            num_id = _numbering_instance_for_group(
+                document, descriptor, block.get("list_group_id"), numbering_instances)
+            if num_id:
+                _set_native_num_pr(paragraph, num_id, int(descriptor.get("native_ilvl") or 0))
+            paragraph.add_run(text)  # marker is rendered by Word, never literal text
+            return
+
+    # Compatibility for callers supplying a native style identity without a
+    # descriptor map. The complete generator normally takes the descriptor path.
     word_style_name = str(block.get("word_style_name") or "")
     if word_style_name:
         try:
@@ -361,7 +439,8 @@ def _add_blocks(
             continue
         block_type = str(block.get("type") or "paragraph")
         if block_type == "paragraph":
-            _add_body_paragraph(document, block, paragraph_prototypes, paragraph_counters)
+            _add_body_paragraph(document, block, paragraph_prototypes, paragraph_counters,
+                                caption_counters.setdefault("_numbering_instances", {}))
         elif block_type == "table":
             caption_counters["表"] += 1
             _add_caption(

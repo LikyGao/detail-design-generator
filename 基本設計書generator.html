@@ -23736,12 +23736,17 @@ const PARAGRAPH_STYLE_CONFIGS={
   level_4:{label:'　　　①',symbol:'',indent:4,numbered:true}, level_5:{label:'　　　　・',symbol:'・',indent:5,numbered:false},
   level_6:{label:'　　　　　①',symbol:'',indent:6,numbered:true}
 };
+const PARAGRAPH_STYLE_TO_NATIVE_ILVL={level_1:0,level_2:1,level_4:2,level_3:3,level_5:4,level_6:5};
+function getParagraphNativeIlvl(block){
+  if(Number.isInteger(block&&block.native_ilvl)) return block.native_ilvl;
+  return PARAGRAPH_STYLE_TO_NATIVE_ILVL[block&&block.paragraph_style]??null;
+}
 function getParagraphStyleConfig(style){ return PARAGRAPH_STYLE_CONFIGS[style]||PARAGRAPH_STYLE_CONFIGS.level_0; }
 function calculateParagraphNumbering(blocks){
   const counters={}, prefixes=new Map();
   (blocks||[]).forEach(b=>{
     if(b.type!=='paragraph') return;
-    const style=PARAGRAPH_STYLE_CONFIGS[b.paragraph_style]?b.paragraph_style:'level_0', cfg=getParagraphStyleConfig(style), level=cfg.indent;
+    const style=PARAGRAPH_STYLE_CONFIGS[b.paragraph_style]?b.paragraph_style:'level_0', cfg=getParagraphStyleConfig(style), level=getParagraphNativeIlvl(b)??-1;
     if(cfg.numbered){ counters[level]=(counters[level]||0)+1; Object.keys(counters).forEach(k=>{if(+k>level) delete counters[k];}); }
     let prefix=cfg.symbol;
     if(style==='level_1') prefix='（'+counters[level]+'）';
@@ -23792,10 +23797,18 @@ function normalizeBlock(raw){
   }
   // Keep template paragraph structure metadata opaque to the editor.  The Word
   // plugin owns its interpretation; text-only edits must not discard it.
-  const structureKeys=['list_group_id','marker_type','original_marker','number_format','level_text','list_level','num_id','abstract_num_id','numbering_start','start_override','level_restart','left_indent_twips','first_line_indent_twips','hanging_indent_twips','style','kind'];
-  const paragraph={ id: raw.id||uid(), type:'paragraph', paragraph_style: PARAGRAPH_STYLE_CONFIGS[raw.paragraph_style]?raw.paragraph_style:'level_0', text: raw.text||raw.content||'', caption:'', revision_instruction: raw.revision_instruction||'', revision_history: Array.isArray(raw.revision_history) ? raw.revision_history.slice(0,2) : [] };
-  structureKeys.forEach(key=>{ if(raw[key]!==undefined) paragraph[key]=raw[key]; });
+  const normalizedStyle=PARAGRAPH_STYLE_CONFIGS[raw.paragraph_style]?raw.paragraph_style:'level_0';
+  const paragraph={ ...raw, id:raw.id||uid(), type:'paragraph', paragraph_style:normalizedStyle, text:raw.text||raw.content||'', caption:'', revision_instruction:raw.revision_instruction||'', revision_history:Array.isArray(raw.revision_history)?raw.revision_history.slice(0,2):[] };
+  if(paragraph.native_ilvl===undefined&&normalizedStyle!=='level_0') paragraph.native_ilvl=PARAGRAPH_STYLE_TO_NATIVE_ILVL[normalizedStyle];
   return paragraph;
+}
+const INVALIDATED_WORD_STYLE_METADATA=['word_style_id','word_style_name','word_style_based_on_id','num_id','abstract_num_id','numbering_p_style','number_format','level_text','symbol_font','original_marker','list_group_id','numbering_start','start_override','level_restart','left_indent_twips','first_line_indent_twips','hanging_indent_twips'];
+function applyParagraphStyleChange(block,newStyle){
+  if(block.paragraph_style===newStyle) return;
+  block.paragraph_style=newStyle;
+  block.native_ilvl=PARAGRAPH_STYLE_TO_NATIVE_ILVL[newStyle]??null;
+  INVALIDATED_WORD_STYLE_METADATA.forEach(key=>delete block[key]);
+  block.marker_type='';
 }
 function normalizeBlocks(arr){ return Array.isArray(arr) ? arr.map(normalizeBlock) : []; }
 
@@ -24801,10 +24814,10 @@ function findBlockInsertIndexAfterSubtree(n,current){
   const currentIndex=n.blocks.indexOf(current);
   if(currentIndex<0) return -1;
   let insertIndex=currentIndex+1;
-  const level=getParagraphStyleConfig(current.paragraph_style).indent;
+  const level=getParagraphNativeIlvl(current)??-1;
   while(insertIndex<n.blocks.length){
     const next=n.blocks[insertIndex];
-    if(next.type!=='paragraph'||getParagraphStyleConfig(next.paragraph_style).indent<=level) break;
+    if(next.type!=='paragraph'||(getParagraphNativeIlvl(next)??-1)<=level) break;
     insertIndex++;
   }
   return insertIndex;
@@ -24844,9 +24857,10 @@ function renderBlockHierarchy(n,root){
       root.appendChild(buildBlock(n,b));
       return;
     }
-    const level=getParagraphStyleConfig(b.paragraph_style).indent;
+    const level=getParagraphNativeIlvl(b)??-1;
     while(stack.length&&stack[stack.length-1].level>=level) stack.pop();
-    const item=document.createElement('div'); item.className='paragraph-item'; item.dataset.blockId=b.id;
+    const item=document.createElement('div'); item.className='paragraph-item'; item.dataset.blockId=b.id; item.dataset.nodeid=n.id;
+    item.addEventListener('click',event=>{ if(event.target.closest('button,select,input,textarea')) return; event.stopPropagation(); activateEditTarget({kind:'block',nodeId:n.id,blockId:b.id}); });
     item.appendChild(buildBlock(n,b));
     const children=document.createElement('div'); children.className='paragraph-children'; item.appendChild(children);
     (stack.length?stack[stack.length-1].children:root).appendChild(item);
@@ -24906,13 +24920,14 @@ function buildBlock(n,b){
     const isExplanation=b.paragraph_style==='level_0';
     b.revision_instruction = b.revision_instruction || '';
     b.revision_history = Array.isArray(b.revision_history) ? b.revision_history : [];
-    const row=document.createElement('div'); row.className='paragraph-editor'; row.style.paddingLeft=(getParagraphStyleConfig(b.paragraph_style).indent*12)+'px';
+    const row=document.createElement('div'); row.className='paragraph-editor'; row.style.paddingLeft=((getParagraphNativeIlvl(b)??-1)+1)*12+'px';
     const drag=document.createElement('button'); drag.type='button'; drag.className='paragraph-drag'; drag.textContent='⋮⋮'; drag.title='ドラッグして並び替え'; drag.setAttribute('aria-label','段落をドラッグして並び替え');
     const summary=document.createElement('span'); summary.className='paragraph-drag-summary';
     summary.textContent=(getParagraphDisplayPrefix(b,n.blocks)+' '+String(b.text||'').split(/\r?\n/)[0]).trim()||'（空の段落）';
     const select=document.createElement('select'); select.className='paragraph-style-select';
     Object.entries(PARAGRAPH_STYLE_CONFIGS).filter(([value])=>value!=='level_0').forEach(([value,cfg])=>{ const option=document.createElement('option'); option.value=value; option.textContent=cfg.label; option.selected=b.paragraph_style===value; if(option.selected) option.textContent=getParagraphDisplayPrefix(b,n.blocks)||cfg.label; select.appendChild(option); });
-    select.addEventListener('change',()=>{ b.paragraph_style=select.value; renderEditor(); debouncePreview(); pushHistory('段落タイプを変更'); });
+    select.addEventListener('click',event=>event.stopPropagation());
+    select.addEventListener('change',()=>{ applyParagraphStyleChange(b,select.value); renderEditor(); debouncePreview(); pushHistory('段落タイプを変更'); });
     const ta=document.createElement('textarea'); ta.className='ci-input'; ta.rows=1; ta.value=b.text;
     ta.placeholder='本文（ブロック内改行は同一段落）';
     const resize=()=>{ ta.style.height='32px'; ta.style.height=Math.max(32,ta.scrollHeight)+'px'; };
@@ -25774,7 +25789,7 @@ function blocksToHtml(blocks,nodeId){
       if(b.type==='paragraph'){
         const cfg=getParagraphStyleConfig(b.paragraph_style), prefix=paragraphPrefixes.get(b.id)||'';
         const separator=prefix&&b.text?'&nbsp;':'';
-        return '<p'+syncAttrs+' style="text-indent:0;margin-left:'+cfg.indent*18+'pt"><span class="paragraph-prefix">'+escH(prefix)+'</span>'+separator+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</p>';
+        return '<p'+syncAttrs+' style="text-indent:0;margin-left:'+((getParagraphNativeIlvl(b)??-1)+1)*18+'pt"><span class="paragraph-prefix">'+escH(prefix)+'</span>'+separator+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</p>';
       }
       if(b.type==='table'){
         const cap='<div class="word-cap">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</div>';
@@ -26020,7 +26035,7 @@ async function exportDocxLocal(){
         if(b.type==='paragraph'){
           const cfg=getParagraphStyleConfig(b.paragraph_style), prefix=paragraphPrefixes.get(b.id)||'';
           const text=String(b.text||''), separator=prefix&&text?' ':'';
-          bodyCh.push(para(prefix+separator+text,{indent:cfg.indent*360}));
+          bodyCh.push(para(prefix+separator+text,{indent:((getParagraphNativeIlvl(b)??-1)+1)*360}));
         } else if(b.type==='table'){
           bodyCh.push(captionParagraph(b,'表',{before:120,after:40}));
           bodyCh.push(buildDocxTable(b));

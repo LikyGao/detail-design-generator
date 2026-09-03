@@ -144,9 +144,9 @@ def _numbering_values(paragraph, document=None) -> tuple[str, int] | None:
     except (AttributeError, KeyError):
         return (direct_num_id, max(0, direct_level or 0)) if direct_num_id else None
 
-    # A complete direct numPr is always authoritative.
-    if direct_num_id and direct_level is not None:
-        return direct_num_id, max(0, direct_level)
+    # numId=0 is Word's paragraph-local cancellation.  It must not erase the
+    # identity/numbering semantics of the applied paragraph style.
+    direct_constraint = direct_num_id if direct_num_id not in {"", "0"} else ""
 
     def p_style_match(style_id: str, constrained_num_id: str = "") -> tuple[str, int] | None:
         candidates = [(constrained_num_id, nums.get(constrained_num_id))] if constrained_num_id else nums.items()
@@ -165,18 +165,18 @@ def _numbering_values(paragraph, document=None) -> tuple[str, int] | None:
     # Even a partial direct numPr limits the lookup to its num instance.
     current_style = chain[0] if chain else None
     if current_style is not None:
-        match = p_style_match(str(current_style.style_id or ""), direct_num_id)
+        # Style identity wins over paragraph-local list formatting.  Search the
+        # exact current style globally before considering direct numPr.
+        match = p_style_match(str(current_style.style_id or ""))
         if match is not None:
-            return match[0], max(0, direct_level) if direct_level is not None else match[1]
-        if direct_num_id:
-            return direct_num_id, max(0, direct_level or 0)
+            return match
         style_num_pr = current_style.element.pPr.numPr if current_style.element.pPr is not None else None
         style_num_id, style_level = values(style_num_pr)
         if style_num_id:
             return style_num_id, max(0, style_level or direct_level or 0)
 
-    if direct_num_id:
-        return direct_num_id, max(0, direct_level or 0)
+    if direct_constraint:
+        return direct_constraint, max(0, direct_level or 0)
 
     # Only an undefined current style may inherit, nearest base style first.
     for ancestor in chain[1:]:
