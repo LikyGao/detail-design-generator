@@ -184,11 +184,11 @@
   .chapter-drag:hover,.paragraph-drag:hover{opacity:1}
   .paragraph-read{display:flex;flex:1;min-width:0;gap:5px;padding:5px 2px;line-height:1.65}
   .paragraph-read-prefix{flex:0 0 auto;white-space:pre}
-  .paragraph-item:not(.is-editing) .paragraph-style-select,
-  .paragraph-item:not(.is-editing) .paragraph-editor>.ci-input,
-  .paragraph-item:not(.is-editing) .paragraph-row-actions,
-  .paragraph-item:not(.is-editing) .paragraph-aifix{display:none}
-  .paragraph-item.is-editing .paragraph-read{display:none}
+  .paragraph-item:not(.is-editing)>.block>.block-body>.paragraph-editor>.paragraph-style-select,
+  .paragraph-item:not(.is-editing)>.block>.block-body>.paragraph-editor>.ci-input,
+  .paragraph-item:not(.is-editing)>.block>.block-body>.paragraph-editor>.paragraph-row-actions,
+  .paragraph-item:not(.is-editing)>.block>.block-body>.paragraph-aifix{display:none}
+  .paragraph-item.is-editing>.block>.block-body>.paragraph-read{display:none}
   .explanation-item{padding:2px 7px;border:0;border-left:2px solid var(--border);border-radius:3px;background:transparent;box-shadow:none;overflow:visible}
   .explanation-item .paragraph-editor{padding-left:0!important}
   .explanation-item .paragraph-read{padding:5px 7px}
@@ -23742,20 +23742,55 @@ function getParagraphNativeIlvl(block){
   return PARAGRAPH_STYLE_TO_NATIVE_ILVL[block&&block.paragraph_style]??null;
 }
 function getParagraphStyleConfig(style){ return PARAGRAPH_STYLE_CONFIGS[style]||PARAGRAPH_STYLE_CONFIGS.level_0; }
-function calculateParagraphNumbering(blocks){
-  const counters={}, prefixes=new Map();
-  (blocks||[]).forEach(b=>{
+function paragraphNumberStart(block){
+  const raw=block&&block.start_override!=null?block.start_override:block&&block.numbering_start;
+  const value=Number(raw); return Number.isInteger(value)&&value>0?value:1;
+}
+function calculateParagraphNumbering(blocks,options={}){
+  const prefixes=options.prefixes||new Map(), counters=options.counters||new Map();
+  const stack=[], fallbackRuns=new Map();
+  (blocks||[]).forEach((b,index)=>{
     if(b.type!=='paragraph') return;
     const style=PARAGRAPH_STYLE_CONFIGS[b.paragraph_style]?b.paragraph_style:'level_0', cfg=getParagraphStyleConfig(style), level=getParagraphNativeIlvl(b)??-1;
-    if(cfg.numbered){ counters[level]=(counters[level]||0)+1; Object.keys(counters).forEach(k=>{if(+k>level) delete counters[k];}); }
-    let prefix=cfg.symbol;
-    if(style==='level_1') prefix='（'+counters[level]+'）';
-    if(style==='level_4'||style==='level_6'){ const n=counters[level]; prefix=n>=1&&n<=20?String.fromCodePoint(0x2460+n-1):'('+n+')'; }
-    prefixes.set(b.id, prefix);
+    while(stack.length&&stack[stack.length-1].level>=level) stack.pop();
+    const parent=stack.length?stack[stack.length-1].block:null;
+    let counterKey='';
+    if(cfg.numbered){
+      if(style==='level_1'&&options.level1Scope) counterKey='level-1:'+options.level1Scope;
+      else if(b.list_group_id) counterKey='group:'+String(b.list_group_id)+':'+level;
+      else if(b.num_id!=null&&String(b.num_id)!=='') counterKey='num:'+String(b.num_id)+':'+level;
+      else {
+        const parentKey=parent&&parent.id?'parent:'+parent.id:'root';
+        const runKey=level+':'+parentKey;
+        if(!fallbackRuns.has(runKey)) fallbackRuns.set(runKey,index);
+        counterKey='fallback:'+String(options.fallbackScope||'local')+':'+runKey+':'+fallbackRuns.get(runKey);
+      }
+      const previous=counters.get(counterKey);
+      counters.set(counterKey,previous==null?paragraphNumberStart(b):previous+1);
+    }
+    let prefix=cfg.symbol, number=counterKey?counters.get(counterKey):0;
+    if(style==='level_1') prefix='（'+number+'）';
+    if(style==='level_4'||style==='level_6') prefix=number>=1&&number<=20?String.fromCodePoint(0x2460+number-1):'('+number+')';
+    prefixes.set(b.id,prefix);
+    if(style==='level_0') { stack.length=0; fallbackRuns.clear(); }
+    else stack.push({level,block:b});
   });
   return prefixes;
 }
-function getParagraphDisplayPrefix(block,blocks){ return calculateParagraphNumbering(blocks).get(block.id)||''; }
+function calculateDocumentParagraphNumbering(chapters){
+  const prefixes=new Map();
+  (chapters||[]).forEach((top,topIndex)=>{
+    const counters=new Map(), level1Scope=String(top&&top.id||topIndex);
+    const visit=node=>{
+      if(!node||node.selected===false) return;
+      calculateParagraphNumbering(node.blocks,{prefixes,counters,level1Scope,fallbackScope:String(node.id||'')});
+      (node.children||[]).forEach(visit);
+    };
+    visit(top);
+  });
+  return prefixes;
+}
+function getParagraphDisplayPrefix(block){ return calculateDocumentParagraphNumbering(doc.chapters).get(block.id)||''; }
 
 /* ── tree walkers ── */
 function walkAll(nodes, cb){ (nodes||[]).forEach(n=>{ cb(n); walkAll(n.children,cb); }); }
@@ -24432,11 +24467,14 @@ function activateEditTarget(target,options={}){
   if(!activeEditTarget) return;
   const selector=activeEditTarget.kind==='node'
     ? '.node-card[data-nodeid="'+CSS.escape(activeEditTarget.nodeId)+'"]'
-    : '[data-nodeid="'+CSS.escape(activeEditTarget.nodeId)+'"][data-block-id="'+CSS.escape(activeEditTarget.blockId)+'"]';
+    : '.block[data-nodeid="'+CSS.escape(activeEditTarget.nodeId)+'"][data-block-id="'+CSS.escape(activeEditTarget.blockId)+'"]';
   const targetElement=document.querySelector('#sectionsContainer '+selector);
   if(!targetElement) return;
   targetElement.classList.add('is-editing');
-  const paragraphItem=targetElement.closest('.paragraph-item'); if(paragraphItem) paragraphItem.classList.add('is-editing');
+  if(activeEditTarget.kind==='block'){
+    const paragraphItem=targetElement.parentElement&&targetElement.parentElement.classList.contains('paragraph-item')?targetElement.parentElement:null;
+    if(paragraphItem) paragraphItem.classList.add('is-editing');
+  }
   if(options.focus!==false) requestAnimationFrame(()=>{
     const input=targetElement.querySelector('textarea:not([hidden]), input:not([type="file"]):not([hidden]), select');
     if(input){ input.focus({preventScroll:true}); if(input.tagName==='TEXTAREA') input.setSelectionRange(input.value.length,input.value.length); }
@@ -24447,7 +24485,7 @@ function applyPendingEditorState(){
   activateEditTarget(activeEditTarget);
   if(!pendingHighlightTarget) return;
   const pending=pendingHighlightTarget; pendingHighlightTarget=null;
-  const selector=pending.kind==='node' ? '.node-card[data-nodeid="'+CSS.escape(pending.nodeId)+'"]' : '[data-nodeid="'+CSS.escape(pending.nodeId)+'"][data-block-id="'+CSS.escape(pending.blockId)+'"]';
+  const selector=pending.kind==='node' ? '.node-card[data-nodeid="'+CSS.escape(pending.nodeId)+'"]' : '.block[data-nodeid="'+CSS.escape(pending.nodeId)+'"][data-block-id="'+CSS.escape(pending.blockId)+'"]';
   const el=document.querySelector('#sectionsContainer '+selector); if(!el) return;
   el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.add('new-item-highlight');
   clearTimeout(_highlightTimer); _highlightTimer=setTimeout(()=>el.classList.remove('new-item-highlight'),1300);
@@ -24902,7 +24940,7 @@ function buildBlock(n,b){
   const el=document.createElement('div'); el.className='block';
   el.dataset.blockId=b.id;
   el.dataset.nodeid=n.id;
-  el.addEventListener('click',event=>{ event.stopPropagation(); activateEditTarget({kind:'block',nodeId:n.id,blockId:b.id},{focus:!event.target.matches('input,textarea,select,button')}); });
+  el.addEventListener('click',event=>{ event.stopPropagation(); if(event.target.closest('button,select,input,textarea')) return; activateEditTarget({kind:'block',nodeId:n.id,blockId:b.id}); });
   const head=document.createElement('div'); head.className='block-h';
   const typeName = b.type==='paragraph'?'段落'
     : b.type==='table'?'表'
@@ -24923,9 +24961,9 @@ function buildBlock(n,b){
     const row=document.createElement('div'); row.className='paragraph-editor'; row.style.paddingLeft=((getParagraphNativeIlvl(b)??-1)+1)*12+'px';
     const drag=document.createElement('button'); drag.type='button'; drag.className='paragraph-drag'; drag.textContent='⋮⋮'; drag.title='ドラッグして並び替え'; drag.setAttribute('aria-label','段落をドラッグして並び替え');
     const summary=document.createElement('span'); summary.className='paragraph-drag-summary';
-    summary.textContent=(getParagraphDisplayPrefix(b,n.blocks)+' '+String(b.text||'').split(/\r?\n/)[0]).trim()||'（空の段落）';
+    summary.textContent=(getParagraphDisplayPrefix(b)+' '+String(b.text||'').split(/\r?\n/)[0]).trim()||'（空の段落）';
     const select=document.createElement('select'); select.className='paragraph-style-select';
-    Object.entries(PARAGRAPH_STYLE_CONFIGS).filter(([value])=>value!=='level_0').forEach(([value,cfg])=>{ const option=document.createElement('option'); option.value=value; option.textContent=cfg.label; option.selected=b.paragraph_style===value; if(option.selected) option.textContent=getParagraphDisplayPrefix(b,n.blocks)||cfg.label; select.appendChild(option); });
+    Object.entries(PARAGRAPH_STYLE_CONFIGS).filter(([value])=>value!=='level_0').forEach(([value,cfg])=>{ const option=document.createElement('option'); option.value=value; option.textContent=cfg.label; option.selected=b.paragraph_style===value; if(option.selected) option.textContent=getParagraphDisplayPrefix(b)||cfg.label; select.appendChild(option); });
     select.addEventListener('click',event=>event.stopPropagation());
     select.addEventListener('change',()=>{ applyParagraphStyleChange(b,select.value); renderEditor(); debouncePreview(); pushHistory('段落タイプを変更'); });
     const ta=document.createElement('textarea'); ta.className='ci-input'; ta.rows=1; ta.value=b.text;
@@ -24934,7 +24972,7 @@ function buildBlock(n,b){
     ta.addEventListener('input',()=>{ resize(); b.text=ta.value; debouncePreview(); pushHistoryDebounced('段落を編集'); });
     const actions=document.createElement('div'); actions.className='paragraph-row-actions';
     const read=document.createElement('div'); read.className='paragraph-read read-display';
-    if(!isExplanation){ const prefix=document.createElement('span'); prefix.className='paragraph-read-prefix'; prefix.textContent=getParagraphDisplayPrefix(b,n.blocks); read.appendChild(prefix); }
+    if(!isExplanation){ const prefix=document.createElement('span'); prefix.className='paragraph-read-prefix'; prefix.textContent=getParagraphDisplayPrefix(b); read.appendChild(prefix); }
     const readText=document.createElement('span'); readText.textContent=b.text|| (isExplanation?'（空の説明）':'（空の段落）'); read.appendChild(readText);
     const addWrap=document.createElement('div'); addWrap.className='paragraph-add-wrap';
     const add=document.createElement('button'); add.type='button'; add.className='paragraph-action'; add.textContent='＋'; add.title='段落を追加'; add.setAttribute('aria-label','段落を追加'); add.setAttribute('aria-expanded','false');
@@ -25788,8 +25826,8 @@ function collectRenderedMediaForExport(){
   tmp.innerHTML=buildPreviewHtml();
   return collectMediaFromDocument(tmp);
 }
-function blocksToHtml(blocks,nodeId){
-  const paragraphPrefixes=calculateParagraphNumbering(blocks);
+function blocksToHtml(blocks,nodeId,paragraphPrefixes){
+  paragraphPrefixes=paragraphPrefixes||calculateParagraphNumbering(blocks);
   return (blocks||[]).map(b=>{
     try{
       const syncAttrs=' data-preview-nodeid="'+escH(nodeId)+'" data-preview-block-id="'+escH(b.id)+'"';
@@ -25816,6 +25854,7 @@ function blocksToHtml(blocks,nodeId){
 }
 function refreshPreview(){ if(_previewOpen||(_previewWindow&&!_previewWindow.closed)){ try{ buildPreview(); }catch(e){ console.error('preview error',e); } } }
 function buildPreviewHtml(){
+  const paragraphPrefixes=calculateDocumentParagraphNumbering(doc.chapters);
   let body='<section class="preview-flow word-body">';
   let chapterOpen=false;
 
@@ -25833,7 +25872,7 @@ function buildPreviewHtml(){
       escH(n.display_number)+'　'+
       escH(n.title||'(無題)')+
       '</'+tag+'>'+
-      (blocksToHtml(n.blocks,n.id)||'<p class="word-empty">（本文未入力）</p>')+
+      (blocksToHtml(n.blocks,n.id,paragraphPrefixes)||'<p class="word-empty">（本文未入力）</p>')+
       '</div>';
   });
 
@@ -26029,6 +26068,7 @@ async function exportDocxLocal(){
     toc.push(new Paragraph({children:[new PageBreak()]}));
     // body
     const bodyCh=[];
+    const documentParagraphPrefixes=calculateDocumentParagraphNumbering(doc.chapters);
     walkSelected(doc.chapters,n=>{
       const size = n.level===1?30:n.level===2?24:21;
       bodyCh.push(new Paragraph({
@@ -26037,7 +26077,7 @@ async function exportDocxLocal(){
         border:n.level===1?{bottom:{style:BorderStyle.SINGLE,size:12,color:'333333',space:4}}:undefined,
         children:[mkRun(n.display_number+'　'+(n.title||'(無題)'),{size,bold:true,gothic:true})]
       }));
-      const paragraphPrefixes=calculateParagraphNumbering(n.blocks);
+      const paragraphPrefixes=documentParagraphPrefixes;
       (n.blocks||[]).forEach(b=>{
         if(b.type==='paragraph'){
           const cfg=getParagraphStyleConfig(b.paragraph_style), prefix=paragraphPrefixes.get(b.id)||'';
