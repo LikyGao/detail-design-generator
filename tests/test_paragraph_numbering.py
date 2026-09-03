@@ -423,6 +423,40 @@ class ParagraphNumberingTest(unittest.TestCase):
 
 
 class NativeCanonicalIndentGenerationTest(unittest.TestCase):
+    def test_numbering_level_indent_overrides_paragraph_and_style_zero(self):
+        if importlib.util.find_spec("docx") is None:
+            self.skipTest("python-docx is not installed")
+        from docx import Document
+        from docx.enum.style import WD_STYLE_TYPE
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+        from tools.docx_builder import _collect_paragraph_prototypes
+
+        document = Document()
+        style = document.styles.add_style("Canonical zero trap", WD_STYLE_TYPE.PARAGRAPH)
+        style.paragraph_format.left_indent = 0
+        root = document.part.numbering_part.element
+        abstract = OxmlElement("w:abstractNum"); abstract.set(qn("w:abstractNumId"), "201")
+        level = OxmlElement("w:lvl"); level.set(qn("w:ilvl"), "0")
+        for tag, value in (("w:start", "1"), ("w:numFmt", "decimal"),
+                           ("w:lvlText", "(%1)"), ("w:pStyle", style.style_id)):
+            child = OxmlElement(tag); child.set(qn("w:val"), value); level.append(child)
+        p_pr = OxmlElement("w:pPr"); indent = OxmlElement("w:ind")
+        indent.set(qn("w:start"), "440"); indent.set(qn("w:hanging"), "440")
+        p_pr.append(indent); level.append(p_pr); abstract.append(level); root.append(abstract)
+        num = OxmlElement("w:num"); num.set(qn("w:numId"), "201")
+        ref = OxmlElement("w:abstractNumId"); ref.set(qn("w:val"), "201"); num.append(ref); root.append(num)
+        paragraph = document.add_paragraph("prototype", style=style)
+        paragraph.paragraph_format.left_indent = 0
+        num_pr = OxmlElement("w:numPr"); ilvl = OxmlElement("w:ilvl"); ilvl.set(qn("w:val"), "0")
+        num_id = OxmlElement("w:numId"); num_id.set(qn("w:val"), "201"); num_pr.extend((ilvl, num_id))
+        paragraph._p.get_or_add_pPr().append(num_pr)
+
+        descriptor = _collect_paragraph_prototypes(document)["level_1"]
+        self.assertEqual(descriptor["left_indent_twips"], 440)
+        self.assertEqual(descriptor["hanging_indent_twips"], 440)
+        self.assertIsNone(descriptor["first_line_indent_twips"])
+
     def test_native_numbering_materializes_distinct_canonical_indents(self):
         if importlib.util.find_spec("docx") is None:
             self.skipTest("python-docx is not installed")
@@ -438,7 +472,7 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
         abstract = OxmlElement("w:abstractNum")
         abstract.set(qn("w:abstractNumId"), "123")
         styles = {}
-        canonical = {1: (360, 120), 2: (720, 180), 4: (1320, 240), 5: (1740, 300)}
+        canonical = {0: (440, 440), 1: (360, 120), 2: (720, 180), 4: (1320, 240), 5: (1740, 300)}
         formats = {1: ("bullet", "・"), 2: ("decimalEnclosedCircle", "%3"),
                    4: ("bullet", "・"), 5: ("decimalEnclosedCircle", "%6")}
         for ilvl in range(6):
@@ -462,7 +496,7 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
         ref = OxmlElement("w:abstractNumId"); ref.set(qn("w:val"), "123")
         num.append(ref); root.append(num)
 
-        for ilvl in (1, 2, 4, 5):
+        for ilvl in (0, 1, 2, 4, 5):
             paragraph = document.add_paragraph(f"prototype {ilvl}", style=styles[ilvl])
             num_pr = OxmlElement("w:numPr")
             level = OxmlElement("w:ilvl"); level.set(qn("w:val"), str(ilvl))
@@ -514,6 +548,37 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
                            generated[2].paragraph_format.left_indent.twips)
         for paragraph in generated:
             self.assertNotRegex(paragraph.text, r"^(?:・|[①-⑳]|➢|（\\d+）)")
+
+        # Real chapter generation gives each node its own native level-1 num
+        # instance. Word therefore renders (1)(2)(3), then restarts at (1)(2).
+        from tools.docx_builder import _add_chapters
+        sections = [
+            {"id": "section-a", "level": 2, "title": "A", "blocks": [
+                {"type": "paragraph", "paragraph_style": "level_1", "text": f"A{i}"}
+                for i in range(1, 4)
+            ]},
+            {"id": "section-b", "level": 2, "title": "B", "blocks": [
+                {"type": "paragraph", "paragraph_style": "level_1", "text": f"B{i}"}
+                for i in range(1, 3)
+            ]},
+        ]
+        _add_chapters(document, sections, descriptors)
+        level_one = [p for p in document.paragraphs if p.text in {"A1", "A2", "A3", "B1", "B2"}]
+        ids = [direct_num_values(p)[0] for p in level_one]
+        self.assertEqual(len(set(ids[:3])), 1)
+        self.assertEqual(len(set(ids[3:])), 1)
+        self.assertNotEqual(ids[0], ids[3])
+        for paragraph in level_one:
+            indent = paragraph._p.pPr.find(qn("w:ind"))
+            self.assertEqual(indent.get(qn("w:left")), "440")
+            self.assertEqual(indent.get(qn("w:start")), "440")
+            self.assertEqual(indent.get(qn("w:hanging")), "440")
+            self.assertIsNone(indent.get(qn("w:firstLine")))
+        for num_id in {ids[0], ids[3]}:
+            instance = next(n for n in root.findall(qn("w:num")) if n.get(qn("w:numId")) == num_id)
+            override = instance.find(qn("w:lvlOverride"))
+            self.assertEqual(override.get(qn("w:ilvl")), "0")
+            self.assertEqual(override.find(qn("w:startOverride")).get(qn("w:val")), "1")
 
 
 if __name__ == "__main__":

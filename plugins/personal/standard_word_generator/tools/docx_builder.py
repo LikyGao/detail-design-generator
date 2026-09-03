@@ -15,7 +15,10 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Twips
 
-from tools.chapter_parser import _paragraph_structure, _abstract_for_num, _level_for, _first_child
+from tools.chapter_parser import (
+    _paragraph_structure, _abstract_for_num, _level_for, _first_child,
+    _resolve_numbering_indent,
+)
 from tools.paragraph_numbering import calculate_paragraph_prefix
 
 
@@ -276,6 +279,18 @@ def _collect_paragraph_prototypes(document: Document) -> dict[str, dict[str, Any
             "style_name": str(style.name or ""),
             "canonical_pPr": deepcopy(style.element.pPr) if style.element.pPr is not None else None,
         }
+        # A direct/style w:ind="0" can cancel the list indent while parsing a
+        # sample paragraph. Generation needs the native numbering level's own
+        # canonical geometry, which is what Word applies to a fresh list item.
+        native_indents = _resolve_numbering_indent(
+            document, str(structure.get("num_id") or ""), int(structure["native_ilvl"])
+        )
+        for key, value in zip(
+            ("left_indent_twips", "first_line_indent_twips", "hanging_indent_twips"),
+            native_indents,
+        ):
+            if value is not None:
+                descriptor[key] = value
         for key in (paragraph_style, f"id:{descriptor['style_id']}", f"name:{descriptor['style_name']}"):
             result.setdefault(key, descriptor)
     return result
@@ -468,6 +483,7 @@ def _add_blocks(
     section_title: str,
     caption_counters: dict[str, int],
     paragraph_prototypes: dict[str, Any],
+    numbering_scope: str = "section",
 ) -> None:
     paragraph_counters: dict = {}
     blocks = _inherit_adjacent_list_groups(blocks or [])
@@ -476,7 +492,11 @@ def _add_blocks(
             continue
         block_type = str(block.get("type") or "paragraph")
         if block_type == "paragraph":
-            _add_body_paragraph(document, block, paragraph_prototypes, paragraph_counters,
+            scoped_block = block
+            if str(block.get("paragraph_style") or "") == "level_1":
+                scoped_block = dict(block)
+                scoped_block["list_group_id"] = f"level-1:{numbering_scope}"
+            _add_body_paragraph(document, scoped_block, paragraph_prototypes, paragraph_counters,
                                 caption_counters.setdefault("_numbering_instances", {}))
         elif block_type == "table":
             caption_counters["表"] += 1
@@ -578,7 +598,7 @@ def _add_chapters(document: Document, chapters: list[dict[str, Any]], paragraph_
     current_chapter_number = "1"
     caption_counters = {"表": 0, "図": 0}
 
-    for node in _flatten_selected(chapters):
+    for node_index, node in enumerate(_flatten_selected(chapters)):
         level = int(node.get("level") or 1)
         level = min(max(level, 1), 3)
         if level == 1:
@@ -598,6 +618,7 @@ def _add_chapters(document: Document, chapters: list[dict[str, Any]], paragraph_
             section_title=title,
             caption_counters=caption_counters,
             paragraph_prototypes=paragraph_prototypes,
+            numbering_scope=str(node.get("id") or node_index),
         )
 
 
