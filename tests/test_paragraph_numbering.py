@@ -109,7 +109,11 @@ class ParagraphNumberingTest(unittest.TestCase):
 
         self.assertEqual([item["list_level"] for item in structures], list(range(6)))
         self.assertEqual([item["paragraph_style"] for item in structures],
-                         [f"level_{value}" for value in range(1, 7)])
+                         ["level_1", "level_2", "level_4", "level_3", "level_5", "level_6"])
+        self.assertEqual(
+            [calculate_paragraph_prefix(item["paragraph_style"], {}) for item in structures],
+            ["（1）", "・", "①", "➢", "・", "①"],
+        )
         self.assertEqual([item["number_format"] for item in structures], formats)
         self.assertEqual(structures[3]["symbol_font"], "Wingdings")
         self.assertEqual(structures[3]["marker_type"], "arrow")
@@ -118,6 +122,68 @@ class ParagraphNumberingTest(unittest.TestCase):
         self.assertNotEqual(structures[1]["paragraph_style"], structures[4]["paragraph_style"])
         self.assertEqual(structures[0]["left_indent_twips"], 240)
         self.assertEqual(structures[5]["hanging_indent_twips"], 120)
+        self.assertEqual(structures[2]["native_ilvl"], 2)
+        self.assertEqual(structures[2]["word_style_id"], style_ids[2])
+        self.assertEqual(structures[2]["word_style_name"], "Native level 2")
+        self.assertEqual(structures[3]["word_style_based_on_id"], style_ids[3])
+        self.assertEqual(structures[2]["numbering_p_style"], style_ids[2])
+        self.assertEqual(structures[2]["abstract_num_id"], "42")
+
+    def test_current_style_exact_match_precedes_based_on_and_falls_back_only_when_absent(self):
+        if importlib.util.find_spec("docx") is None:
+            self.skipTest("python-docx is not installed")
+        from docx import Document
+        from docx.enum.style import WD_STYLE_TYPE
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+        from tools.chapter_parser import _paragraph_structure
+
+        document = Document()
+        base = document.styles.add_style("スタイル3", WD_STYLE_TYPE.PARAGRAPH)
+        current = document.styles.add_style("スタイル4", WD_STYLE_TYPE.PARAGRAPH)
+        current.base_style = base
+        undefined = document.styles.add_style("スタイル5", WD_STYLE_TYPE.PARAGRAPH)
+        undefined.base_style = current
+
+        root = document.part.numbering_part.element
+        abstract = OxmlElement("w:abstractNum")
+        abstract.set(qn("w:abstractNumId"), "88")
+        # Put the ancestor first to reproduce the v0.0.14 unordered-set failure.
+        for ilvl, style_id, marker in ((3, base.style_id, "\uf0d8"),
+                                       (4, current.style_id, "・")):
+            level = OxmlElement("w:lvl")
+            level.set(qn("w:ilvl"), str(ilvl))
+            for tag, value in (("w:numFmt", "bullet"), ("w:lvlText", marker),
+                               ("w:pStyle", style_id)):
+                child = OxmlElement(tag)
+                child.set(qn("w:val"), value)
+                level.append(child)
+            if ilvl == 3:
+                r_pr = OxmlElement("w:rPr")
+                fonts = OxmlElement("w:rFonts")
+                fonts.set(qn("w:ascii"), "Wingdings")
+                r_pr.append(fonts)
+                level.append(r_pr)
+            abstract.append(level)
+        root.append(abstract)
+        num = OxmlElement("w:num")
+        num.set(qn("w:numId"), "88")
+        ref = OxmlElement("w:abstractNumId")
+        ref.set(qn("w:val"), "88")
+        num.append(ref)
+        root.append(num)
+
+        own = document.add_paragraph("own", style=current)
+        inherited = document.add_paragraph("inherited", style=undefined)
+        own_structure = _paragraph_structure(document, own, own.text)
+        inherited_structure = _paragraph_structure(document, inherited, inherited.text)
+
+        self.assertEqual(own_structure["native_ilvl"], 4)
+        self.assertEqual(own_structure["paragraph_style"], "level_5")
+        self.assertEqual(own_structure["marker_type"], "bullet")
+        self.assertEqual(inherited_structure["native_ilvl"], 4)
+        self.assertEqual(inherited_structure["paragraph_style"], "level_5")
+        self.assertEqual(inherited_structure["word_style_based_on_id"], current.style_id)
 
     def test_group_insert_and_delete_renumber_locally(self):
         counters = {}
