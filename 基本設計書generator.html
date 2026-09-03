@@ -25546,9 +25546,16 @@ async function difyCall(apiKey, inputs, apiUrl=DIFY_API_URL, returnOutputs=false
 
   if(returnOutputs) return o;
 
-  let raw = o.result_json ?? o.text ?? o.output ?? o.answer ?? null;
+  let raw = o.result_json ?? null;
+  if(raw === null || raw === ''){
+    const chunkKeys=Object.keys(o)
+      .filter(key=>/^result_json_part_\d+$/.test(key) && o[key]!==null && o[key]!==undefined && o[key]!=='')
+      .sort((a,b)=>Number(a.match(/\d+$/)[0])-Number(b.match(/\d+$/)[0]));
+    if(chunkKeys.length) raw=chunkKeys.map(key=>String(o[key])).join('');
+  }
+  raw = raw ?? o.text ?? o.output ?? o.answer ?? null;
   if(raw === null){
-    throw new Error('Dify output_not_found: outputs.result_json / text / output / answer がありません');
+    throw new Error('Dify output_not_found: outputs.result_json / result_json_part_N / text / output / answer がありません');
   }
 
   try {
