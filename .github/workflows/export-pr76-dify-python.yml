@@ -1,0 +1,46 @@
+name: Export PR76 Dify Python
+
+on:
+  push:
+    branches:
+      - codex/fix-dify-160000
+    paths:
+      - '.github/workflows/export-pr76-dify-python.yml'
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install yaml parser
+        run: pip install pyyaml
+      - name: Extract Dify code nodes
+        shell: python
+        run: |
+          import yaml
+          from pathlib import Path
+
+          path = Path('dify/company/workflows/②本文生成_v4_標準本文読込.yml')
+          data = yaml.safe_load(path.read_text(encoding='utf-8'))
+          nodes = data['workflow']['graph']['nodes']
+          wanted = {
+              '生成入力・標準本文解析': '01_生成入力・標準本文解析.py',
+              '標準本文反映・結果整形': '02_標準本文反映・結果整形.py',
+          }
+          out = Path('pr76_python')
+          out.mkdir()
+          found = set()
+          for node in nodes:
+              d = node.get('data') or {}
+              title = d.get('title')
+              if title in wanted:
+                  (out / wanted[title]).write_text(d.get('code',''), encoding='utf-8')
+                  found.add(title)
+          missing = set(wanted) - found
+          if missing:
+              raise SystemExit(f'Missing nodes: {missing}')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr76_dify_python
+          path: pr76_python/
+          retention-days: 7
