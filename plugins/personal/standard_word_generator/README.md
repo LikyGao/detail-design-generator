@@ -1,4 +1,4 @@
-# Standard Word Generator v0.0.21
+# Standard Word Generator v0.0.22
 
 Dify用の標準Word生成プラグインです。v0.0.7の文書種別別テンプレート管理・章節Master・Word生成を維持し、Heading 1～3配下の通常本文抽出と精確取得を追加します。
 
@@ -52,6 +52,14 @@ fallbackとして使用します。
 ## 互換性
 
 既存ツール名と既存パラメーターを維持しています。v0.0.7で登録済みのテンプレートはMaster取得・Word生成に引き続き利用できますが、章節本文を利用するにはv0.0.8導入後に標準テンプレートを再登録してください。
+
+## 0.0.22
+
+通常のnative Word style段落では、paragraph-local `w:numPr`を書き込まず、`pStyle`と
+テンプレートの`styles.xml` / `numbering.xml`にnumberingとindentを委ねるようにしました。
+Wordで同じstyleを再適用した場合と同じ段落プロパティになり、浅い「・」、深い「・」、
+①、➢の各style固有の配置を維持します。独立した番号グループまたは章節単位の番号restartが
+必要な番号styleに限り、native `ilvl`を保った新しいnum instanceと`startOverride`を設定します。
 
 ## 0.0.21
 

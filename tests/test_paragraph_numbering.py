@@ -477,7 +477,7 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
         )
         generated = document.paragraphs[-1]
         self.assertEqual(generated.style.name, style.name)
-        self.assertEqual(direct_num_values(generated), ("201", 0))
+        self.assertIsNone(direct_num_values(generated))
         self.assertIsNone(generated._p.pPr.find(qn("w:ind")))
 
     def test_native_styles_keep_distinct_numbering_indents_after_docx_round_trip(self):
@@ -495,9 +495,11 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
         abstract = OxmlElement("w:abstractNum")
         abstract.set(qn("w:abstractNumId"), "123")
         styles = {}
-        canonical = {0: (440, 440), 1: (360, 120), 2: (720, 180), 4: (1320, 240), 5: (1740, 300)}
+        canonical = {0: (440, 440), 1: (360, 120), 2: (720, 180),
+                     3: (1020, 210), 4: (1320, 240), 5: (1740, 300)}
         formats = {1: ("bullet", "・"), 2: ("decimalEnclosedCircle", "%3"),
-                   4: ("bullet", "・"), 5: ("decimalEnclosedCircle", "%6")}
+                   3: ("bullet", "\uf0d8"), 4: ("bullet", "・"),
+                   5: ("decimalEnclosedCircle", "%6")}
         for ilvl in range(6):
             style = document.styles.add_style(f"Canonical native {ilvl}", WD_STYLE_TYPE.PARAGRAPH)
             styles[ilvl] = style
@@ -519,7 +521,7 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
         ref = OxmlElement("w:abstractNumId"); ref.set(qn("w:val"), "123")
         num.append(ref); root.append(num)
 
-        for ilvl in (0, 1, 2, 4, 5):
+        for ilvl in (0, 1, 2, 3, 4, 5):
             paragraph = document.add_paragraph(f"prototype {ilvl}", style=styles[ilvl])
             num_pr = OxmlElement("w:numPr")
             level = OxmlElement("w:ilvl"); level.set(qn("w:val"), str(ilvl))
@@ -532,6 +534,7 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
         blocks = [
             {"id": "shallow-bullet", "type": "paragraph", "paragraph_style": "level_2", "text": "shallow bullet"},
             {"id": "deep-bullet", "type": "paragraph", "paragraph_style": "level_5", "text": "deep bullet"},
+            {"id": "arrow", "type": "paragraph", "paragraph_style": "level_3", "text": "arrow"},
             {"id": "shallow-circle", "type": "paragraph", "paragraph_style": "level_4", "text": "shallow circle", "list_group_id": "circle-a"},
             {"id": "deep-circle", "type": "paragraph", "paragraph_style": "level_6", "text": "deep circle", "list_group_id": "circle-b"},
         ]
@@ -544,9 +547,9 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
         # therefore identify the canonical pStyle definition rather than the
         # cloned paragraph-local numbering instances used for list restarts.
         self.assertEqual([_numbering_values(p, document) for p in generated],
-                         [("123", 1), ("123", 4), ("123", 2), ("123", 5)])
+                         [("123", 1), ("123", 4), ("123", 3), ("123", 2), ("123", 5)])
         self.assertEqual([direct_num_values(p) for p in generated],
-                         [("123", 1), ("123", 4), ("124", 2), ("125", 5)])
+                         [None, None, None, ("124", 2), ("125", 5)])
         numbering_by_id = {
             item.get(qn("w:numId")): item
             for item in document.part.numbering_part.element.findall(qn("w:num"))
@@ -560,18 +563,27 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
                 override.find(qn("w:startOverride")).get(qn("w:val")), "1"
             )
         self.assertEqual([p.style.name for p in generated],
-                         [styles[i].name for i in (1, 4, 2, 5)])
+                         [styles[i].name for i in (1, 4, 3, 2, 5)])
         # Native paragraphs must not receive direct indentation. Their effective
         # geometry comes from the ilvl selected in numbering.xml.
         self.assertTrue(all(p._p.pPr.find(qn("w:ind")) is None for p in generated))
         effective = [
             _resolve_numbering_indent(document, num_id, ilvl)
-            for num_id, ilvl in (direct_num_values(p) for p in generated)
+            for num_id, ilvl in (_numbering_values(p, document) for p in generated)
         ]
         self.assertEqual([value[0] for value in effective],
-                         [canonical[i][0] for i in (1, 4, 2, 5)])
+                         [canonical[i][0] for i in (1, 4, 3, 2, 5)])
         self.assertGreater(effective[1][0], effective[0][0])
-        self.assertGreater(effective[3][0], effective[2][0])
+        self.assertGreater(effective[4][0], effective[3][0])
+        # Reapplying the same style in Word removes direct numbering. Ordinary
+        # native paragraphs are already XML-equivalent to that style-only state.
+        for paragraph in generated[:3]:
+            reapplied = document.add_paragraph("reapplied", style=paragraph.style)
+            self.assertEqual(
+                [child.tag for child in paragraph._p.pPr],
+                [child.tag for child in reapplied._p.pPr],
+            )
+            self.assertIsNone(direct_num_values(reapplied))
         for paragraph in generated:
             self.assertNotRegex(paragraph.text, r"^(?:・|[①-⑳]|➢|（\\d+）)")
 
@@ -610,15 +622,16 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
         reopened = Document(output)
         reopened_generated = [p for p in reopened.paragraphs if p.text in {b["text"] for b in blocks}]
         self.assertEqual([p.style.name for p in reopened_generated],
-                         [styles[i].name for i in (1, 4, 2, 5)])
-        self.assertEqual([direct_num_values(p)[1] for p in reopened_generated], [1, 4, 2, 5])
+                         [styles[i].name for i in (1, 4, 3, 2, 5)])
+        self.assertEqual([direct_num_values(p) for p in reopened_generated],
+                         [None, None, None, ("124", 2), ("125", 5)])
         self.assertTrue(all(p._p.pPr.find(qn("w:ind")) is None for p in reopened_generated))
         reopened_effective = [
             _resolve_numbering_indent(reopened, num_id, ilvl)
-            for num_id, ilvl in (direct_num_values(p) for p in reopened_generated)
+            for num_id, ilvl in (_numbering_values(p, reopened) for p in reopened_generated)
         ]
         self.assertEqual([value[0] for value in reopened_effective],
-                         [canonical[i][0] for i in (1, 4, 2, 5)])
+                         [canonical[i][0] for i in (1, 4, 3, 2, 5)])
         self.assertGreater(reopened_effective[1][0], reopened_effective[0][0])
 
 
