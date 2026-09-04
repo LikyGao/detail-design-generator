@@ -13,7 +13,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Inches, Twips
+from docx.shared import Inches, Pt, Twips
 
 from tools.chapter_parser import _paragraph_structure
 from tools.paragraph_numbering import calculate_paragraph_prefix
@@ -25,6 +25,10 @@ PARAGRAPH_STYLES = {f"level_{level}" for level in range(7)}
 # one-character-per-level ladder.  Explicit block/template values always win.
 PARAGRAPH_FALLBACK_INDENTS = {0: 0, 1: 170, 2: 340, 3: 510, 4: 510, 5: 794, 6: 794}
 PARAGRAPH_PREFIX_SEPARATOR = " "
+# The parser's established native-level mapping is intentionally not numeric:
+# Word/UI `スタイル0` (native ilvl 0) is represented as `level_1` internally.
+UI_STYLE_ZERO_PARAGRAPH_STYLE = "level_1"
+BODY_GROUP_SPACE_BEFORE = Pt(10.5)
 
 
 def _replace_paragraph_text(paragraph, text: str) -> None:
@@ -387,8 +391,29 @@ def _restore_body_indents(paragraph, block: dict[str, Any], paragraph_style: str
         paragraph.paragraph_format.first_line_indent = Twips(first_line_indent)
 
 
+def _is_ui_style_zero(block: dict[str, Any], descriptor: dict[str, Any] | None) -> bool:
+    """Identify Word/UI スタイル0 through the parser's existing mapping."""
+    if descriptor is not None:
+        return (
+            descriptor.get("paragraph_style") == UI_STYLE_ZERO_PARAGRAPH_STYLE
+            and descriptor.get("native_ilvl") == 0
+        )
+    return (
+        block.get("word_style_name") == "スタイル0"
+        or block.get("paragraph_style") == UI_STYLE_ZERO_PARAGRAPH_STYLE
+    )
+
+
+def _apply_body_spacing(paragraph, block: dict[str, Any], descriptor: dict[str, Any] | None,
+                        is_first_body_block: bool) -> None:
+    """Separate later top-level body groups without creating empty paragraphs."""
+    if _is_ui_style_zero(block, descriptor) and not is_first_body_block:
+        paragraph.paragraph_format.space_before = BODY_GROUP_SPACE_BEFORE
+
+
 def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: dict[str, Any],
-                        counters: dict[int, int], numbering_instances: dict | None = None) -> None:
+                        counters: dict[int, int], numbering_instances: dict | None = None,
+                        *, is_first_body_block: bool = True):
     numbering_instances = numbering_instances if numbering_instances is not None else {}
     paragraph_style = str(block.get("paragraph_style") or "level_0")
     if paragraph_style not in PARAGRAPH_STYLES:
@@ -414,7 +439,8 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
                     document, descriptor, block.get("list_group_id"), numbering_instances, start)
                 _set_native_num_pr(paragraph, num_id, int(descriptor.get("native_ilvl") or 0))
             paragraph.add_run(text)  # marker is rendered by Word, never literal text
-            return
+            _apply_body_spacing(paragraph, block, descriptor, is_first_body_block)
+            return paragraph
 
     # Compatibility for callers supplying a native style identity without a
     # descriptor map. The complete generator normally takes the descriptor path.
@@ -427,7 +453,8 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
         else:
             paragraph = document.add_paragraph(style=word_style_name)
             paragraph.add_run(text)
-            return
+            _apply_body_spacing(paragraph, block, None, is_first_body_block)
+            return paragraph
 
     paragraph = document.add_paragraph(style="Normal")
     prototype = prototypes.get(paragraph_style)
@@ -453,6 +480,8 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
     )
     separator = PARAGRAPH_PREFIX_SEPARATOR if prefix and text else ""
     paragraph.add_run(f"{prefix}{separator}{text}")
+    _apply_body_spacing(paragraph, block, descriptor, is_first_body_block)
+    return paragraph
 
 
 def _add_blocks(
@@ -466,6 +495,7 @@ def _add_blocks(
     numbering_scope: str = "section",
 ) -> None:
     paragraph_counters: dict = {}
+    has_body_block = False
     blocks = _inherit_adjacent_list_groups(blocks or [])
     for block in blocks:
         if not isinstance(block, dict):
@@ -477,8 +507,11 @@ def _add_blocks(
                 scoped_block = dict(block)
                 scoped_block["list_group_id"] = f"level-1:{numbering_scope}"
             _add_body_paragraph(document, scoped_block, paragraph_prototypes, paragraph_counters,
-                                caption_counters.setdefault("_numbering_instances", {}))
+                                caption_counters.setdefault("_numbering_instances", {}),
+                                is_first_body_block=not has_body_block)
+            has_body_block = True
         elif block_type == "table":
+            has_body_block = True
             caption_counters["表"] += 1
             _add_caption(
                 document,
@@ -490,6 +523,7 @@ def _add_blocks(
             _add_table(document, block)
             document.add_paragraph("")
         elif block_type == "figure":
+            has_body_block = True
             caption_counters["図"] += 1
             _add_caption(
                 document,
@@ -501,6 +535,7 @@ def _add_blocks(
             _add_figure(document, block)
             document.add_paragraph("")
         elif block_type == "table_placeholder":
+            has_body_block = True
             caption_counters["表"] += 1
             _add_caption(
                 document,
@@ -512,6 +547,7 @@ def _add_blocks(
             paragraph = document.add_paragraph("（表は別途作成）")
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         elif block_type == "figure_placeholder":
+            has_body_block = True
             caption_counters["図"] += 1
             _add_caption(
                 document,
