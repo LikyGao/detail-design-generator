@@ -219,6 +219,63 @@ def test_drag_transaction_starts_on_start_instead_of_on_choose():
         assert on_start < begin < start
 
 
+def test_preview_uses_word_like_headings_half_em_levels_and_hanging_layout():
+    assert "--preview-indent-unit:0.5em" in HTML
+    assert "margin-left:calc(var(--preview-level,0) * var(--preview-indent-unit))" in HTML
+    assert ".word-paragraph{display:grid;grid-template-columns:auto minmax(0,1fr)" in HTML
+    assert ".word-paragraph-text{grid-column:2" in HTML
+    assert "border-left:4px solid #444" not in HTML
+    assert "border-bottom:2px solid #333" not in HTML
+    preview = _function("buildPreviewHtml")
+    blocks = _function("blocksToHtml")
+    assert "（本文未入力）" not in preview
+    assert "if(!String(b.text||'').trim()) return '';" in blocks
+
+
+def test_step2_attention_is_pale_pink_and_has_no_exclamation_marker():
+    nav = _function("renderNav")
+    selector = _function("buildChapterSelectCard")
+    assert ".step2-attention{background:#fff3f5!important" in HTML
+    assert "classList.add('step2-attention')" in nav
+    assert "classList.add('step2-attention')" in selector
+    assert "warning.textContent='!'" not in nav
+
+
+def test_media_caption_ui_and_filename_default_are_consistent():
+    table = _function("buildTableEditor")
+    figure = _function("buildFigureEditor")
+    row = _function("buildMediaCaptionRow")
+    picker = _function("onPickImage")
+    assert "mediaCaptionText(b)" in table and "buildMediaCaptionRow(n,b" in table
+    assert "mediaCaptionText(b)" in figure and "buildMediaCaptionRow(n,b" in figure
+    assert "del.textContent='×'" in row
+    assert "b.caption===previousDefault" in picker
+    assert "b.caption=fileNameWithoutExtension(f.name)" in picker
+    assert "📎" not in figure
+
+
+def test_filename_caption_default_preserves_manual_caption_on_replacement():
+    function = _function("fileNameWithoutExtension")
+    source = f"""
+{function}
+const update=(block,name)=>{{
+  const previousDefault=fileNameWithoutExtension(block.fileName);
+  if(!String(block.caption||'').trim()||block.caption===previousDefault) block.caption=fileNameWithoutExtension(name);
+  block.fileName=name;
+}};
+const automatic={{caption:'',fileName:''}};
+update(automatic,'Catalyst 9200CX.png');
+update(automatic,'Cisco9200CX.png');
+const manual={{caption:'catalyst',fileName:'Catalyst 9200CX.png'}};
+update(manual,'Cisco9200CX.png');
+console.log(JSON.stringify({{automatic,manual,path:fileNameWithoutExtension('folder/構成図.final.PNG')}}));
+"""
+    result = _run_node(source)
+    assert result["automatic"]["caption"] == "Cisco9200CX"
+    assert result["manual"]["caption"] == "catalyst"
+    assert result["path"] == "構成図.final"
+
+
 def test_drag_transaction_keeps_origin_and_only_commits_valid_changed_drop():
     begin = _function("beginDragSession")
     finish = _function("finishDragSession")

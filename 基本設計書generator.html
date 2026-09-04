@@ -12,6 +12,7 @@
     --text:#e8eaf6;--text-muted:#8892b0;--text-faint:#4a5275;
     --green:#43d9a2;--red:#ff6b6b;--amber:#f7c948;--number-badge:#2d3561;
     --heading1:#6fa3ff;--heading2:#a78bfa;--heading3:#43d9a2;--radius:10px;--tr:0.2s ease;
+    --preview-indent-unit:0.5em;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Noto Sans JP','BIZ UDGothic',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6}
@@ -108,6 +109,7 @@
   .rev-node.lv2{margin-left:22px;background:var(--surface)}
   .rev-node.lv3{margin-left:44px}
   .rev-node.off{opacity:.45}
+  .step2-attention{background:#fff3f5!important;border-color:#f3dfe3!important}
   .rev-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px}
   .rev-check{width:18px;height:18px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
   .rev-main{flex:1;min-width:0}
@@ -209,7 +211,12 @@
   .block:not(.is-editing) .tbl-edit input{border-color:transparent;background:transparent;color:var(--text);pointer-events:none}
   .block:not(.is-editing) .tbl-colh{padding-right:0}.block:not(.is-editing) .tbl-edit th:last-child,.block:not(.is-editing) .tbl-edit td:last-child{display:none}
   .block:not(.is-editing) .coldel,.block:not(.is-editing) .tbl-rowdel,.block:not(.is-editing) .tbl-actions,.block:not(.is-editing) .tbl-paste{display:none}
-  .block-read-caption{font-size:12px;font-weight:650;margin:0 0 8px;color:var(--text)}
+  .block-read-caption{font-size:12px;font-weight:650;margin:0 0 8px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .media-caption-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;min-width:0}
+  .media-caption-ref{flex:0 0 auto;font-size:12px;font-weight:650;white-space:nowrap;color:var(--text)}
+  .media-caption-input{flex:1 1 auto;min-width:0}
+  .media-caption-delete{flex:0 0 auto;background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:17px;line-height:1;padding:4px 7px}
+  .media-caption-delete:hover{color:var(--red)}
   .block:not(.is-editing) .tbl-cap,.block:not(.is-editing) .fig-box>input,.block:not(.is-editing) .fig-remove,.block:not(.is-editing) .fig-drop{display:none}
   .block:not(.is-editing) .ph-box input,.block:not(.is-editing) .ph-box button,.block:not(.is-editing) .ph-note{display:none}
   .block.is-editing .block-read-caption{display:none}
@@ -271,13 +278,17 @@
   .word-toc-name{white-space:nowrap}
   .word-toc-dots{flex:1;border-bottom:1px dotted #999;transform:translateY(-3px)}
   .word-toc-page{font-variant-numeric:tabular-nums;color:#000}
-  .word-body h1,.word-body h2,.word-body h3{font-family:'ＭＳ ゴシック','MS Gothic',sans-serif;font-weight:700;break-after:avoid-page}
-  .word-body h1{font-size:15pt;border-bottom:2px solid #333;padding-bottom:4pt;margin:0 0 10pt;line-height:1.4}
-  .word-body h2{font-size:12pt;border-left:4px solid #444;padding-left:7pt;margin:12pt 0 6pt;line-height:1.45}
-  .word-body h3{font-size:10.5pt;margin:10pt 0 4pt;color:#222;line-height:1.5}
-  .word-body p{margin:0 0 4pt;text-align:justify;text-indent:10.5pt;line-height:1.75}
+  .word-body h1,.word-body h2,.word-body h3{font-family:'ＭＳ ゴシック','MS Gothic',sans-serif;font-weight:700;break-after:avoid-page;padding:0;border:0;background:transparent;color:#000;box-shadow:none;border-radius:0}
+  .word-body h1{font-size:15pt;margin:0 0 10pt;line-height:1.45}
+  .word-body h2{font-size:12pt;margin:12pt 0 6pt;line-height:1.5}
+  .word-body h3{font-size:10.5pt;margin:10pt 0 4pt;line-height:1.55}
+  .word-body p{margin:0 0 4pt;line-height:1.75}
+  .word-paragraph{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:.35em;margin-left:calc(var(--preview-level,0) * var(--preview-indent-unit))!important;text-align:justify}
+  .word-paragraph .paragraph-prefix{grid-column:1;white-space:nowrap}
+  .word-paragraph-text{grid-column:2;min-width:0;white-space:normal;overflow-wrap:anywhere}
+  .word-paragraph.no-prefix .word-paragraph-text{grid-column:1 / -1}
   .preview-unit,.preview-chapter,.word-keep-together{break-inside:avoid-page}
-  .word-ph{border:1px solid #bbb;background:#fafafa;padding:10px;margin:10px 0;text-align:center;color:#555;font-size:11px}
+  .word-ph{border:0;background:transparent;padding:0;margin:9pt 0;text-align:center;color:#555;font-size:10.5pt}
   .word-ph .wpref{font-weight:700;color:#222;display:block;margin-bottom:3px}
   .word-empty{color:#999;font-style:italic}
   /* toast */
@@ -340,7 +351,7 @@
   table.word-table th,table.word-table td{border:1px solid #999;padding:3pt 6pt;overflow-wrap:anywhere;vertical-align:top}
   table.word-table th{background:#f2f2f2;font-weight:700}
   .word-cap{text-align:center;font-weight:700;color:#222;margin:0 0 3pt;line-height:1.5;break-after:avoid-page}
-  .word-fig-img{box-sizing:border-box;max-width:100%;width:auto;height:auto;max-height:250mm;display:block;margin:0 auto;border:1px solid #ccc;object-fit:contain}
+  .word-fig-img{box-sizing:border-box;max-width:100%;width:auto;height:auto;max-height:250mm;display:block;margin:0 auto;object-fit:contain}
   .word-keep-together{margin:9pt 0}
   [hidden]{display:none !important}
   /* ── Document type pre-step ── */
@@ -24613,17 +24624,11 @@ function renderNav(){
   const walker = phase===PHASE.CHAPTERS ? walkAll : walkSelected;
   walker(nodes,n=>{
     const d=document.createElement('div'); d.className='navi lv'+n.level;
+    if(phase===PHASE.CHAPTERS&&(n.applicability==='missing'||n.applicability==='confirm')) d.classList.add('step2-attention');
     const num=document.createElement('span'); num.className='nnum'; num.textContent=n.display_number || '-';
     const txt=document.createElement('span'); txt.className='ntxt'; txt.textContent=n.title||'(無題)';
     d.addEventListener('click',()=>scrollToNode(n.id,d));
     if(phase===PHASE.CHAPTERS){
-      const needsAttention=n.applicability==='missing'||n.applicability==='confirm';
-      if(needsAttention){
-        const warning=document.createElement('span'); warning.className='nav-warning'; warning.textContent='!';
-        warning.title=n.applicability==='missing'?'情報不足：入力内容の確認が必要です':'要確認：ユーザーによる確認が必要です';
-        warning.setAttribute('aria-label',warning.title);
-        d.appendChild(warning);
-      }
       const stat=document.createElement('span'); stat.className='nstat'+(n.selected===false?' off':''); stat.textContent=n.selected===false?'☐':'☑';
       d.appendChild(stat);
     }
@@ -24667,6 +24672,7 @@ function renderChapterSelector(){
 }
 function buildChapterSelectCard(n, parent){
   const card=document.createElement('div'); card.className='card'; card.dataset.nodeid=n.id;
+  if(n.applicability==='missing'||n.applicability==='confirm') card.classList.add('step2-attention');
   const h=document.createElement('div'); h.className='cardh';
   const chk=document.createElement('input'); chk.type='checkbox'; chk.checked=n.selected!==false; chk.style.marginRight='8px';
   const num=document.createElement('span'); num.className='cnum lv'+n.level; num.textContent=n.display_number || '-';
@@ -25120,7 +25126,7 @@ function buildBlock(n,b){
     : b.type==='figure'?'画像'
     : b.type==='table_placeholder'?'表（占位）':'図（占位）';
   head.innerHTML='<span class="btype">'+typeName+'</span>'+(b._ref?'<span class="bref">'+esc(b._ref)+'</span>':'');
-  if(b.type!=='paragraph'){
+  if(b.type==='table_placeholder'||b.type==='figure_placeholder'){
     const del=document.createElement('button'); del.className='bdel'; del.textContent='✕'; del.title='ブロック削除';
     del.addEventListener('click',()=>delBlock(n,b)); head.appendChild(del);
     el.appendChild(head);
@@ -25188,12 +25194,24 @@ function buildBlock(n,b){
 }
 
 /* ---- table editor ---- */
-function buildTableEditor(n,b,bb){
-  const readCaption=document.createElement('div'); readCaption.className='block-read-caption read-only'; readCaption.textContent=b.caption||'表'; bb.appendChild(readCaption);
-  const cap=document.createElement('input'); cap.type='text'; cap.className='tbl-cap'; cap.value=b.caption;
-  cap.placeholder='表タイトル / caption（例：対象機器一覧）';
+function mediaCaptionText(b){
+  const ref=String(b._ref||'').trim();
+  const caption=String(b.caption||'').trim();
+  return ref+(caption?'：'+caption:'');
+}
+function buildMediaCaptionRow(n,b,placeholder){
+  const row=document.createElement('div'); row.className='media-caption-row edit-only';
+  const ref=document.createElement('span'); ref.className='media-caption-ref'; ref.textContent=b._ref||'';
+  const cap=document.createElement('input'); cap.type='text'; cap.className='media-caption-input'; cap.value=b.caption||''; cap.placeholder=placeholder;
   cap.addEventListener('input',()=>{ b.caption=cap.value; debouncePreview(); pushHistoryDebounced('変更'); });
-  bb.appendChild(cap);
+  const del=document.createElement('button'); del.type='button'; del.className='media-caption-delete'; del.textContent='×'; del.title='ブロック削除'; del.setAttribute('aria-label','ブロック削除');
+  del.addEventListener('click',event=>{ event.stopPropagation(); delBlock(n,b); });
+  row.appendChild(ref); row.appendChild(cap); row.appendChild(del);
+  return row;
+}
+function buildTableEditor(n,b,bb){
+  const readCaption=document.createElement('div'); readCaption.className='block-read-caption read-only'; readCaption.textContent=mediaCaptionText(b); bb.appendChild(readCaption);
+  bb.appendChild(buildMediaCaptionRow(n,b,'表タイトル（例：対象機器一覧）'));
 
   const wrap=document.createElement('div'); wrap.className='tbl-wrap';
   const table=document.createElement('table'); table.className='tbl-edit';
@@ -25268,18 +25286,16 @@ function parseTabular(text){
 }
 
 /* ---- figure editor ---- */
+const figureAutoCaptions=new WeakMap();
 function buildFigureEditor(n,b,bb){
   const box=document.createElement('div'); box.className='fig-box';
-  const readCaption=document.createElement('div'); readCaption.className='block-read-caption read-only'; readCaption.textContent=b.caption||'図'; box.appendChild(readCaption);
-  const cap=document.createElement('input'); cap.type='text'; cap.value=b.caption;
-  cap.placeholder='画像タイトル / caption（例：システム構成図）';
-  cap.addEventListener('input',()=>{ b.caption=cap.value; debouncePreview(); pushHistoryDebounced('変更'); });
-  box.appendChild(cap);
+  const readCaption=document.createElement('div'); readCaption.className='block-read-caption read-only'; readCaption.textContent=mediaCaptionText(b); box.appendChild(readCaption);
+  box.appendChild(buildMediaCaptionRow(n,b,'画像タイトル（例：システム構成図）'));
 
   if(b.imageData){
     const img=document.createElement('img'); img.className='fig-thumb'; img.src=b.imageData; box.appendChild(img);
     const meta=document.createElement('div'); meta.className='fig-meta';
-    const name=document.createElement('span'); name.textContent='📎 '+(b.fileName||'画像')+(b._w?'（'+b._w+'×'+b._h+'）':'');
+    const name=document.createElement('span'); name.textContent=(b.fileName||'画像')+(b._w?' ('+b._w+'×'+b._h+')':'');
     const rm=document.createElement('button'); rm.className='fig-remove'; rm.textContent='画像を削除';
     rm.addEventListener('click',event=>{ event.stopPropagation(); confirmDeletion('この画像を削除しますか？',()=>{ b.imageData=''; b.fileName=''; b._w=0; b._h=0; afterStructureChange('画像を削除'); }); });
     meta.appendChild(name); meta.appendChild(rm); box.appendChild(meta);
@@ -25293,6 +25309,11 @@ function buildFigureEditor(n,b,bb){
 }
 function onPickImage(e,n,b){
   const f=e.target.files && e.target.files[0]; if(!f) return;
+  const previousDefault=figureAutoCaptions.get(b)||fileNameWithoutExtension(b.fileName);
+  if(!String(b.caption||'').trim()||b.caption===previousDefault){
+    b.caption=fileNameWithoutExtension(f.name);
+    figureAutoCaptions.set(b,b.caption);
+  }
   const r=new FileReader();
   r.onload=()=>{
     b.imageData=r.result; b.fileName=f.name;
@@ -25302,6 +25323,10 @@ function onPickImage(e,n,b){
     im.src=r.result;
   };
   r.readAsDataURL(f);
+}
+function fileNameWithoutExtension(fileName){
+  const base=String(fileName||'').split(/[\\/]/).pop();
+  return base.replace(/\.[^.]+$/,'');
 }
 
 function convertPlaceholder(n,b){
@@ -26019,23 +26044,28 @@ function blocksToHtml(blocks,nodeId,paragraphPrefixes){
     try{
       const syncAttrs=' data-preview-nodeid="'+escH(nodeId)+'" data-preview-block-id="'+escH(b.id)+'"';
       if(b.type==='paragraph'){
+        if(!String(b.text||'').trim()) return '';
         const cfg=getParagraphStyleConfig(b.paragraph_style), prefix=paragraphPrefixes.get(b.id)||'';
-        const separator=prefix&&b.text?'&nbsp;':'';
-        return '<p'+syncAttrs+' style="text-indent:0;margin-left:'+((getParagraphNativeIlvl(b)??-1)+1)*18+'pt"><span class="paragraph-prefix">'+escH(prefix)+'</span>'+separator+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</p>';
+        const nativeLevel=getParagraphNativeIlvl(b);
+        const previewLevel=nativeLevel==null?0:Math.max(0,nativeLevel);
+        return '<p class="word-paragraph'+(prefix?'':' no-prefix')+'"'+syncAttrs+' style="--preview-level:'+previewLevel+'"><span class="paragraph-prefix">'+escH(prefix)+'</span><span class="word-paragraph-text">'+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</span></p>';
       }
       if(b.type==='table'){
-        const cap='<div class="word-cap">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</div>';
+        const caption=String(b.caption||'').trim();
+        const cap='<div class="word-cap">'+escH(b._ref||'')+(caption?'：'+escH(caption):'')+'</div>';
         const head='<tr>'+(b.headers||[]).map(h=>'<th>'+escH(h)+'</th>').join('')+'</tr>';
         const body=(b.rows||[]).map(r=>'<tr>'+(r||[]).map(c=>'<td>'+escH(c)+'</td>').join('')+'</tr>').join('');
         return '<div class="word-keep-together"'+syncAttrs+'>'+cap+'<table class="word-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
       }
       if(b.type==='figure'){
-        const cap='<div class="word-cap">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</div>';
+        const caption=String(b.caption||'').trim();
+        const cap='<div class="word-cap">'+escH(b._ref||'')+(caption?'：'+escH(caption):'')+'</div>';
         const img = b.imageData ? '<img class="word-fig-img" src="'+b.imageData+'">' : '<div class="word-ph">（画像未挿入）</div>';
         return '<div class="word-keep-together"'+syncAttrs+'>'+cap+img+'</div>';
       }
       // placeholders
-      return '<div class="word-ph"'+syncAttrs+'><span class="wpref">【'+escH(b._ref||'')+(b.caption?'：'+escH(b.caption):'')+'】</span>'+(b.type==='table_placeholder'?'（表は別途作成）':'（図は別途作成）')+'</div>';
+      const caption=String(b.caption||'').trim();
+      return '<div class="word-ph"'+syncAttrs+'><span class="wpref">'+escH(b._ref||'')+(caption?'：'+escH(caption):'')+'</span>'+(b.type==='table_placeholder'?'（表は別途作成）':'（図は別途作成）')+'</div>';
     }catch(e){ console.error('block render error',e,b); return '<div class="word-ph">（ブロック表示エラー）</div>'; }
   }).join('');
 }
@@ -26059,7 +26089,7 @@ function buildPreviewHtml(){
       escH(n.display_number)+'　'+
       escH(n.title||'(無題)')+
       '</'+tag+'>'+
-      (blocksToHtml(n.blocks,n.id,paragraphPrefixes)||'<p class="word-empty">（本文未入力）</p>')+
+      blocksToHtml(n.blocks,n.id,paragraphPrefixes)+
       '</div>';
   });
 
