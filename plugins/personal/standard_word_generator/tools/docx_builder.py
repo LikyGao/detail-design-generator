@@ -13,7 +13,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Inches, Twips
+from docx.shared import Inches, Pt, Twips
 
 from tools.chapter_parser import _paragraph_structure
 from tools.paragraph_numbering import calculate_paragraph_prefix
@@ -25,6 +25,7 @@ PARAGRAPH_STYLES = {f"level_{level}" for level in range(7)}
 # one-character-per-level ladder.  Explicit block/template values always win.
 PARAGRAPH_FALLBACK_INDENTS = {0: 0, 1: 170, 2: 340, 3: 510, 4: 510, 5: 794, 6: 794}
 PARAGRAPH_PREFIX_SEPARATOR = " "
+BODY_GROUP_SPACE_BEFORE_PT = 10.5
 
 
 def _replace_paragraph_text(paragraph, text: str) -> None:
@@ -387,8 +388,14 @@ def _restore_body_indents(paragraph, block: dict[str, Any], paragraph_style: str
         paragraph.paragraph_format.first_line_indent = Twips(first_line_indent)
 
 
+def _apply_body_group_spacing(paragraph, paragraph_style: str, is_first_body_paragraph: bool) -> None:
+    """Separate subsequent UI Style0 groups without adding blank paragraphs."""
+    if paragraph_style == "level_1" and not is_first_body_paragraph:
+        paragraph.paragraph_format.space_before = Pt(BODY_GROUP_SPACE_BEFORE_PT)
+
+
 def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: dict[str, Any],
-                        counters: dict[int, int], numbering_instances: dict | None = None) -> None:
+                        counters: dict[int, int], numbering_instances: dict | None = None):
     numbering_instances = numbering_instances if numbering_instances is not None else {}
     paragraph_style = str(block.get("paragraph_style") or "level_0")
     if paragraph_style not in PARAGRAPH_STYLES:
@@ -414,7 +421,7 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
                     document, descriptor, block.get("list_group_id"), numbering_instances, start)
                 _set_native_num_pr(paragraph, num_id, int(descriptor.get("native_ilvl") or 0))
             paragraph.add_run(text)  # marker is rendered by Word, never literal text
-            return
+            return paragraph
 
     # Compatibility for callers supplying a native style identity without a
     # descriptor map. The complete generator normally takes the descriptor path.
@@ -427,7 +434,7 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
         else:
             paragraph = document.add_paragraph(style=word_style_name)
             paragraph.add_run(text)
-            return
+            return paragraph
 
     paragraph = document.add_paragraph(style="Normal")
     prototype = prototypes.get(paragraph_style)
@@ -453,6 +460,7 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
     )
     separator = PARAGRAPH_PREFIX_SEPARATOR if prefix and text else ""
     paragraph.add_run(f"{prefix}{separator}{text}")
+    return paragraph
 
 
 def _add_blocks(
@@ -466,6 +474,7 @@ def _add_blocks(
     numbering_scope: str = "section",
 ) -> None:
     paragraph_counters: dict = {}
+    body_paragraph_count = 0
     blocks = _inherit_adjacent_list_groups(blocks or [])
     for block in blocks:
         if not isinstance(block, dict):
@@ -476,8 +485,19 @@ def _add_blocks(
             if str(block.get("paragraph_style") or "") == "level_1":
                 scoped_block = dict(block)
                 scoped_block["list_group_id"] = f"level-1:{numbering_scope}"
-            _add_body_paragraph(document, scoped_block, paragraph_prototypes, paragraph_counters,
-                                caption_counters.setdefault("_numbering_instances", {}))
+            paragraph = _add_body_paragraph(
+                document,
+                scoped_block,
+                paragraph_prototypes,
+                paragraph_counters,
+                caption_counters.setdefault("_numbering_instances", {}),
+            )
+            _apply_body_group_spacing(
+                paragraph,
+                str(block.get("paragraph_style") or "level_0"),
+                body_paragraph_count == 0,
+            )
+            body_paragraph_count += 1
         elif block_type == "table":
             caption_counters["表"] += 1
             _add_caption(

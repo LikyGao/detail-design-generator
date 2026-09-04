@@ -440,6 +440,65 @@ class ParagraphNumberingTest(unittest.TestCase):
         self.assertIsNone(_numbering_values(hanging))
 
 
+class BodyGroupSpacingTest(unittest.TestCase):
+    def test_only_subsequent_style0_groups_receive_spacing_and_it_survives_round_trip(self):
+        if importlib.util.find_spec("docx") is None:
+            self.skipTest("python-docx is not installed")
+        from docx import Document
+
+        from tools.docx_builder import BODY_GROUP_SPACE_BEFORE_PT, _add_chapters
+
+        document = Document()
+        chapters = [
+            {
+                "id": "first-node",
+                "level": 1,
+                "title": "Heading A",
+                "blocks": [
+                    {"type": "paragraph", "paragraph_style": "level_1", "text": "Style0 A"},
+                    {"type": "paragraph", "paragraph_style": "level_2", "text": "Child"},
+                    {"type": "paragraph", "paragraph_style": "level_5", "text": "Deep child"},
+                    {"type": "paragraph", "paragraph_style": "level_1", "text": "Style0 B"},
+                    {"type": "paragraph", "paragraph_style": "level_2", "text": "Child B"},
+                ],
+            },
+            {
+                "id": "second-node",
+                "level": 2,
+                "title": "Heading B",
+                "blocks": [
+                    {"type": "paragraph", "paragraph_style": "level_1", "text": "Style0 C"},
+                ],
+            },
+        ]
+
+        _add_chapters(document, chapters, {})
+        body = [p for p in document.paragraphs if "Style0" in p.text or "Child" in p.text or "child" in p.text]
+
+        # Confirm the fixture generated every target paragraph before inspecting formatting.
+        self.assertEqual(len(body), 6)
+        self.assertEqual([p.text.rsplit(" ", 1)[-1] for p in body],
+                         ["A", "Child", "child", "B", "B", "C"])
+        self.assertIsNone(body[0].paragraph_format.space_before)
+        self.assertIsNone(body[1].paragraph_format.space_before)
+        self.assertIsNone(body[1].paragraph_format.space_after)
+        self.assertIsNone(body[2].paragraph_format.space_before)
+        self.assertIsNone(body[2].paragraph_format.space_after)
+        self.assertEqual(body[3].paragraph_format.space_before.pt, BODY_GROUP_SPACE_BEFORE_PT)
+        self.assertIsNone(body[3].paragraph_format.space_after)
+        self.assertIsNone(body[4].paragraph_format.space_before)
+        self.assertIsNone(body[4].paragraph_format.space_after)
+        self.assertIsNone(body[5].paragraph_format.space_before)
+        self.assertFalse(any(not p.text for p in document.paragraphs))
+
+        output = io.BytesIO()
+        document.save(output)
+        output.seek(0)
+        reopened = Document(output)
+        reopened_b = next(p for p in reopened.paragraphs if p.text.endswith("Style0 B"))
+        self.assertEqual(reopened_b.paragraph_format.space_before.pt, BODY_GROUP_SPACE_BEFORE_PT)
+
+
 class NativeCanonicalIndentGenerationTest(unittest.TestCase):
     def test_template_sample_direct_indent_is_not_copied_to_generated_native_paragraph(self):
         if importlib.util.find_spec("docx") is None:
