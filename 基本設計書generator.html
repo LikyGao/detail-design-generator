@@ -24615,6 +24615,9 @@ function aiDecisionClass(value){
     default: return 'unknown';
   }
 }
+function isStep2Attention(n){
+  return n.selected===false||n.applicability==='confirm'||n.applicability==='missing';
+}
 
 function renderNav(){
   const el=document.getElementById('navTree');
@@ -24624,7 +24627,7 @@ function renderNav(){
   const walker = phase===PHASE.CHAPTERS ? walkAll : walkSelected;
   walker(nodes,n=>{
     const d=document.createElement('div'); d.className='navi lv'+n.level;
-    if(phase===PHASE.CHAPTERS&&(n.applicability==='missing'||n.applicability==='confirm')) d.classList.add('step2-attention');
+    if(phase===PHASE.CHAPTERS&&isStep2Attention(n)) d.classList.add('step2-attention');
     const num=document.createElement('span'); num.className='nnum'; num.textContent=n.display_number || '-';
     const txt=document.createElement('span'); txt.className='ntxt'; txt.textContent=n.title||'(無題)';
     d.addEventListener('click',()=>scrollToNode(n.id,d));
@@ -24672,7 +24675,7 @@ function renderChapterSelector(){
 }
 function buildChapterSelectCard(n, parent){
   const card=document.createElement('div'); card.className='card'; card.dataset.nodeid=n.id;
-  if(n.applicability==='missing'||n.applicability==='confirm') card.classList.add('step2-attention');
+  if(isStep2Attention(n)) card.classList.add('step2-attention');
   const h=document.createElement('div'); h.className='cardh';
   const chk=document.createElement('input'); chk.type='checkbox'; chk.checked=n.selected!==false; chk.style.marginRight='8px';
   const num=document.createElement('span'); num.className='cnum lv'+n.level; num.textContent=n.display_number || '-';
