@@ -222,6 +222,13 @@ def test_drag_transaction_starts_on_start_instead_of_on_choose():
 
 
 def test_preview_uses_word_like_headings_half_em_levels_and_hanging_layout():
+    assert "--preview-page-width:210mm" in HTML
+    assert "--preview-page-height:297mm" in HTML
+    assert "--preview-margin-left:20mm" in HTML
+    assert "--preview-margin-right:20mm" in HTML
+    assert "--preview-content-width:calc(var(--preview-page-width) - var(--preview-margin-left) - var(--preview-margin-right))" in HTML
+    assert "width:var(--preview-page-width);min-width:var(--preview-page-width);height:var(--preview-page-height)" in HTML
+    assert "padding:var(--preview-margin-top) var(--preview-margin-right) var(--preview-margin-bottom) var(--preview-margin-left)" in HTML
     assert "--preview-indent-unit:0.5em" in HTML
     assert "margin-left:calc(var(--preview-level,0) * var(--preview-indent-unit))" in HTML
     assert ".word-paragraph{display:grid;grid-template-columns:auto minmax(0,1fr)" in HTML
@@ -232,6 +239,22 @@ def test_preview_uses_word_like_headings_half_em_levels_and_hanging_layout():
     blocks = _function("blocksToHtml")
     assert "（本文未入力）" not in preview
     assert "if(!String(b.text||'').trim()) return '';" in blocks
+
+
+def test_chapter_navigation_closes_ai_fix_without_clearing_instruction():
+    activation = _function("activateEditTarget")
+    navigation = _function("scrollToNode")
+    closer = _function("closeExpandedParagraphAiFix")
+    paragraph_fix = _function("buildParagraphAiFix")
+
+    assert "expandedParagraphAiFixTarget.nodeId!==nextNodeId" in activation
+    assert "closeExpandedParagraphAiFix()" in activation
+    assert "activateEditTarget({kind:'node',nodeId:id},{focus:false})" in navigation
+    assert "panel.hidden=true" in closer
+    assert "editorActions.hidden=false" in paragraph_fix
+    assert "expandedParagraphAiFixTarget={nodeId:n.id,blockId:b.id}" in paragraph_fix
+    assert "b.revision_instruction=''" not in closer
+    assert "b.revision_instruction=''" not in activation
 
 
 def test_step2_attention_is_pale_pink_and_has_no_exclamation_marker():
