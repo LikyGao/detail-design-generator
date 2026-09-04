@@ -8,5 +8,5 @@
   "project_no": "PJ-2026-001",
   "revision_history_json": "[{\"issue_date\":\"2026/07/23\",\"version\":\"1.0\",\"editor\":\"\",\"description\":\"新規作成\"}]",
   "chapters_json": "[{\"title\":\"はじめに\",\"level\":1,\"selected\":true,\"blocks\":[{\"type\":\"paragraph\",\"text\":\"テスト本文です。\"}],\"children\":[]}]",
-  "output_filename": "株式会社テスト_基本設計書_PJ-2026-001.docx"
+  "output_filename": "株式会社テスト_基本設計書_1.0.docx"
 }
