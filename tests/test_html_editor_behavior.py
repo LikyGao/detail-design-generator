@@ -189,19 +189,38 @@ def test_compact_drag_view_hides_duplicate_and_nested_paragraph_content():
     assert ".chapter-sort-scope>.node-card.drag-compact>.node-title-row .node-title-display{display:none}" in HTML
 
 
-def test_chapter_and_paragraph_share_bounded_drag_lifecycle():
+def test_chapter_and_paragraph_share_transactional_free_scroll_lifecycle():
     chapter_sorter = _function("initChapterSortables")
     paragraph_sorter = _function("initParagraphSortables")
-    allowed_rect = _function("getDragAllowedRect")
-    bounded_scroll = _function("runBoundedDragScroll")
 
     for sorter, drag_type in ((chapter_sorter, "chapter"), (paragraph_sorter, "paragraph")):
-        assert "scroll:false" in sorter
+        assert "scroll:scrollContainer" in sorter
+        assert "forceAutoScrollFallback:true" in sorter
+        assert "beginDragSession" in sorter
         assert "startCardDrag" in sorter
-        assert "finishCardDrag" in sorter
+        assert "finishDragSession" in sorter
+        assert "onMove:markSortableMove" in sorter
         assert f"type:'{drag_type}'" in sorter
-    assert "Math.max(listRect.left,scrollRect.left)" in allowed_rect
-    assert "Math.min(listRect.bottom,scrollRect.bottom)" in allowed_rect
-    assert "scope.pointerX>=rect.left-tolerance" in bounded_scroll
-    assert "scope.pointerY<=rect.bottom+tolerance" in bounded_scroll
-    assert "scope.scrollContainer.scrollTop+=speed" in bounded_scroll
+    assert "getDragAllowedRect" not in HTML
+    assert "runBoundedDragScroll" not in HTML
+    assert "draggable:':scope > .node-card'" not in chapter_sorter
+    assert "data-chapter-sort-scope" in chapter_sorter
+
+
+def test_drag_transaction_keeps_origin_and_only_commits_valid_changed_drop():
+    begin = _function("beginDragSession")
+    finish = _function("finishDragSession")
+    rollback = _function("rollbackDragSession")
+    valid_target = _function("updateDragValidTarget")
+
+    assert "originPreviousSiblingId" in begin
+    assert "originNextSiblingId" in begin
+    assert "originalOrder" in begin
+    assert "drag-origin-marker" in begin
+    assert "元の位置" in begin
+    assert "session.validTarget" in valid_target
+    assert "drag-valid-target" in valid_target
+    assert "if(!valid) restoreOriginalDom(session)" in finish
+    assert "if(valid&&changed){ commit()" in finish
+    assert "restoreOriginalDom(session)" in rollback
+    assert ".drag-valid-target .chapter-sort-ghost:before{content:'ここに移動'" in HTML
