@@ -207,6 +207,18 @@ def test_chapter_and_paragraph_share_transactional_free_scroll_lifecycle():
     assert "data-chapter-sort-scope" in chapter_sorter
 
 
+def test_drag_transaction_starts_on_start_instead_of_on_choose():
+    chapter_sorter = _function("initChapterSortables")
+    paragraph_sorter = _function("initParagraphSortables")
+
+    for sorter in (chapter_sorter, paragraph_sorter):
+        assert "onChoose:" not in sorter
+        on_start = sorter.index("onStart:")
+        begin = sorter.index("beginDragSession", on_start)
+        start = sorter.index("startCardDrag", on_start)
+        assert on_start < begin < start
+
+
 def test_drag_transaction_keeps_origin_and_only_commits_valid_changed_drop():
     begin = _function("beginDragSession")
     finish = _function("finishDragSession")
