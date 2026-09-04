@@ -15,9 +15,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Twips
 
-from tools.chapter_parser import (
-    _paragraph_structure, _abstract_for_num, _level_for, _first_child,
-)
+from tools.chapter_parser import _paragraph_structure
 from tools.paragraph_numbering import calculate_paragraph_prefix
 
 
@@ -300,15 +298,22 @@ def _set_native_num_pr(paragraph, num_id: str, ilvl: int) -> None:
     if old is not None:
         p_pr.remove(old)
     num_pr = OxmlElement("w:numPr")
-    level = OxmlElement("w:ilvl"); level.set(qn("w:val"), str(ilvl))
-    number = OxmlElement("w:numId"); number.set(qn("w:val"), str(num_id))
-    num_pr.extend((level, number)); p_pr.append(num_pr)
+    level = OxmlElement("w:ilvl")
+    level.set(qn("w:val"), str(ilvl))
+    number = OxmlElement("w:numId")
+    number.set(qn("w:val"), str(num_id))
+    num_pr.extend((level, number))
+    p_pr.append(num_pr)
 
 
-def _numbering_instance_for_group(document, descriptor, group_id, instances):
+def _numbering_instance_for_group(document, descriptor, group_id, instances, start=1):
     base_num_id = str(descriptor.get("num_id") or "")
     if not base_num_id or not group_id:
         return base_num_id
+    try:
+        start = int(start)
+    except (TypeError, ValueError):
+        start = 1
     key = (base_num_id, str(group_id))
     if key in instances:
         return instances[key]
@@ -318,13 +323,33 @@ def _numbering_instance_for_group(document, descriptor, group_id, instances):
     if source is None:
         return base_num_id
     new_id = str(max([int(n.get(qn("w:numId"), "0")) for n in nums] + [0]) + 1)
-    clone = deepcopy(source); clone.set(qn("w:numId"), new_id)
+    clone = deepcopy(source)
+    clone.set(qn("w:numId"), new_id)
     ilvl = int(descriptor.get("native_ilvl") or 0)
-    override = OxmlElement("w:lvlOverride"); override.set(qn("w:ilvl"), str(ilvl))
-    start = OxmlElement("w:startOverride"); start.set(qn("w:val"), "1")
-    override.append(start); clone.append(override); root.append(clone)
+    override = OxmlElement("w:lvlOverride")
+    override.set(qn("w:ilvl"), str(ilvl))
+    start_override = OxmlElement("w:startOverride")
+    start_override.set(qn("w:val"), str(start))
+    override.append(start_override)
+    clone.append(override)
+    root.append(clone)
     instances[key] = new_id
     return new_id
+
+
+def _native_numbering_restart(block: dict[str, Any], descriptor: dict[str, Any]) -> bool:
+    """Return whether this paragraph needs a direct numbering instance.
+
+    A native style already supplies its normal numbering and geometry through
+    styles.xml and numbering.xml.  A paragraph-local numPr is only needed to
+    select a cloned num instance when an actual numbered sequence has an
+    independent group/restart.  Bullet and arrow groups do not have a counter
+    to restart and must remain style-only.
+    """
+    if not block.get("list_group_id"):
+        return False
+    number_format = str(descriptor.get("number_format") or "").lower()
+    return number_format not in {"", "bullet", "none"}
 
 
 def _remove_numbering_properties(paragraph_properties) -> None:
@@ -379,9 +404,14 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
             pass
         else:
             paragraph = document.add_paragraph(style=word_style_name)
-            num_id = _numbering_instance_for_group(
-                document, descriptor, block.get("list_group_id"), numbering_instances)
-            if num_id:
+            if _native_numbering_restart(block, descriptor):
+                start = block.get("start_override")
+                if start is None:
+                    start = block.get("numbering_start")
+                if start is None:
+                    start = descriptor.get("start_override") or descriptor.get("numbering_start") or 1
+                num_id = _numbering_instance_for_group(
+                    document, descriptor, block.get("list_group_id"), numbering_instances, start)
                 _set_native_num_pr(paragraph, num_id, int(descriptor.get("native_ilvl") or 0))
             paragraph.add_run(text)  # marker is rendered by Word, never literal text
             return
