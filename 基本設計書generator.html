@@ -157,12 +157,14 @@
   .chapter-sort-scope>.node-card.drag-compact>.node-title-row{min-height:42px;padding:5px 10px}
   .chapter-sort-ghost{opacity:1!important;border:1px dashed var(--accent);background:var(--accent-glow);min-height:42px;position:relative}
   .chapter-sort-ghost>*{visibility:hidden}
-  .chapter-sort-ghost:before{content:'ここに移動';visibility:visible;position:absolute;z-index:2;inset:50% 12px auto;transform:translateY(-50%);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);padding:3px;text-align:center;color:var(--accent);font-size:11px;font-weight:700}
+  .drag-valid-target .chapter-sort-ghost:before{content:'ここに移動';visibility:visible;position:absolute;z-index:2;inset:50% 12px auto;transform:translateY(-50%);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);padding:3px;text-align:center;color:var(--accent);font-size:11px;font-weight:700}
   .chapter-sort-chosen{border-color:var(--accent)}
   .paragraph-sort-ghost{opacity:1!important;border:1px dashed var(--accent);background:var(--accent-glow);min-height:42px;position:relative}
   .paragraph-sort-ghost>*{visibility:hidden}
-  .paragraph-sort-ghost:before{content:'ここに移動';visibility:visible;position:absolute;inset:50% 12px auto;transform:translateY(-50%);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);padding:3px;text-align:center;color:var(--accent);font-size:11px;font-weight:700}
+  .drag-valid-target .paragraph-sort-ghost:before{content:'ここに移動';visibility:visible;position:absolute;inset:50% 12px auto;transform:translateY(-50%);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);padding:3px;text-align:center;color:var(--accent);font-size:11px;font-weight:700}
   .paragraph-sort-chosen>.block{border-color:var(--accent)}
+  .drag-origin-marker{box-sizing:border-box;display:flex;align-items:center;justify-content:center;min-height:42px;padding:4px 12px;border:1px dashed color-mix(in srgb,var(--accent) 55%,var(--border));border-radius:7px;background:color-mix(in srgb,var(--accent-glow) 38%,transparent);color:var(--text-faint);font-size:11px;font-weight:650;letter-spacing:.04em;pointer-events:none;user-select:none}
+  .drag-origin-marker::before,.drag-origin-marker::after{content:'';height:1px;max-width:120px;flex:1;background:currentColor;opacity:.45}.drag-origin-marker::before{margin-right:10px}.drag-origin-marker::after{margin-left:10px}
   .block{border:1px solid var(--border);border-radius:8px;background:var(--bg);overflow:hidden}
   .block-h{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.06em}
   .block-h .btype{font-weight:700}
@@ -24817,53 +24819,84 @@ function buildNodeCard(n){
   return card;
 }
 
-let activeDragScope=null;
-function getDragAllowedRect(list,scrollContainer){
-  if(!list||!scrollContainer) return null;
-  const listRect=list.getBoundingClientRect(), scrollRect=scrollContainer.getBoundingClientRect();
-  const rect={left:Math.max(listRect.left,scrollRect.left),right:Math.min(listRect.right,scrollRect.right),top:Math.max(listRect.top,scrollRect.top),bottom:Math.min(listRect.bottom,scrollRect.bottom)};
-  return rect.left<rect.right&&rect.top<rect.bottom?rect:null;
+let dragSession=null;
+let chapterSortScopeSequence=0;
+function directSortableItems(list,selector){ return Array.from(list.children).filter(el=>el.matches(selector)); }
+function itemIdentity(item,type){ return item&&item.dataset[type==='chapter'?'nodeid':'blockId']; }
+function beginDragSession({item,list,type,parentId,selector}){
+  if(dragSession) rollbackDragSession();
+  const items=directSortableItems(list,selector), originIndex=items.indexOf(item);
+  const marker=document.createElement('div'); marker.className='drag-origin-marker'; marker.textContent='元の位置'; marker.setAttribute('aria-hidden','true');
+  const previous=items[originIndex-1], next=items[originIndex+1];
+  list.insertBefore(marker,item);
+  dragSession={type,item,itemId:itemIdentity(item,type),originList:list,originParentId:parentId||'',originIndex,
+    originPreviousSiblingId:itemIdentity(previous,type)||null,originNextSiblingId:itemIdentity(next,type)||null,
+    originalOrder:items.map(el=>itemIdentity(el,type)),selector,marker,validTarget:null,pointerX:NaN,pointerY:NaN,restore:null,scrollContainer:null};
+  document.addEventListener('dragover',trackDragPointer,true);
+  document.addEventListener('pointermove',trackDragPointer,true);
+  document.addEventListener('touchmove',trackDragPointer,true);
 }
-function updateBoundedDragScroll(event){
-  const scope=activeDragScope;
-  if(!scope) return;
+function startCardDrag({item,list,scrollContainer,type,compact,restore}){
+  if(!dragSession||dragSession.item!==item) return;
+  dragSession.restore=restore; dragSession.scrollContainer=scrollContainer;
+  compensateCompactLayout(item,scrollContainer,compact);
+}
+function trackDragPointer(event){
+  if(!dragSession) return;
   const point=event.touches&&event.touches[0]?event.touches[0]:event;
   if(!Number.isFinite(point.clientX)||!Number.isFinite(point.clientY)) return;
-  scope.pointerX=point.clientX; scope.pointerY=point.clientY;
+  dragSession.pointerX=point.clientX; dragSession.pointerY=point.clientY;
+  updateDragValidTarget();
 }
-function runBoundedDragScroll(){
-  const scope=activeDragScope;
-  if(!scope) return;
-  const rect=getDragAllowedRect(scope.list,scope.scrollContainer), tolerance=16, edge=72;
-  let speed=0;
-  if(rect&&scope.pointerX>=rect.left-tolerance&&scope.pointerX<=rect.right+tolerance&&scope.pointerY>=rect.top-tolerance&&scope.pointerY<=rect.bottom+tolerance){
-    if(scope.pointerY<rect.top+edge) speed=-Math.min(10,Math.ceil(10*(rect.top+edge-scope.pointerY)/edge));
-    else if(scope.pointerY>rect.bottom-edge) speed=Math.min(10,Math.ceil(10*(scope.pointerY-(rect.bottom-edge))/edge));
-  }
-  if(speed) scope.scrollContainer.scrollTop+=speed;
-  scope.frame=requestAnimationFrame(runBoundedDragScroll);
+function updateDragValidTarget(){
+  const session=dragSession;
+  if(!session) return false;
+  const rect=session.originList.getBoundingClientRect(), x=session.pointerX, y=session.pointerY;
+  const inside=Number.isFinite(x)&&Number.isFinite(y)&&x>=rect.left&&x<=rect.right&&y>=rect.top&&y<=rect.bottom;
+  const hits=inside?(document.elementsFromPoint?document.elementsFromPoint(x,y):[document.elementFromPoint(x,y)]):[];
+  const directHit=hits.find(hit=>{ const item=hit&&hit.closest(session.selector); return item&&item.parentElement===session.originList; });
+  const listHit=hits.includes(session.originList);
+  const legalSurface=inside&&(listHit||Boolean(directHit))&&
+    (session.type!=='chapter'||(!directHit&&listHit)||Boolean(directHit&&directHit.closest('.node-title-row')));
+  if(!legalSurface){ session.validTarget=null; session.originList.classList.remove('drag-valid-target'); return false; }
+  const items=directSortableItems(session.originList,session.selector);
+  session.validTarget={list:session.originList,parentId:session.originParentId,index:Math.max(0,items.indexOf(session.item))};
+  session.originList.classList.add('drag-valid-target');
+  return true;
 }
-function startCardDrag({item,list,scrollContainer,type,compact}){
-  stopCardDragScroll();
-  activeDragScope={item,list,scrollContainer,type,pointerX:NaN,pointerY:NaN,frame:0};
-  document.addEventListener('pointermove',updateBoundedDragScroll,true);
-  document.addEventListener('mousemove',updateBoundedDragScroll,true);
-  document.addEventListener('touchmove',updateBoundedDragScroll,true);
-  compensateCompactLayout(item,scrollContainer,compact);
-  activeDragScope.frame=requestAnimationFrame(runBoundedDragScroll);
+function markSortableMove(event){
+  if(!dragSession||event.to!==dragSession.originList||event.from!==dragSession.originList){ if(dragSession) dragSession.validTarget=null; return false; }
+  requestAnimationFrame(updateDragValidTarget);
+  return true;
 }
-function stopCardDragScroll(){
-  if(activeDragScope&&activeDragScope.frame) cancelAnimationFrame(activeDragScope.frame);
-  activeDragScope=null;
-  document.removeEventListener('pointermove',updateBoundedDragScroll,true);
-  document.removeEventListener('mousemove',updateBoundedDragScroll,true);
-  document.removeEventListener('touchmove',updateBoundedDragScroll,true);
+function restoreOriginalDom(session){
+  const byId=new Map(directSortableItems(session.originList,session.selector).map(el=>[itemIdentity(el,session.type),el]));
+  session.originalOrder.forEach(id=>{ const el=byId.get(id); if(el) session.originList.appendChild(el); });
 }
-function finishCardDrag({item,scrollContainer,restore}){
-  const wasActive=Boolean(activeDragScope);
-  stopCardDragScroll();
-  if(wasActive) compensateCompactLayout(item,scrollContainer,restore);
-  else restore();
+function removeDragListeners(){
+  document.removeEventListener('dragover',trackDragPointer,true);
+  document.removeEventListener('pointermove',trackDragPointer,true);
+  document.removeEventListener('touchmove',trackDragPointer,true);
+}
+function finishDragSession({item,commit,afterCommit}){
+  const session=dragSession;
+  if(!session||session.item!==item) return false;
+  updateDragValidTarget();
+  const valid=Boolean(session.validTarget&&session.validTarget.list===session.originList&&session.validTarget.parentId===session.originParentId);
+  const currentOrder=directSortableItems(session.originList,session.selector).map(el=>itemIdentity(el,session.type));
+  const changed=currentOrder.join('\0')!==session.originalOrder.join('\0');
+  if(!valid) restoreOriginalDom(session);
+  session.marker.remove(); session.originList.classList.remove('drag-valid-target');
+  removeDragListeners(); dragSession=null;
+  const restore=()=>{ if(session.restore) session.restore(); };
+  if(session.scrollContainer) compensateCompactLayout(item,session.scrollContainer,restore); else restore();
+  if(valid&&changed){ commit(); if(afterCommit) afterCommit(); return true; }
+  return false;
+}
+function rollbackDragSession(){
+  const session=dragSession; if(!session) return;
+  restoreOriginalDom(session); session.marker.remove(); session.originList.classList.remove('drag-valid-target'); removeDragListeners(); dragSession=null;
+  if(session.restore) session.restore();
 }
 
 function initChapterSortables(root){
@@ -24873,32 +24906,33 @@ function initChapterSortables(root){
     const siblings=Array.from(list.children).filter(el=>el.classList.contains('node-card'));
     if(siblings.length<2) return;
     const parentId=list.dataset.parentNodeId||'';
+    const scopeId='chapter-sort-'+(++chapterSortScopeSequence);
+    siblings.forEach(el=>el.dataset.chapterSortScope=scopeId);
+    const selector='[data-chapter-sort-scope="'+scopeId+'"]';
     const restore=()=>{
       document.querySelectorAll('#sectionsContainer .chapter-sort-scope').forEach(el=>el.classList.remove('chapter-sort-scope'));
       document.querySelectorAll('#sectionsContainer .drag-compact, #sectionsContainer .chapter-sort-ghost, #sectionsContainer .chapter-sort-chosen').forEach(el=>el.classList.remove('drag-compact','chapter-sort-ghost','chapter-sort-chosen'));
     };
     Sortable.create(list,{
       group:{name:'chapter-siblings-'+(parentId||'root'),pull:false,put:false},
-      draggable:':scope > .node-card', handle:'.chapter-drag', animation:120,
+      draggable:selector, handle:'.chapter-drag', animation:120,
       ghostClass:'chapter-sort-ghost', chosenClass:'chapter-sort-chosen',
-      scroll:false,
+      scroll:scrollContainer, scrollSensitivity:80, scrollSpeed:12, bubbleScroll:true, forceAutoScrollFallback:true,
+      onChoose:event=>{ if(event.item) beginDragSession({item:event.item,list,type:'chapter',parentId,selector}); else restore(); },
       onStart:event=>{
         activateEditTarget(null,{focus:false});
         // The root list is the global chapter sorting mode; nested lists scope
         // the compact view to sections/subsections under their current parent.
-        startCardDrag({item:event.item,list,scrollContainer,type:'chapter',compact:()=>{
+        startCardDrag({item:event.item,list,scrollContainer,type:'chapter',restore,compact:()=>{
           list.classList.add('chapter-sort-scope');
-          list.querySelectorAll(':scope > .node-card').forEach(el=>el.classList.add('drag-compact'));
+          siblings.forEach(el=>el.classList.add('drag-compact'));
         }});
       },
+      onMove:markSortableMove,
       onEnd:event=>{
         const nodeId=event.item&&event.item.dataset.nodeid;
-        finishCardDrag({item:event.item,scrollContainer,restore});
-        syncChapterSiblingOrder(list,parentId);
-        setActivePreviewTarget(nodeId,null,true);
+        finishDragSession({item:event.item,commit:()=>syncChapterSiblingOrder(list,parentId),afterCommit:()=>setActivePreviewTarget(nodeId,null,true)});
       },
-      onUnchoose:event=>finishCardDrag({item:event.item,scrollContainer,restore}),
-      onChoose:event=>{ if(!event.item) restore(); }
     });
   });
 }
@@ -24910,12 +24944,10 @@ function compensateCompactLayout(item,scrollContainer,mutate){
   scrollContainer.scrollTop=Math.max(0,scrollContainer.scrollTop+(afterTop-beforeTop));
 }
 function clearAllSortState(){
-  stopCardDragScroll();
-  document.querySelectorAll('#sectionsContainer .chapter-sort-scope').forEach(el=>el.classList.remove('chapter-sort-scope'));
+  rollbackDragSession();
+  document.querySelectorAll('#sectionsContainer .chapter-sort-scope, #sectionsContainer .drag-valid-target').forEach(el=>el.classList.remove('chapter-sort-scope','drag-valid-target'));
   document.querySelectorAll('#sectionsContainer .drag-compact, #sectionsContainer .chapter-sort-ghost, #sectionsContainer .chapter-sort-chosen, #sectionsContainer .paragraph-sort-ghost, #sectionsContainer .paragraph-sort-chosen').forEach(el=>el.classList.remove('drag-compact','chapter-sort-ghost','chapter-sort-chosen','paragraph-sort-ghost','paragraph-sort-chosen'));
 }
-document.addEventListener('dragend',clearAllSortState);
-document.addEventListener('drop',()=>setTimeout(clearAllSortState,0));
 window.addEventListener('blur',clearAllSortState);
 
 function syncChapterSiblingOrder(list,parentId){
@@ -25031,7 +25063,7 @@ function buildParagraphItem(n,b,attachments){
   item.appendChild(buildBlock(n,b));
   const media=document.createElement('div'); media.className='paragraph-attachments';
   attachments.forEach(block=>media.appendChild(buildBlock(n,block))); item.appendChild(media);
-  const children=document.createElement('div'); children.className='paragraph-children'; item.appendChild(children);
+  const children=document.createElement('div'); children.className='paragraph-children'; children.dataset.parentBlockId=b.id; item.appendChild(children);
   return item;
 }
 function initParagraphSortables(n,root){
@@ -25039,12 +25071,17 @@ function initParagraphSortables(n,root){
   const scrollContainer=document.getElementById('mainArea');
   [root.querySelector(':scope > .explanation-list'),root,...root.querySelectorAll('.paragraph-children')].filter(Boolean).forEach((list,index)=>{
     if(!list.querySelector(':scope > .paragraph-item')) return;
+    const scopeId='paragraph-sort-'+n.id+'-'+index;
+    const siblings=Array.from(list.children).filter(el=>el.classList.contains('paragraph-item'));
+    siblings.forEach(el=>el.dataset.paragraphSortScope=scopeId);
+    const selector='[data-paragraph-sort-scope="'+scopeId+'"]';
     const restoreDragView=()=>document.querySelectorAll('#sectionsContainer .paragraph-item.drag-compact, #sectionsContainer .paragraph-sort-ghost, #sectionsContainer .paragraph-sort-chosen').forEach(el=>el.classList.remove('drag-compact','paragraph-sort-ghost','paragraph-sort-chosen'));
-    Sortable.create(list,{group:{name:'paragraph-siblings-'+n.id+'-'+index,pull:false,put:false},draggable:'.paragraph-item',handle:'.paragraph-drag',animation:120,ghostClass:'paragraph-sort-ghost',chosenClass:'paragraph-sort-chosen',
-      scroll:false,
-      onStart:event=>{ activateEditTarget(null,{focus:false}); startCardDrag({item:event.item,list,scrollContainer,type:'paragraph',compact:()=>list.querySelectorAll(':scope > .paragraph-item').forEach(el=>el.classList.add('drag-compact'))}); },
-      onEnd:(event)=>{ const blockId=event.item&&event.item.dataset.blockId; finishCardDrag({item:event.item,scrollContainer,restore:restoreDragView}); syncBlockOrderFromEditor(n,root); setActivePreviewTarget(n.id,blockId,true); },
-      onUnchoose:event=>finishCardDrag({item:event.item,scrollContainer,restore:restoreDragView})
+    Sortable.create(list,{group:{name:'paragraph-siblings-'+n.id+'-'+index,pull:false,put:false},draggable:selector,handle:'.paragraph-drag',animation:120,ghostClass:'paragraph-sort-ghost',chosenClass:'paragraph-sort-chosen',
+      scroll:scrollContainer,scrollSensitivity:80,scrollSpeed:12,bubbleScroll:true,forceAutoScrollFallback:true,
+      onChoose:event=>{ if(event.item) beginDragSession({item:event.item,list,type:'paragraph',parentId:list.dataset.parentBlockId||'',selector}); else restoreDragView(); },
+      onStart:event=>{ activateEditTarget(null,{focus:false}); startCardDrag({item:event.item,list,scrollContainer,type:'paragraph',restore:restoreDragView,compact:()=>siblings.forEach(el=>el.classList.add('drag-compact'))}); },
+      onMove:markSortableMove,
+      onEnd:(event)=>{ const blockId=event.item&&event.item.dataset.blockId; finishDragSession({item:event.item,commit:()=>syncBlockOrderFromEditor(n,root),afterCommit:()=>setActivePreviewTarget(n.id,blockId,true)}); }
     });
   });
 }
