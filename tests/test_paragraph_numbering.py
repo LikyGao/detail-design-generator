@@ -441,14 +441,14 @@ class ParagraphNumberingTest(unittest.TestCase):
 
 
 class NativeCanonicalIndentGenerationTest(unittest.TestCase):
-    def test_numbering_level_indent_overrides_paragraph_and_style_zero(self):
+    def test_template_sample_direct_indent_is_not_copied_to_generated_native_paragraph(self):
         if importlib.util.find_spec("docx") is None:
             self.skipTest("python-docx is not installed")
         from docx import Document
         from docx.enum.style import WD_STYLE_TYPE
         from docx.oxml import OxmlElement
         from docx.oxml.ns import qn
-        from tools.docx_builder import _collect_paragraph_prototypes
+        from tools.docx_builder import _add_body_paragraph, _collect_paragraph_prototypes
 
         document = Document()
         style = document.styles.add_style("Canonical zero trap", WD_STYLE_TYPE.PARAGRAPH)
@@ -471,18 +471,23 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
         paragraph._p.get_or_add_pPr().append(num_pr)
 
         descriptor = _collect_paragraph_prototypes(document)["level_1"]
-        self.assertEqual(descriptor["left_indent_twips"], 440)
-        self.assertEqual(descriptor["hanging_indent_twips"], 440)
-        self.assertIsNone(descriptor["first_line_indent_twips"])
+        _add_body_paragraph(
+            document, {"paragraph_style": "level_1", "text": "generated"},
+            {"level_1": descriptor}, {}, {},
+        )
+        generated = document.paragraphs[-1]
+        self.assertEqual(generated.style.name, style.name)
+        self.assertEqual(direct_num_values(generated), ("201", 0))
+        self.assertIsNone(generated._p.pPr.find(qn("w:ind")))
 
-    def test_native_numbering_materializes_distinct_canonical_indents(self):
+    def test_native_styles_keep_distinct_numbering_indents_after_docx_round_trip(self):
         if importlib.util.find_spec("docx") is None:
             self.skipTest("python-docx is not installed")
         from docx import Document
         from docx.enum.style import WD_STYLE_TYPE
         from docx.oxml import OxmlElement
         from docx.oxml.ns import qn
-        from tools.chapter_parser import _numbering_values
+        from tools.chapter_parser import _numbering_values, _resolve_numbering_indent
         from tools.docx_builder import _add_body_paragraph, _collect_paragraph_prototypes
 
         document = Document()
@@ -556,14 +561,17 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
             )
         self.assertEqual([p.style.name for p in generated],
                          [styles[i].name for i in (1, 4, 2, 5)])
-        self.assertEqual([p.paragraph_format.left_indent.twips for p in generated],
+        # Native paragraphs must not receive direct indentation. Their effective
+        # geometry comes from the ilvl selected in numbering.xml.
+        self.assertTrue(all(p._p.pPr.find(qn("w:ind")) is None for p in generated))
+        effective = [
+            _resolve_numbering_indent(document, num_id, ilvl)
+            for num_id, ilvl in (direct_num_values(p) for p in generated)
+        ]
+        self.assertEqual([value[0] for value in effective],
                          [canonical[i][0] for i in (1, 4, 2, 5)])
-        self.assertEqual([p.paragraph_format.first_line_indent.twips for p in generated],
-                         [-canonical[i][1] for i in (1, 4, 2, 5)])
-        self.assertGreater(generated[1].paragraph_format.left_indent.twips,
-                           generated[0].paragraph_format.left_indent.twips)
-        self.assertGreater(generated[3].paragraph_format.left_indent.twips,
-                           generated[2].paragraph_format.left_indent.twips)
+        self.assertGreater(effective[1][0], effective[0][0])
+        self.assertGreater(effective[3][0], effective[2][0])
         for paragraph in generated:
             self.assertNotRegex(paragraph.text, r"^(?:・|[①-⑳]|➢|（\\d+）)")
 
@@ -587,16 +595,31 @@ class NativeCanonicalIndentGenerationTest(unittest.TestCase):
         self.assertEqual(len(set(ids[3:])), 1)
         self.assertNotEqual(ids[0], ids[3])
         for paragraph in level_one:
-            indent = paragraph._p.pPr.find(qn("w:ind"))
-            self.assertEqual(indent.get(qn("w:left")), "440")
-            self.assertEqual(indent.get(qn("w:start")), "440")
-            self.assertEqual(indent.get(qn("w:hanging")), "440")
-            self.assertIsNone(indent.get(qn("w:firstLine")))
+            self.assertIsNone(paragraph._p.pPr.find(qn("w:ind")))
         for num_id in {ids[0], ids[3]}:
             instance = next(n for n in root.findall(qn("w:num")) if n.get(qn("w:numId")) == num_id)
             override = instance.find(qn("w:lvlOverride"))
             self.assertEqual(override.get(qn("w:ilvl")), "0")
             self.assertEqual(override.find(qn("w:startOverride")).get(qn("w:val")), "1")
+
+        # Saving and reopening must preserve style identity, native ilvl and the
+        # numbering-derived indentation without introducing paragraph-local ind.
+        output = io.BytesIO()
+        document.save(output)
+        output.seek(0)
+        reopened = Document(output)
+        reopened_generated = [p for p in reopened.paragraphs if p.text in {b["text"] for b in blocks}]
+        self.assertEqual([p.style.name for p in reopened_generated],
+                         [styles[i].name for i in (1, 4, 2, 5)])
+        self.assertEqual([direct_num_values(p)[1] for p in reopened_generated], [1, 4, 2, 5])
+        self.assertTrue(all(p._p.pPr.find(qn("w:ind")) is None for p in reopened_generated))
+        reopened_effective = [
+            _resolve_numbering_indent(reopened, num_id, ilvl)
+            for num_id, ilvl in (direct_num_values(p) for p in reopened_generated)
+        ]
+        self.assertEqual([value[0] for value in reopened_effective],
+                         [canonical[i][0] for i in (1, 4, 2, 5)])
+        self.assertGreater(reopened_effective[1][0], reopened_effective[0][0])
 
 
 if __name__ == "__main__":

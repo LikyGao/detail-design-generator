@@ -17,7 +17,6 @@ from docx.shared import Inches, Twips
 
 from tools.chapter_parser import (
     _paragraph_structure, _abstract_for_num, _level_for, _first_child,
-    _resolve_numbering_indent,
 )
 from tools.paragraph_numbering import calculate_paragraph_prefix
 
@@ -260,9 +259,9 @@ def _collect_paragraph_prototypes(document: Document) -> dict[str, dict[str, Any
     """Build canonical, template-native style descriptors before body removal.
 
     Descriptors are indexed independently by editor style, Word style id and
-    Word style name.  A paragraph-local cancellation is never copied: canonical
-    numbering and indentation come from styles.xml/numbering.xml as resolved by
-    the style-first parser.
+    Word style name. Paragraph-local properties from a template sample are not
+    copied; fresh paragraphs inherit their layout from the native style and
+    numbering definition just as they do when the style is applied in Word.
     """
     result: dict[str, dict[str, Any]] = {}
     for paragraph in document.paragraphs:
@@ -279,18 +278,6 @@ def _collect_paragraph_prototypes(document: Document) -> dict[str, dict[str, Any
             "style_name": str(style.name or ""),
             "canonical_pPr": deepcopy(style.element.pPr) if style.element.pPr is not None else None,
         }
-        # A direct/style w:ind="0" can cancel the list indent while parsing a
-        # sample paragraph. Generation needs the native numbering level's own
-        # canonical geometry, which is what Word applies to a fresh list item.
-        native_indents = _resolve_numbering_indent(
-            document, str(structure.get("num_id") or ""), int(structure["native_ilvl"])
-        )
-        for key, value in zip(
-            ("left_indent_twips", "first_line_indent_twips", "hanging_indent_twips"),
-            native_indents,
-        ):
-            if value is not None:
-                descriptor[key] = value
         for key in (paragraph_style, f"id:{descriptor['style_id']}", f"name:{descriptor['style_name']}"):
             result.setdefault(key, descriptor)
     return result
@@ -360,42 +347,6 @@ def _valid_indent_twips(value: Any) -> int | None:
     return twips if twips >= 0 else None
 
 
-def _restore_native_indents(paragraph, descriptor: dict[str, Any]) -> None:
-    """Materialize the template's effective list indent on a native paragraph.
-
-    Word does not consistently reapply numbering-level indentation when a fresh
-    paragraph receives a style and numPr.  The descriptor has already resolved
-    direct, style, and numbering-level pPr, so copy that canonical effective
-    value rather than trusting style inheritance or editor-provided metadata.
-    """
-    left_indent = _valid_indent_twips(descriptor.get("left_indent_twips"))
-    first_line_indent = descriptor.get("first_line_indent_twips")
-    hanging_indent = _valid_indent_twips(descriptor.get("hanging_indent_twips"))
-    try:
-        first_line_indent = int(first_line_indent) if first_line_indent not in (None, "") else None
-    except (TypeError, ValueError):
-        first_line_indent = None
-
-    if left_indent is None and hanging_indent is None and first_line_indent is None:
-        return
-    p_pr = paragraph._p.get_or_add_pPr()
-    indent = p_pr.find(qn("w:ind"))
-    if indent is None:
-        indent = OxmlElement("w:ind")
-        p_pr.append(indent)
-    for attribute in ("left", "start", "hanging", "firstLine"):
-        indent.attrib.pop(qn(f"w:{attribute}"), None)
-    if left_indent is not None:
-        # Write both aliases for compatibility with transitional and strict
-        # consumers; they represent the same canonical template value.
-        indent.set(qn("w:left"), str(left_indent))
-        indent.set(qn("w:start"), str(left_indent))
-    if hanging_indent is not None:
-        indent.set(qn("w:hanging"), str(hanging_indent))
-    elif first_line_indent is not None:
-        indent.set(qn("w:firstLine"), str(first_line_indent))
-
-
 def _restore_body_indents(paragraph, block: dict[str, Any], paragraph_style: str) -> None:
     """Restore indents made ineffective when the template numPr is removed."""
     left_indent = _valid_indent_twips(block.get("left_indent_twips"))
@@ -432,7 +383,6 @@ def _add_body_paragraph(document: Document, block: dict[str, Any], prototypes: d
                 document, descriptor, block.get("list_group_id"), numbering_instances)
             if num_id:
                 _set_native_num_pr(paragraph, num_id, int(descriptor.get("native_ilvl") or 0))
-            _restore_native_indents(paragraph, descriptor)
             paragraph.add_run(text)  # marker is rendered by Word, never literal text
             return
 
