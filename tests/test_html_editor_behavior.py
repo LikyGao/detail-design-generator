@@ -47,6 +47,7 @@ def test_paragraph_edit_css_matches_real_dom_and_is_scoped_to_current_item():
 
 def test_activate_edit_target_selects_actual_block_and_only_its_direct_wrapper():
     function = _function("activateEditTarget")
+    textarea_helper = _function("ensureTextareaHeight")
     source = f"""
 let activeEditTarget=null;
 class Classes {{
@@ -69,6 +70,7 @@ const document={{
 }};
 const CSS={{escape:value=>String(value)}};
 const requestAnimationFrame=callback=>callback();
+{textarea_helper}
 {function}
 const snapshots=[];
 for(const id of ['parent','child','grandchild']) {{
@@ -293,3 +295,49 @@ def test_drag_transaction_keeps_origin_and_only_commits_valid_changed_drop():
     assert "if(valid&&changed){ commit()" in finish
     assert "restoreOriginalDom(session)" in rollback
     assert ".drag-valid-target .chapter-sort-ghost:before{content:'ここに移動'" in HTML
+
+
+def test_step3_textareas_share_non_shrinking_auto_grow_behavior():
+    helper = _function("ensureTextareaHeight")
+    assert "textarea.style.height='auto'" in helper
+    assert "requiredHeight>currentHeight" in helper
+    assert "textarea.style.height='32px'" not in helper
+
+    block_builder = _function("buildBlock")
+    paragraph_fix = _function("buildParagraphAiFix")
+    activation = _function("activateEditTarget")
+    assert "ci-input paragraph-textarea" in block_builder
+    assert "ensureTextareaHeight(ta)" in block_builder
+    assert "document.createElement('textarea')" in paragraph_fix
+    assert "aifix-instruction" in paragraph_fix
+    assert "ensureTextareaHeight(inp)" in paragraph_fix
+    assert "ensureTextareaHeight(inp,true)" in paragraph_fix
+    assert "ensureTextareaHeight(targetElement.querySelector('.paragraph-textarea'),true)" in activation
+
+    assert ".paragraph-editor .ci-input{flex:1;min-width:0;min-height:36px" in HTML
+    assert "resize:vertical;overflow-x:hidden;overflow-y:auto" in HTML
+    assert ".paragraph-aifix .aifix-panel{display:flex;align-items:flex-start" in HTML
+
+
+def test_textarea_auto_grow_only_increases_height_after_initial_fit():
+    helper = _function("ensureTextareaHeight")
+    source = f"""
+{helper}
+const textarea={{
+  style:{{height:'120px'}}, offsetHeight:120, clientHeight:118, scrollHeight:70,
+  getBoundingClientRect:()=>({{height:Number.parseFloat(textarea.style.height)||120}})
+}};
+ensureTextareaHeight(textarea);
+const manuallyEnlarged=textarea.style.height;
+textarea.scrollHeight=150;
+ensureTextareaHeight(textarea);
+const grown=textarea.style.height;
+textarea.scrollHeight=40;
+ensureTextareaHeight(textarea);
+console.log(JSON.stringify({{manuallyEnlarged,grown,afterShortContent:textarea.style.height}}));
+"""
+    assert _run_node(source) == {
+        "manuallyEnlarged": "120px",
+        "grown": "152px",
+        "afterShortContent": "152px",
+    }
