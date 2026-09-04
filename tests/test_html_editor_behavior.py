@@ -118,3 +118,65 @@ console.log(JSON.stringify(Object.fromEntries(result)));
     assert [prefixes[key] for key in ("a1", "a2", "a3", "a4")] == ["（1）", "（2）", "（1）", "（1）"]
     assert prefixes["b1"] == "（1）"
     assert [prefixes[key] for key in ("ga1", "ga2", "gb1", "gb2", "gb3")] == ["①", "②", "①", "②", "③"]
+
+
+
+def test_media_permissions_are_content_type_driven():
+    functions = "\n".join(_function(name) for name in (
+        "getParagraphNativeIlvl", "getParagraphContentType", "canAttachMedia"
+    ))
+    source = f"""
+const PARAGRAPH_STYLE_TO_NATIVE_ILVL={{level_1:0,level_2:1,level_4:2,level_3:3,level_5:4,level_6:5}};
+{functions}
+const result={{}};
+for(const style of ['level_0','level_1','level_2','level_4','level_3','level_5','level_6']) {{
+  result[style]=canAttachMedia({{type:'paragraph',paragraph_style:style}});
+}}
+result.heading=canAttachMedia({{type:'heading'}});
+console.log(JSON.stringify(result));
+"""
+    assert _run_node(source) == {
+        "level_0": True,   # explanation
+        "level_1": False,  # Style0
+        "level_2": True,   # Style1
+        "level_4": True,   # Style2
+        "level_3": True,   # Style3
+        "level_5": True,   # Style4
+        "level_6": False,
+        "heading": False,
+    }
+
+
+def test_media_ownership_migrates_legacy_blocks_and_preserves_order():
+    functions = "\n".join(_function(name) for name in (
+        "getParagraphNativeIlvl", "getParagraphContentType", "canAttachMedia",
+        "normalizeMediaOwnership"
+    ))
+    source = f"""
+const PARAGRAPH_STYLE_TO_NATIVE_ILVL={{level_1:0,level_2:1,level_4:2,level_3:3,level_5:4,level_6:5}};
+{functions}
+const blocks=[
+ {{id:'style0',type:'paragraph',paragraph_style:'level_1'}},
+ {{id:'explanation',type:'paragraph',paragraph_style:'level_0'}},
+ {{id:'table',type:'table'}},{{id:'figure',type:'figure'}},{{id:'table2',type:'table'}}
+];
+normalizeMediaOwnership(blocks);
+console.log(JSON.stringify(blocks.slice(2).map(block=>[block.id,block.parent_block_id])));
+"""
+    assert _run_node(source) == [
+        ["table", "explanation"], ["figure", "explanation"], ["table2", "explanation"]
+    ]
+
+
+def test_editor_nests_owned_media_and_restricts_explanation_drag_scope():
+    hierarchy = _function("renderBlockHierarchy")
+    sorter = _function("initParagraphSortables")
+    node_menu = _function("buildNodeAddMenu")
+    block_builder = _function("buildBlock")
+    assert "attachments.get(b.id)||[]" in hierarchy
+    assert "paragraph-attachments" in HTML
+    assert "root.querySelector(':scope > .explanation-list')" in sorter
+    assert "row.appendChild(drag); row.appendChild(summary)" in block_builder
+    assert "if(canAttachMedia(b))" in block_builder
+    assert "addTableBlock" not in node_menu
+    assert "addFigureBlock" not in node_menu
