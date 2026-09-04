@@ -24918,8 +24918,8 @@ function initChapterSortables(root){
       draggable:selector, handle:'.chapter-drag', animation:120,
       ghostClass:'chapter-sort-ghost', chosenClass:'chapter-sort-chosen',
       scroll:scrollContainer, scrollSensitivity:80, scrollSpeed:12, bubbleScroll:true, forceAutoScrollFallback:true,
-      onChoose:event=>{ if(event.item) beginDragSession({item:event.item,list,type:'chapter',parentId,selector}); else restore(); },
       onStart:event=>{
+        beginDragSession({item:event.item,list,type:'chapter',parentId,selector});
         activateEditTarget(null,{focus:false});
         // The root list is the global chapter sorting mode; nested lists scope
         // the compact view to sections/subsections under their current parent.
@@ -25078,8 +25078,11 @@ function initParagraphSortables(n,root){
     const restoreDragView=()=>document.querySelectorAll('#sectionsContainer .paragraph-item.drag-compact, #sectionsContainer .paragraph-sort-ghost, #sectionsContainer .paragraph-sort-chosen').forEach(el=>el.classList.remove('drag-compact','paragraph-sort-ghost','paragraph-sort-chosen'));
     Sortable.create(list,{group:{name:'paragraph-siblings-'+n.id+'-'+index,pull:false,put:false},draggable:selector,handle:'.paragraph-drag',animation:120,ghostClass:'paragraph-sort-ghost',chosenClass:'paragraph-sort-chosen',
       scroll:scrollContainer,scrollSensitivity:80,scrollSpeed:12,bubbleScroll:true,forceAutoScrollFallback:true,
-      onChoose:event=>{ if(event.item) beginDragSession({item:event.item,list,type:'paragraph',parentId:list.dataset.parentBlockId||'',selector}); else restoreDragView(); },
-      onStart:event=>{ activateEditTarget(null,{focus:false}); startCardDrag({item:event.item,list,scrollContainer,type:'paragraph',restore:restoreDragView,compact:()=>siblings.forEach(el=>el.classList.add('drag-compact'))}); },
+      onStart:event=>{
+        beginDragSession({item:event.item,list,type:'paragraph',parentId:list.dataset.parentBlockId||'',selector});
+        activateEditTarget(null,{focus:false});
+        startCardDrag({item:event.item,list,scrollContainer,type:'paragraph',restore:restoreDragView,compact:()=>siblings.forEach(el=>el.classList.add('drag-compact'))});
+      },
       onMove:markSortableMove,
       onEnd:(event)=>{ const blockId=event.item&&event.item.dataset.blockId; finishDragSession({item:event.item,commit:()=>syncBlockOrderFromEditor(n,root),afterCommit:()=>setActivePreviewTarget(n.id,blockId,true)}); }
     });
