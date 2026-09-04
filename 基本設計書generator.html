@@ -174,7 +174,7 @@
   .block-h .bdel{margin-left:auto;background:transparent;border:none;color:var(--text-faint);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px}
   .block-h .bdel:hover{color:var(--red);background:rgba(255,107,107,.1)}
   .block-body{padding:10px}
-  .paragraph-editor{display:flex;align-items:flex-start;gap:8px}.paragraph-editor>.paragraph-drag{height:32px;flex:0 0 auto}.paragraph-style-select{width:92px;flex:0 0 92px;height:32px;padding:4px 6px;font-size:12.5px;line-height:1.35;align-self:flex-start}.paragraph-editor .ci-input{flex:1;min-width:0;min-height:32px;height:32px;padding:5px 9px;line-height:20px;resize:none;overflow-y:hidden}.paragraph-editor .aifix-btn{flex:0 0 auto;min-height:32px;height:32px}.paragraph-editor.ai-expanded .ci-input{width:auto}.paragraph-prefix{display:inline-block;white-space:pre}
+  .paragraph-editor{display:flex;align-items:flex-start;gap:8px}.paragraph-editor>.paragraph-drag{height:32px;flex:0 0 auto}.paragraph-style-select{width:92px;flex:0 0 92px;height:32px;padding:4px 6px;font-size:12.5px;line-height:1.35;align-self:flex-start}.paragraph-editor .ci-input{flex:1;min-width:0;min-height:36px;padding:5px 9px;line-height:20px;resize:vertical;overflow-x:hidden;overflow-y:auto}.paragraph-editor .aifix-btn{flex:0 0 auto;min-height:32px;height:32px}.paragraph-editor.ai-expanded .ci-input{width:auto}.paragraph-prefix{display:inline-block;white-space:pre}
   .paragraph-drag-summary{display:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:12px;text-transform:none;letter-spacing:0}
   .paragraph-item.drag-compact{padding:4px 7px;gap:0}.paragraph-item.drag-compact>.block>.block-body{padding:5px 7px}.paragraph-item.drag-compact>.block>.block-body .paragraph-editor{padding-left:0!important;align-items:center}.paragraph-item.drag-compact>.block>.block-body .paragraph-style-select,.paragraph-item.drag-compact>.block>.block-body .ci-input,.paragraph-item.drag-compact>.block>.block-body .paragraph-row-actions,.paragraph-item.drag-compact>.block>.block-body .paragraph-aifix,.paragraph-item.drag-compact>.block>.block-body .paragraph-read{display:none}.paragraph-item.drag-compact>.block>.block-body .paragraph-drag-summary{display:block;flex:1}.paragraph-item.drag-compact>.paragraph-attachments,.paragraph-item.drag-compact>.paragraph-children{display:none}
   /* Step 3 has three deliberately independent states: reading, one active
@@ -372,7 +372,7 @@
   #previewArea{background:#e5e7eb}.preview-pane-header{background:#fff;color:#465563;padding:7px 12px}#previewContent{padding:16px;gap:14px}.word-page{box-shadow:0 2px 10px rgba(0,0,0,.18)}.toast{border-radius:5px;box-shadow:0 6px 18px rgba(20,32,45,.18);padding:9px 14px}
   @media (max-width:900px){.app-shell,.app-shell.chapter-select-mode{grid-template-columns:185px 1fr}.app-shell.preview-open{grid-template-columns:185px minmax(380px,1fr) minmax(330px,40%)}header{padding:0 9px}.hbadge,.step-arrow{display:none}.step{padding:3px 5px}.stepper{gap:1px}main{padding:14px}}@media (max-width:680px){.app-shell,.app-shell.chapter-select-mode{grid-template-columns:160px 1fr}.app-shell.preview-open{grid-template-columns:160px minmax(330px,1fr) minmax(300px,42%)}.hlogo{font-size:11px}.stepper{display:none}.cover-grid,.plan-form{grid-template-columns:1fr}.pf.wide{grid-column:auto}main{padding:12px}.phase-desc{font-size:11.5px}}
   /* Paragraph AI actions: the closed-state entry shares the editor row. */
-  .paragraph-aifix{gap:6px;padding-top:8px}.paragraph-aifix .aifix-panel{display:flex;align-items:center;gap:8px;width:100%}.paragraph-aifix .aifix-panel[hidden]{display:none}.paragraph-aifix .aifix-label{flex:0 0 auto;white-space:nowrap}.paragraph-aifix .aifix-panel>.aifix-row:not(.aifix-actions){flex:1;min-width:180px}.paragraph-aifix .aifix-panel>.aifix-row input{width:100%;min-height:32px;padding:6px 9px}.paragraph-aifix .aifix-actions{flex:0 0 auto;gap:6px;justify-content:flex-end}.paragraph-aifix .aifix-btn.compact,.paragraph-aifix .aifix-close{border-radius:4px;min-height:32px;height:32px;padding:0 14px;font-size:13px;font-weight:600;line-height:1;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}.paragraph-aifix .aifix-close{background:var(--surface);border:1px solid var(--border);color:var(--text-main);cursor:pointer;font-family:inherit}.paragraph-aifix .aifix-close:hover{background:var(--surface2);border-color:var(--accent)}.ai-decision-line{color:var(--text-main);font-weight:600}.ai-reason-line{color:var(--text-secondary);margin-top:-3px}.card[data-nodeid]{scroll-margin-top:12px}
+  .paragraph-aifix{gap:6px;padding-top:8px}.paragraph-aifix .aifix-panel{display:flex;align-items:flex-start;gap:8px;width:100%}.paragraph-aifix .aifix-panel[hidden]{display:none}.paragraph-aifix .aifix-label{flex:0 0 auto;white-space:nowrap;padding-top:8px}.paragraph-aifix .aifix-panel>.aifix-row:not(.aifix-actions){flex:1;min-width:180px}.paragraph-aifix .aifix-instruction{width:100%;min-height:36px;padding:6px 9px;line-height:20px;resize:vertical;overflow-x:hidden;overflow-y:auto}.paragraph-aifix .aifix-actions{flex:0 0 auto;gap:6px;justify-content:flex-end;align-items:flex-start}.paragraph-aifix .aifix-btn.compact,.paragraph-aifix .aifix-close{border-radius:4px;min-height:32px;height:32px;padding:0 14px;font-size:13px;font-weight:600;line-height:1;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}.paragraph-aifix .aifix-close{background:var(--surface);border:1px solid var(--border);color:var(--text-main);cursor:pointer;font-family:inherit}.paragraph-aifix .aifix-close:hover{background:var(--surface2);border-color:var(--accent)}.ai-decision-line{color:var(--text-main);font-weight:600}.ai-reason-line{color:var(--text-secondary);margin-top:-3px}.card[data-nodeid]{scroll-margin-top:12px}
   @media (max-width:680px){.paragraph-aifix .aifix-panel{flex-wrap:wrap}.paragraph-aifix .aifix-panel>.aifix-row:not(.aifix-actions){flex-basis:100%}.paragraph-aifix .aifix-actions{margin-left:auto}}
   @media (prefers-color-scheme: dark){:root{--bg:#1f242a;--surface:#282e35;--surface2:#303740;--border:#596570;--accent:#69b7ea;--accent2:#69b7ea;--accent-glow:rgba(105,183,234,.18);--text-main:#edf1f4;--text-secondary:#cbd3db;--text-muted:#b8c2cb;--text-faint:#a2adb8;--text-disabled:#8e9aa6;--text:var(--text-main);--green:#78cfa6;--red:#ffaaa3;--amber:#f4cc7d;--number-badge:#3a444e;--heading1:#b5ddf6;--heading2:#c6dced;--heading3:#c0d8e4;--text-label:#b8c1cc;--heading-primary:#9fc4e5}header,.sidebar,.card,.dify-card,details>summary,.ebtn.ghost,.dify-btn.clear,.dify-btn.sample,.rev-actions button,.addblock button,.tbl-actions button{background:var(--surface)}main{background:var(--bg)}.cardh,.dify-cardh,.block-h{background:var(--surface2)}.hlogo{color:var(--text-main)}.hbadge{background:#34414c;border-color:#596570;color:var(--text-secondary)}.step{color:var(--text-muted)}.step .sdot{color:var(--text-secondary)}.step.active{background:#253d4e;border-color:#5a91b7;color:var(--text-main)}.step.done{color:var(--text-secondary)}.step-arrow{color:var(--text-faint)}.slabel,.flabel,.pf label,.clabel,.hint,.nav-empty,.phase-head .plabel,.phase-desc,.fig-meta,.status.muted{color:var(--text-muted)}.phase-head .ptitle{color:var(--heading-primary)}.navi{color:var(--text-secondary)}.navi.lv1{color:var(--heading1)}.navi.lv3{color:var(--text-muted)}.navi:hover{background:#303b45;color:var(--text-main)}.navi.active{background:#294455;color:#e7f4fc}.navi .nnum{background:#3b4651;color:var(--text-secondary)}input[type=text],textarea,.ci-input,.pf input,.pf textarea{background:#20262c;border-color:#687582;color:var(--text-main)}input::placeholder,textarea::placeholder{color:var(--text-faint);opacity:1}.ebtn.ghost,.dify-btn.clear,.dify-btn.sample{color:var(--text-secondary);border-color:#687582}.ebtn.ghost:hover,.dify-btn.clear:hover,.dify-btn.sample:hover{background:#37414b;color:var(--text-main)}.ebtn:disabled,.dify-btn:disabled{opacity:1;background:#3a424b;border-color:#56616d;color:var(--text-disabled)}.nav-add,.nav-ctrl button{background:#303840;border-color:#687582;color:var(--text-secondary)}.nav-add:hover,.nav-ctrl button:hover{color:var(--text-main)}table.tbl-edit th{background:#353d46}table.tbl-edit th,table.tbl-edit td{border-color:#687582}.aifix-close{background:var(--surface);border-color:#687582;color:var(--text-main)}.aifix-label{color:var(--heading2)}.ai-decision-line{color:var(--text-main)}.ai-reason-line{color:var(--text-secondary)}.point-popup{background:var(--surface2)}#previewArea{background:#3b4148}}
 
@@ -24519,6 +24519,14 @@ function newNode(level){
   };
 }
 function editTargetKey(target){ return target ? target.kind+':'+target.nodeId+':'+(target.blockId||'') : ''; }
+function ensureTextareaHeight(textarea,initial=false){
+  if(!textarea) return;
+  if(initial) textarea.style.height='auto';
+  const borderHeight=Math.max(0,textarea.offsetHeight-textarea.clientHeight);
+  const requiredHeight=Math.max(36,Math.ceil(textarea.scrollHeight+borderHeight));
+  const currentHeight=textarea.getBoundingClientRect().height;
+  if(initial||requiredHeight>currentHeight) textarea.style.height=requiredHeight+'px';
+}
 function activateEditTarget(target,options={}){
   activeEditTarget=target ? {kind:target.kind,nodeId:target.nodeId,blockId:target.blockId||null} : null;
   document.querySelectorAll('#sectionsContainer .is-editing').forEach(el=>el.classList.remove('is-editing'));
@@ -24533,7 +24541,9 @@ function activateEditTarget(target,options={}){
     const paragraphItem=targetElement.parentElement&&targetElement.parentElement.classList.contains('paragraph-item')?targetElement.parentElement:null;
     if(paragraphItem) paragraphItem.classList.add('is-editing');
   }
-  if(options.focus!==false) requestAnimationFrame(()=>{
+  requestAnimationFrame(()=>{
+    ensureTextareaHeight(targetElement.querySelector('.paragraph-textarea'),true);
+    if(options.focus===false) return;
     const input=targetElement.querySelector('textarea:not([hidden]), input:not([type="file"]):not([hidden]), select');
     if(input){ input.focus({preventScroll:true}); if(input.tagName==='TEXTAREA') input.setSelectionRange(input.value.length,input.value.length); }
   });
@@ -25145,10 +25155,9 @@ function buildBlock(n,b){
     Object.entries(PARAGRAPH_STYLE_CONFIGS).filter(([value])=>value!=='level_0').forEach(([value,cfg])=>{ const option=document.createElement('option'); option.value=value; option.textContent=cfg.label; option.selected=b.paragraph_style===value; if(option.selected) option.textContent=getParagraphDisplayPrefix(b)||cfg.label; select.appendChild(option); });
     select.addEventListener('click',event=>event.stopPropagation());
     select.addEventListener('change',()=>{ applyParagraphStyleChange(b,select.value); normalizeMediaOwnership(n.blocks); renderEditor(); debouncePreview(); pushHistory('段落タイプを変更'); });
-    const ta=document.createElement('textarea'); ta.className='ci-input'; ta.rows=1; ta.value=b.text;
+    const ta=document.createElement('textarea'); ta.className='ci-input paragraph-textarea'; ta.rows=1; ta.value=b.text;
     ta.placeholder='本文（ブロック内改行は同一段落）';
-    const resize=()=>{ ta.style.height='32px'; ta.style.height=Math.max(32,ta.scrollHeight)+'px'; };
-    ta.addEventListener('input',()=>{ resize(); b.text=ta.value; debouncePreview(); pushHistoryDebounced('段落を編集'); });
+    ta.addEventListener('input',()=>{ ensureTextareaHeight(ta); b.text=ta.value; debouncePreview(); pushHistoryDebounced('段落を編集'); });
     const actions=document.createElement('div'); actions.className='paragraph-row-actions';
     const read=document.createElement('div'); read.className='paragraph-read read-display';
     if(!isExplanation){ const prefix=document.createElement('span'); prefix.className='paragraph-read-prefix'; prefix.textContent=getParagraphDisplayPrefix(b); read.appendChild(prefix); }
@@ -25168,8 +25177,6 @@ function buildBlock(n,b){
     const del=createDeleteButton(isExplanation?'説明を削除':'段落を削除',()=>delBlock(n,b));
     row.appendChild(drag); row.appendChild(summary); row.appendChild(read); if(!isExplanation) row.appendChild(select); row.appendChild(ta);
     const aiFix=buildParagraphAiFix(n,b,row,actions); actions.appendChild(addWrap); actions.appendChild(del); row.appendChild(actions); bb.appendChild(row); bb.appendChild(aiFix);
-    requestAnimationFrame(resize);
-
   } else if(b.type==='table'){
     buildTableEditor(n,b,bb);
 
@@ -25345,9 +25352,9 @@ function buildParagraphAiFix(n,b,editorRow,editorActions){
   const panel=document.createElement('div'); panel.className='aifix-panel'; panel.hidden=true;
   const label=document.createElement('div'); label.className='aifix-label'; label.textContent='AI修正指示';
   const row=document.createElement('div'); row.className='aifix-row';
-  const inp=document.createElement('input'); inp.type='text'; inp.value=b.revision_instruction||'';
+  const inp=document.createElement('textarea'); inp.className='aifix-instruction'; inp.rows=1; inp.value=b.revision_instruction||'';
   inp.placeholder='例：より簡潔に、表現を丁寧に、要件を具体化する。';
-  inp.addEventListener('input',()=>{ b.revision_instruction=inp.value; pushHistoryDebounced('段落を編集'); });
+  inp.addEventListener('input',()=>{ ensureTextareaHeight(inp); b.revision_instruction=inp.value; pushHistoryDebounced('段落を編集'); });
   row.appendChild(inp);
   const actions=document.createElement('div'); actions.className='aifix-row aifix-actions';
   const fix=document.createElement('button'); fix.type='button'; fix.className='aifix-btn compact'; fix.textContent='AI修正';
@@ -25356,7 +25363,7 @@ function buildParagraphAiFix(n,b,editorRow,editorActions){
   close.addEventListener('click',()=>{ panel.hidden=true; editorActions.hidden=false; editorRow.classList.remove('ai-expanded'); });
   actions.appendChild(fix); actions.appendChild(close);
   panel.appendChild(label); panel.appendChild(row); panel.appendChild(actions);
-  toggle.addEventListener('click',()=>{ panel.hidden=false; editorActions.hidden=true; editorRow.classList.add('ai-expanded'); });
+  toggle.addEventListener('click',()=>{ panel.hidden=false; editorActions.hidden=true; editorRow.classList.add('ai-expanded'); requestAnimationFrame(()=>ensureTextareaHeight(inp,true)); });
   editorActions.appendChild(toggle); wrap.appendChild(panel);
   return wrap;
 }
