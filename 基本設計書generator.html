@@ -214,7 +214,7 @@
   .chapter-sort-scope>.node-card.drag-compact>.node-title-row .node-title-display{display:none}
   .new-item-highlight{animation:newItemPulse 1.15s ease-out 1}
   @keyframes newItemPulse{0%,100%{box-shadow:0 0 0 0 transparent}25%,70%{box-shadow:0 0 0 3px rgba(76,155,219,.42);border-color:var(--accent)}}
-  .confirm-dialog{max-width:430px;width:calc(100% - 32px);padding:0;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  .confirm-dialog{position:fixed;inset:0;margin:auto;max-width:430px;width:calc(100% - 32px);height:max-content;max-height:calc(100vh - 32px);padding:0;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:0 20px 60px rgba(0,0,0,.45)}
   .confirm-dialog::backdrop{background:rgba(0,0,0,.48)}.confirm-dialog-body{padding:20px}.confirm-dialog-message{white-space:pre-wrap;line-height:1.7}.confirm-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.confirm-dialog-actions button{padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer}.confirm-dialog-actions .danger{background:var(--red);border-color:var(--red);color:#fff}
   .ph-box{border:1px dashed var(--border);border-radius:7px;padding:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
   .ph-tag{font-family:monospace;font-size:12px;color:var(--accent);font-weight:700}
@@ -496,7 +496,7 @@
             <div class="fg"><div class="flabel">株式会社〇〇 様（顧客名）</div><input type="text" id="cv-client" placeholder="例：株式会社〇〇 様"></div>
             <div class="fg"><div class="flabel">プロジェクト名</div><input type="text" id="cv-project" placeholder="例：〇〇システム導入プロジェクト"></div>
             <div class="fg"><div class="flabel">版数</div><input type="text" id="cv-version" placeholder="例：1.0"></div>
-            <div class="fg"><div class="flabel">発行日</div><input type="text" id="cv-date" placeholder="例：YYYY/MM/DD"></div>
+            <div class="fg"><div class="flabel">発行日</div><input type="date" id="cv-date"></div>
             <div class="fg" style="grid-column:1/-1"><div class="flabel">ファイル名</div><input type="text" id="cv-filename" placeholder="例：基本設計書_1.0.docx"></div>
             <div class="fg"><div class="flabel">プロジェクトNo</div><input type="text" id="cv-projno" placeholder="例：PJ-2025-001"></div>
           </div>
@@ -23733,6 +23733,12 @@ function uid(){ return 'n'+(Date.now().toString(36))+(_uid++).toString(36); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function ea(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 function pad2(n){ return String(n).padStart(2,'0'); }
+function localTodaySlash(){ const d=new Date(); return d.getFullYear()+'/'+pad2(d.getMonth()+1)+'/'+pad2(d.getDate()); }
+function issueDateToInput(value){
+  const match=String(value||'').trim().match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+  return match ? match[1]+'-'+pad2(match[2])+'-'+pad2(match[3]) : '';
+}
+function issueDateFromInput(value){ return String(value||'').replace(/-/g,'/'); }
 function showToast(msg,isErr){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' err':''); setTimeout(()=>t.classList.remove('show'),3500); }
 function levelName(l){ return l===1?'章':l===2?'節':'小節'; }
 const PARAGRAPH_STYLE_CONFIGS={
@@ -24813,6 +24819,7 @@ function buildNodeCard(n){
 
 function initChapterSortables(root){
   if(typeof Sortable==='undefined') return;
+  const scrollContainer=document.getElementById('mainArea');
   [root,...root.querySelectorAll('.chapter-children')].forEach(list=>{
     const siblings=Array.from(list.children).filter(el=>el.classList.contains('node-card'));
     if(siblings.length<2) return;
@@ -24825,23 +24832,33 @@ function initChapterSortables(root){
       group:{name:'chapter-siblings-'+(parentId||'root'),pull:false,put:false},
       draggable:':scope > .node-card', handle:'.chapter-drag', animation:120,
       ghostClass:'chapter-sort-ghost', chosenClass:'chapter-sort-chosen',
-      onStart:()=>{
+      scroll:scrollContainer,scrollSensitivity:80,scrollSpeed:8,bubbleScroll:false,forceAutoScrollFallback:true,
+      onStart:event=>{
         activateEditTarget(null,{focus:false});
         // The root list is the global chapter sorting mode; nested lists scope
         // the compact view to sections/subsections under their current parent.
-        list.classList.add('chapter-sort-scope');
-        list.querySelectorAll(':scope > .node-card').forEach(el=>el.classList.add('drag-compact'));
+        compensateCompactLayout(event.item,scrollContainer,()=>{
+          list.classList.add('chapter-sort-scope');
+          list.querySelectorAll(':scope > .node-card').forEach(el=>el.classList.add('drag-compact'));
+        });
       },
       onEnd:event=>{
         const nodeId=event.item&&event.item.dataset.nodeid;
-        restore();
+        compensateCompactLayout(event.item,scrollContainer,restore);
         syncChapterSiblingOrder(list,parentId);
         setActivePreviewTarget(nodeId,null,true);
       },
-      onUnchoose:restore,
+      onUnchoose:event=>compensateCompactLayout(event.item,scrollContainer,restore),
       onChoose:event=>{ if(!event.item) restore(); }
     });
   });
+}
+function compensateCompactLayout(item,scrollContainer,mutate){
+  if(!item||!scrollContainer){ mutate(); return; }
+  const beforeTop=item.getBoundingClientRect().top;
+  mutate();
+  const afterTop=item.getBoundingClientRect().top;
+  scrollContainer.scrollTop=Math.max(0,scrollContainer.scrollTop+(afterTop-beforeTop));
 }
 function clearAllSortState(){
   document.querySelectorAll('#sectionsContainer .chapter-sort-scope').forEach(el=>el.classList.remove('chapter-sort-scope'));
@@ -24969,13 +24986,15 @@ function buildParagraphItem(n,b,attachments){
 }
 function initParagraphSortables(n,root){
   if(typeof Sortable==='undefined') return;
+  const scrollContainer=document.getElementById('mainArea');
   [root.querySelector(':scope > .explanation-list'),root,...root.querySelectorAll('.paragraph-children')].filter(Boolean).forEach((list,index)=>{
     if(!list.querySelector(':scope > .paragraph-item')) return;
     const restoreDragView=()=>document.querySelectorAll('#sectionsContainer .paragraph-item.drag-compact, #sectionsContainer .paragraph-sort-ghost, #sectionsContainer .paragraph-sort-chosen').forEach(el=>el.classList.remove('drag-compact','paragraph-sort-ghost','paragraph-sort-chosen'));
     Sortable.create(list,{group:{name:'paragraph-siblings-'+n.id+'-'+index,pull:false,put:false},draggable:'.paragraph-item',handle:'.paragraph-drag',animation:120,ghostClass:'paragraph-sort-ghost',chosenClass:'paragraph-sort-chosen',
-      onStart:()=>{ activateEditTarget(null,{focus:false}); list.querySelectorAll(':scope > .paragraph-item').forEach(el=>el.classList.add('drag-compact')); },
-      onEnd:(event)=>{ const blockId=event.item&&event.item.dataset.blockId; restoreDragView(); syncBlockOrderFromEditor(n,root); setActivePreviewTarget(n.id,blockId,true); },
-      onUnchoose:restoreDragView
+      scroll:scrollContainer,scrollSensitivity:80,scrollSpeed:8,bubbleScroll:false,forceAutoScrollFallback:true,
+      onStart:event=>{ activateEditTarget(null,{focus:false}); compensateCompactLayout(event.item,scrollContainer,()=>list.querySelectorAll(':scope > .paragraph-item').forEach(el=>el.classList.add('drag-compact'))); },
+      onEnd:(event)=>{ const blockId=event.item&&event.item.dataset.blockId; compensateCompactLayout(event.item,scrollContainer,restoreDragView); syncBlockOrderFromEditor(n,root); setActivePreviewTarget(n.id,blockId,true); },
+      onUnchoose:event=>compensateCompactLayout(event.item,scrollContainer,restoreDragView)
     });
   });
 }
@@ -25691,10 +25710,21 @@ function bindCover(){
   if(_coverBound) return; _coverBound=true;
   Object.entries(COVER_IDS).forEach(([k,id])=>{
     const el=document.getElementById(id);
-    el.addEventListener('input',()=>{ doc.cover[k]=el.value; debouncePreview(); });
+    el.addEventListener('input',()=>{
+      doc.cover[k]=k==='issue_date' ? issueDateFromInput(el.value) : el.value;
+      if(k==='client_name'||k==='version'){
+        doc.cover.file_name=buildWordOutputFilename(doc.cover);
+        document.getElementById(COVER_IDS.file_name).value=doc.cover.file_name;
+      }
+      debouncePreview();
+    });
   });
 }
-function fillCoverInputs(){ Object.entries(COVER_IDS).forEach(([k,id])=>{ document.getElementById(id).value=doc.cover[k]||''; }); }
+function fillCoverInputs(){
+  if(!doc.cover.issue_date) doc.cover.issue_date=localTodaySlash();
+  doc.cover.file_name=buildWordOutputFilename(doc.cover);
+  Object.entries(COVER_IDS).forEach(([k,id])=>{ document.getElementById(id).value=k==='issue_date' ? issueDateToInput(doc.cover[k]) : (doc.cover[k]||''); });
+}
 
 /* ============================================================
    PREVIEW (Word 風)
@@ -26203,10 +26233,15 @@ function sanitizeWordFilenamePart(value){
 
 function buildWordOutputFilename(cover){
   const clientName=sanitizeWordFilenamePart(String(cover?.client_name??'').replace(/\s*様\s*$/,''));
-  const projectNo=sanitizeWordFilenamePart(cover?.project_no);
+  const version=sanitizeWordFilenamePart(cover?.version);
   const filenameParts=[clientName,'基本設計書'].filter(Boolean);
-  if(projectNo && projectNo!=='-') filenameParts.push(projectNo);
+  if(version && version!=='-') filenameParts.push(version);
   return filenameParts.join('_').replace(/_+/g,'_')+'.docx';
+}
+
+function canonicalWordOutputFilename(cover){
+  const entered=sanitizeWordFilenamePart(String(cover?.file_name??'').replace(/\.docx$/i,''));
+  return (entered ? entered : buildWordOutputFilename(cover).replace(/\.docx$/i,''))+'.docx';
 }
 
 async function exportDocx(){
@@ -26239,9 +26274,10 @@ async function exportDocx(){
   };
   try{
     const cover=doc.cover||{};
-    const today=new Date();
-    const todayText=today.getFullYear()+'/'+pad2(today.getMonth()+1)+'/'+pad2(today.getDate());
-    const outputFilename=buildWordOutputFilename(cover);
+    const todayText=localTodaySlash();
+    const outputFilename=canonicalWordOutputFilename(cover);
+    cover.file_name=outputFilename;
+    document.getElementById(COVER_IDS.file_name).value=outputFilename;
     const revisionHistory=Array.isArray(doc.revision_history) ? doc.revision_history : [{
       issue_date:cover.issue_date||todayText,
       version:cover.version||'1.0',
