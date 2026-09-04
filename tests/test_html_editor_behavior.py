@@ -180,3 +180,28 @@ def test_editor_nests_owned_media_and_restricts_explanation_drag_scope():
     assert "if(canAttachMedia(b))" in block_builder
     assert "addTableBlock" not in node_menu
     assert "addFigureBlock" not in node_menu
+
+
+def test_compact_drag_view_hides_duplicate_and_nested_paragraph_content():
+    assert ".paragraph-item.drag-compact>.block>.block-body .paragraph-read{display:none}" in HTML
+    assert ".paragraph-item.drag-compact>.paragraph-attachments,.paragraph-item.drag-compact>.paragraph-children{display:none}" in HTML
+    assert ".paragraph-item.drag-compact>.block>.block-body .paragraph-drag-summary{display:block;flex:1}" in HTML
+    assert ".chapter-sort-scope>.node-card.drag-compact>.node-title-row .node-title-display{display:none}" in HTML
+
+
+def test_chapter_and_paragraph_share_bounded_drag_lifecycle():
+    chapter_sorter = _function("initChapterSortables")
+    paragraph_sorter = _function("initParagraphSortables")
+    allowed_rect = _function("getDragAllowedRect")
+    bounded_scroll = _function("runBoundedDragScroll")
+
+    for sorter, drag_type in ((chapter_sorter, "chapter"), (paragraph_sorter, "paragraph")):
+        assert "scroll:false" in sorter
+        assert "startCardDrag" in sorter
+        assert "finishCardDrag" in sorter
+        assert f"type:'{drag_type}'" in sorter
+    assert "Math.max(listRect.left,scrollRect.left)" in allowed_rect
+    assert "Math.min(listRect.bottom,scrollRect.bottom)" in allowed_rect
+    assert "scope.pointerX>=rect.left-tolerance" in bounded_scroll
+    assert "scope.pointerY<=rect.bottom+tolerance" in bounded_scroll
+    assert "scope.scrollContainer.scrollTop+=speed" in bounded_scroll

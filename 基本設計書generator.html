@@ -172,7 +172,7 @@
   .block-body{padding:10px}
   .paragraph-editor{display:flex;align-items:flex-start;gap:8px}.paragraph-editor>.paragraph-drag{height:32px;flex:0 0 auto}.paragraph-style-select{width:92px;flex:0 0 92px;height:32px;padding:4px 6px;font-size:12.5px;line-height:1.35;align-self:flex-start}.paragraph-editor .ci-input{flex:1;min-width:0;min-height:32px;height:32px;padding:5px 9px;line-height:20px;resize:none;overflow-y:hidden}.paragraph-editor .aifix-btn{flex:0 0 auto;min-height:32px;height:32px}.paragraph-editor.ai-expanded .ci-input{width:auto}.paragraph-prefix{display:inline-block;white-space:pre}
   .paragraph-drag-summary{display:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:12px;text-transform:none;letter-spacing:0}
-  .paragraph-item.drag-compact{padding:4px 7px;gap:0}.paragraph-item.drag-compact>.block>.block-body{padding:5px 7px}.paragraph-item.drag-compact>.block>.block-body .paragraph-editor{padding-left:0!important;align-items:center}.paragraph-item.drag-compact>.block>.block-body .paragraph-style-select,.paragraph-item.drag-compact>.block>.block-body .ci-input,.paragraph-item.drag-compact>.block>.block-body .paragraph-row-actions,.paragraph-item.drag-compact>.block>.block-body .paragraph-aifix{display:none}.paragraph-item.drag-compact>.block>.block-body .paragraph-drag-summary{display:block;flex:1}.paragraph-item.drag-compact>.paragraph-children{display:none}
+  .paragraph-item.drag-compact{padding:4px 7px;gap:0}.paragraph-item.drag-compact>.block>.block-body{padding:5px 7px}.paragraph-item.drag-compact>.block>.block-body .paragraph-editor{padding-left:0!important;align-items:center}.paragraph-item.drag-compact>.block>.block-body .paragraph-style-select,.paragraph-item.drag-compact>.block>.block-body .ci-input,.paragraph-item.drag-compact>.block>.block-body .paragraph-row-actions,.paragraph-item.drag-compact>.block>.block-body .paragraph-aifix,.paragraph-item.drag-compact>.block>.block-body .paragraph-read{display:none}.paragraph-item.drag-compact>.block>.block-body .paragraph-drag-summary{display:block;flex:1}.paragraph-item.drag-compact>.paragraph-attachments,.paragraph-item.drag-compact>.paragraph-children{display:none}
   /* Step 3 has three deliberately independent states: reading, one active
      editor, and the temporary compact sorting scope. */
   .read-display{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)}
@@ -24817,6 +24817,55 @@ function buildNodeCard(n){
   return card;
 }
 
+let activeDragScope=null;
+function getDragAllowedRect(list,scrollContainer){
+  if(!list||!scrollContainer) return null;
+  const listRect=list.getBoundingClientRect(), scrollRect=scrollContainer.getBoundingClientRect();
+  const rect={left:Math.max(listRect.left,scrollRect.left),right:Math.min(listRect.right,scrollRect.right),top:Math.max(listRect.top,scrollRect.top),bottom:Math.min(listRect.bottom,scrollRect.bottom)};
+  return rect.left<rect.right&&rect.top<rect.bottom?rect:null;
+}
+function updateBoundedDragScroll(event){
+  const scope=activeDragScope;
+  if(!scope) return;
+  const point=event.touches&&event.touches[0]?event.touches[0]:event;
+  if(!Number.isFinite(point.clientX)||!Number.isFinite(point.clientY)) return;
+  scope.pointerX=point.clientX; scope.pointerY=point.clientY;
+}
+function runBoundedDragScroll(){
+  const scope=activeDragScope;
+  if(!scope) return;
+  const rect=getDragAllowedRect(scope.list,scope.scrollContainer), tolerance=16, edge=72;
+  let speed=0;
+  if(rect&&scope.pointerX>=rect.left-tolerance&&scope.pointerX<=rect.right+tolerance&&scope.pointerY>=rect.top-tolerance&&scope.pointerY<=rect.bottom+tolerance){
+    if(scope.pointerY<rect.top+edge) speed=-Math.min(10,Math.ceil(10*(rect.top+edge-scope.pointerY)/edge));
+    else if(scope.pointerY>rect.bottom-edge) speed=Math.min(10,Math.ceil(10*(scope.pointerY-(rect.bottom-edge))/edge));
+  }
+  if(speed) scope.scrollContainer.scrollTop+=speed;
+  scope.frame=requestAnimationFrame(runBoundedDragScroll);
+}
+function startCardDrag({item,list,scrollContainer,type,compact}){
+  stopCardDragScroll();
+  activeDragScope={item,list,scrollContainer,type,pointerX:NaN,pointerY:NaN,frame:0};
+  document.addEventListener('pointermove',updateBoundedDragScroll,true);
+  document.addEventListener('mousemove',updateBoundedDragScroll,true);
+  document.addEventListener('touchmove',updateBoundedDragScroll,true);
+  compensateCompactLayout(item,scrollContainer,compact);
+  activeDragScope.frame=requestAnimationFrame(runBoundedDragScroll);
+}
+function stopCardDragScroll(){
+  if(activeDragScope&&activeDragScope.frame) cancelAnimationFrame(activeDragScope.frame);
+  activeDragScope=null;
+  document.removeEventListener('pointermove',updateBoundedDragScroll,true);
+  document.removeEventListener('mousemove',updateBoundedDragScroll,true);
+  document.removeEventListener('touchmove',updateBoundedDragScroll,true);
+}
+function finishCardDrag({item,scrollContainer,restore}){
+  const wasActive=Boolean(activeDragScope);
+  stopCardDragScroll();
+  if(wasActive) compensateCompactLayout(item,scrollContainer,restore);
+  else restore();
+}
+
 function initChapterSortables(root){
   if(typeof Sortable==='undefined') return;
   const scrollContainer=document.getElementById('mainArea');
@@ -24832,23 +24881,23 @@ function initChapterSortables(root){
       group:{name:'chapter-siblings-'+(parentId||'root'),pull:false,put:false},
       draggable:':scope > .node-card', handle:'.chapter-drag', animation:120,
       ghostClass:'chapter-sort-ghost', chosenClass:'chapter-sort-chosen',
-      scroll:scrollContainer,scrollSensitivity:80,scrollSpeed:8,bubbleScroll:false,forceAutoScrollFallback:true,
+      scroll:false,
       onStart:event=>{
         activateEditTarget(null,{focus:false});
         // The root list is the global chapter sorting mode; nested lists scope
         // the compact view to sections/subsections under their current parent.
-        compensateCompactLayout(event.item,scrollContainer,()=>{
+        startCardDrag({item:event.item,list,scrollContainer,type:'chapter',compact:()=>{
           list.classList.add('chapter-sort-scope');
           list.querySelectorAll(':scope > .node-card').forEach(el=>el.classList.add('drag-compact'));
-        });
+        }});
       },
       onEnd:event=>{
         const nodeId=event.item&&event.item.dataset.nodeid;
-        compensateCompactLayout(event.item,scrollContainer,restore);
+        finishCardDrag({item:event.item,scrollContainer,restore});
         syncChapterSiblingOrder(list,parentId);
         setActivePreviewTarget(nodeId,null,true);
       },
-      onUnchoose:event=>compensateCompactLayout(event.item,scrollContainer,restore),
+      onUnchoose:event=>finishCardDrag({item:event.item,scrollContainer,restore}),
       onChoose:event=>{ if(!event.item) restore(); }
     });
   });
@@ -24861,6 +24910,7 @@ function compensateCompactLayout(item,scrollContainer,mutate){
   scrollContainer.scrollTop=Math.max(0,scrollContainer.scrollTop+(afterTop-beforeTop));
 }
 function clearAllSortState(){
+  stopCardDragScroll();
   document.querySelectorAll('#sectionsContainer .chapter-sort-scope').forEach(el=>el.classList.remove('chapter-sort-scope'));
   document.querySelectorAll('#sectionsContainer .drag-compact, #sectionsContainer .chapter-sort-ghost, #sectionsContainer .chapter-sort-chosen, #sectionsContainer .paragraph-sort-ghost, #sectionsContainer .paragraph-sort-chosen').forEach(el=>el.classList.remove('drag-compact','chapter-sort-ghost','chapter-sort-chosen','paragraph-sort-ghost','paragraph-sort-chosen'));
 }
@@ -24991,10 +25041,10 @@ function initParagraphSortables(n,root){
     if(!list.querySelector(':scope > .paragraph-item')) return;
     const restoreDragView=()=>document.querySelectorAll('#sectionsContainer .paragraph-item.drag-compact, #sectionsContainer .paragraph-sort-ghost, #sectionsContainer .paragraph-sort-chosen').forEach(el=>el.classList.remove('drag-compact','paragraph-sort-ghost','paragraph-sort-chosen'));
     Sortable.create(list,{group:{name:'paragraph-siblings-'+n.id+'-'+index,pull:false,put:false},draggable:'.paragraph-item',handle:'.paragraph-drag',animation:120,ghostClass:'paragraph-sort-ghost',chosenClass:'paragraph-sort-chosen',
-      scroll:scrollContainer,scrollSensitivity:80,scrollSpeed:8,bubbleScroll:false,forceAutoScrollFallback:true,
-      onStart:event=>{ activateEditTarget(null,{focus:false}); compensateCompactLayout(event.item,scrollContainer,()=>list.querySelectorAll(':scope > .paragraph-item').forEach(el=>el.classList.add('drag-compact'))); },
-      onEnd:(event)=>{ const blockId=event.item&&event.item.dataset.blockId; compensateCompactLayout(event.item,scrollContainer,restoreDragView); syncBlockOrderFromEditor(n,root); setActivePreviewTarget(n.id,blockId,true); },
-      onUnchoose:event=>compensateCompactLayout(event.item,scrollContainer,restoreDragView)
+      scroll:false,
+      onStart:event=>{ activateEditTarget(null,{focus:false}); startCardDrag({item:event.item,list,scrollContainer,type:'paragraph',compact:()=>list.querySelectorAll(':scope > .paragraph-item').forEach(el=>el.classList.add('drag-compact'))}); },
+      onEnd:(event)=>{ const blockId=event.item&&event.item.dataset.blockId; finishCardDrag({item:event.item,scrollContainer,restore:restoreDragView}); syncBlockOrderFromEditor(n,root); setActivePreviewTarget(n.id,blockId,true); },
+      onUnchoose:event=>finishCardDrag({item:event.item,scrollContainer,restore:restoreDragView})
     });
   });
 }
