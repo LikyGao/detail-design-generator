@@ -1,7 +1,11 @@
 import json
 import re
 import subprocess
+import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,8 +52,10 @@ def test_paragraph_edit_css_matches_real_dom_and_is_scoped_to_current_item():
 def test_activate_edit_target_selects_actual_block_and_only_its_direct_wrapper():
     function = _function("activateEditTarget")
     textarea_helper = _function("ensureTextareaHeight")
+    context_change = _function("handleEditorNodeContextChange")
     source = f"""
 let activeEditTarget=null;
+let expandedParagraphAiFixTarget=null;
 class Classes {{
   constructor(...names) {{ this.value=new Set(names); }}
   add(name) {{ this.value.add(name); }}
@@ -71,6 +77,7 @@ const document={{
 const CSS={{escape:value=>String(value)}};
 const requestAnimationFrame=callback=>callback();
 {textarea_helper}
+{context_change}
 {function}
 const snapshots=[];
 for(const id of ['parent','child','grandchild']) {{
@@ -221,7 +228,7 @@ def test_drag_transaction_starts_on_start_instead_of_on_choose():
         assert on_start < begin < start
 
 
-def test_preview_uses_word_like_headings_half_em_levels_and_hanging_layout():
+def test_preview_uses_template_hanging_geometry_without_changing_page_width():
     assert "--preview-page-width:210mm" in HTML
     assert "--preview-page-height:297mm" in HTML
     assert "--preview-margin-left:20mm" in HTML
@@ -230,9 +237,12 @@ def test_preview_uses_word_like_headings_half_em_levels_and_hanging_layout():
     assert "width:var(--preview-page-width);min-width:var(--preview-page-width);height:var(--preview-page-height)" in HTML
     assert "padding:var(--preview-margin-top) var(--preview-margin-right) var(--preview-margin-bottom) var(--preview-margin-left)" in HTML
     assert "--preview-indent-unit:0.5em" in HTML
-    assert "margin-left:calc(var(--preview-level,0) * var(--preview-indent-unit))" in HTML
-    assert ".word-paragraph{display:grid;grid-template-columns:auto minmax(0,1fr)" in HTML
+    assert "margin-left:var(--preview-hierarchy-offset)" in HTML
+    assert ".word-paragraph{display:grid;grid-template-columns:calc(var(--preview-text-start) - var(--preview-hierarchy-offset)) minmax(0,1fr)" in HTML
+    assert "column-gap:0" in HTML
+    assert "padding-left:calc(var(--preview-marker-start) - var(--preview-hierarchy-offset))" in HTML
     assert ".word-paragraph-text{grid-column:2" in HTML
+    assert "font-family:'Meiryo UI',Meiryo,sans-serif;font-size:var(--preview-font-size);font-weight:var(--preview-font-weight);letter-spacing:normal" in HTML
     assert "border-left:4px solid #444" not in HTML
     assert "border-bottom:2px solid #333" not in HTML
     preview = _function("buildPreviewHtml")
@@ -241,20 +251,87 @@ def test_preview_uses_word_like_headings_half_em_levels_and_hanging_layout():
     assert "if(!String(b.text||'').trim()) return '';" in blocks
 
 
-def test_chapter_navigation_closes_ai_fix_without_clearing_instruction():
+def test_template_and_preview_share_style0_through_style4_geometry():
+    namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    template = ROOT / "plugins/personal/standard_word_generator/templates/基本設計書_template.docx"
+    with zipfile.ZipFile(template) as archive:
+        styles = ET.fromstring(archive.read("word/styles.xml"))
+        numbering = ET.fromstring(archive.read("word/numbering.xml"))
+
+    # Effective Word text positions come from each native style. Style0's
+    # number consumes level 0's 440-twip hanging slot; later styles explicitly
+    # position the text. Marker positions are the matching hanging starts.
+    expected = {
+        "0": (0, 440), "1": (340, 510), "2": (510, 794),
+        "3": (510, 737), "4": (794, 964),
+    }
+    abstract_zero = numbering.find("w:abstractNum[@w:abstractNumId='0']", namespace)
+    assert abstract_zero is not None
+    level_zero_indent = abstract_zero.find("w:lvl[@w:ilvl='0']/w:pPr/w:ind", namespace)
+    assert int(level_zero_indent.attrib[f"{{{namespace['w']}}}left"]) == 440
+    assert int(level_zero_indent.attrib[f"{{{namespace['w']}}}hanging"]) == 440
+
+    for style_id, (marker_start, text_start) in expected.items():
+        style = styles.find(f"w:style[@w:styleId='{style_id}']", namespace)
+        assert style is not None
+        if style_id != "0":
+            indent = style.find("w:pPr/w:ind", namespace)
+            assert int(indent.attrib[f"{{{namespace['w']}}}left"]) == text_start
+            hanging = int(indent.attrib.get(f"{{{namespace['w']}}}hanging", "0"))
+            if hanging:
+                assert text_start - hanging == marker_start
+
+    geometry = re.search(r"const PREVIEW_PARAGRAPH_GEOMETRY=\{(.*?)\n\};", HTML, re.S).group(1)
+    for level, positions in zip((1, 2, 4, 3, 5), expected.values()):
+        marker_start, text_start = positions
+        assert f"level_{level}:{{markerStartTwips:{marker_start},textStartTwips:{text_start}," in geometry
+
+    # 170 mm = 9637.795 twips. The text column ends at the unchanged right
+    # margin, so its effective width is content width minus Word text start.
+    content_twips = 170 / 25.4 * 1440
+    widths_mm = [(content_twips - text_start) / 1440 * 25.4 for _, text_start in expected.values()]
+    assert widths_mm == pytest.approx([162.2389, 161.0042, 155.9947, 157.0001, 152.9981], abs=0.002)
+
+
+def test_node_context_change_closes_ai_fix_and_preserves_instruction():
     activation = _function("activateEditTarget")
     navigation = _function("scrollToNode")
     closer = _function("closeExpandedParagraphAiFix")
+    context_change = _function("handleEditorNodeContextChange")
+    preview_target = _function("setActivePreviewTarget")
     paragraph_fix = _function("buildParagraphAiFix")
 
-    assert "expandedParagraphAiFixTarget.nodeId!==nextNodeId" in activation
-    assert "closeExpandedParagraphAiFix()" in activation
+    assert "handleEditorNodeContextChange(nextNodeId)" in activation
+    assert "handleEditorNodeContextChange(nodeId)" in preview_target
     assert "activateEditTarget({kind:'node',nodeId:id},{focus:false})" in navigation
     assert "panel.hidden=true" in closer
     assert "editorActions.hidden=false" in paragraph_fix
     assert "expandedParagraphAiFixTarget={nodeId:n.id,blockId:b.id}" in paragraph_fix
     assert "b.revision_instruction=''" not in closer
     assert "b.revision_instruction=''" not in activation
+
+    source = f"""
+const instruction={{revision_instruction:'より簡潔に記載する'}};
+const panel={{hidden:false}};
+const actions={{hidden:true}};
+const row={{classList:{{remove:()=>{{}}}},querySelector:()=>actions}};
+const document={{querySelectorAll:selector=>selector.includes('.aifix-panel')?[panel]:[row]}};
+let expandedParagraphAiFixTarget={{nodeId:'A',blockId:'p1'}};
+{closer}
+{context_change}
+const snapshots=[];
+handleEditorNodeContextChange('A');
+snapshots.push({{sameHidden:panel.hidden,sameTarget:expandedParagraphAiFixTarget&&expandedParagraphAiFixTarget.nodeId}});
+handleEditorNodeContextChange('B');
+snapshots.push({{hidden:panel.hidden,target:expandedParagraphAiFixTarget,instruction:instruction.revision_instruction}});
+handleEditorNodeContextChange('A');
+snapshots.push({{returnedHidden:panel.hidden,returnedTarget:expandedParagraphAiFixTarget,instruction:instruction.revision_instruction}});
+console.log(JSON.stringify(snapshots));
+"""
+    snapshots = _run_node(source)
+    assert snapshots[0] == {"sameHidden": False, "sameTarget": "A"}
+    assert snapshots[1] == {"hidden": True, "target": None, "instruction": "より簡潔に記載する"}
+    assert snapshots[2] == {"returnedHidden": True, "returnedTarget": None, "instruction": "より簡潔に記載する"}
 
 
 def test_step2_attention_is_pale_pink_and_has_no_exclamation_marker():

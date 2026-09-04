@@ -294,9 +294,10 @@
   .word-body h2{font-size:12pt;margin:12pt 0 6pt;line-height:1.5}
   .word-body h3{font-size:10.5pt;margin:10pt 0 4pt;line-height:1.55}
   .word-body p{margin:0 0 4pt;line-height:1.75}
-  .word-paragraph{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:.35em;margin-left:calc(var(--preview-level,0) * var(--preview-indent-unit))!important;text-align:justify}
-  .word-paragraph .paragraph-prefix{grid-column:1;white-space:nowrap}
+  .word-paragraph{display:grid;grid-template-columns:calc(var(--preview-text-start) - var(--preview-hierarchy-offset)) minmax(0,1fr);column-gap:0;margin-left:var(--preview-hierarchy-offset)!important;text-align:justify;font-family:'Meiryo UI',Meiryo,sans-serif;font-size:var(--preview-font-size);font-weight:var(--preview-font-weight);letter-spacing:normal}
+  .word-paragraph .paragraph-prefix{grid-column:1;box-sizing:border-box;padding-left:calc(var(--preview-marker-start) - var(--preview-hierarchy-offset));white-space:nowrap}
   .word-paragraph-text{grid-column:2;min-width:0;white-space:normal;overflow-wrap:anywhere}
+  .word-paragraph.no-prefix{grid-template-columns:minmax(0,1fr);margin-left:0!important}
   .word-paragraph.no-prefix .word-paragraph-text{grid-column:1 / -1}
   .preview-unit,.preview-chapter,.word-keep-together{break-inside:avoid-page}
   .word-ph{border:0;background:transparent;padding:0;margin:9pt 0;text-align:center;color:#555;font-size:10.5pt}
@@ -23725,6 +23726,7 @@ let _previewOpen = false, _previewTimer = null, _previewResizeFrame = null;
 let _activePreviewTarget = {nodeId:null, blockId:null}, _previewSyncTimer = null, _previewHighlightTimer = null;
 let activeEditTarget = null;
 let expandedParagraphAiFixTarget = null;
+document.documentElement.dataset.uiBuild='preview-width-ai-context-v2';
 let pendingHighlightTarget = null;
 let _highlightTimer = null;
 let _previewWindow = null, _previewRevision = 0;
@@ -23773,6 +23775,16 @@ const PARAGRAPH_STYLE_CONFIGS={
   level_6:{label:'　　　　　①',symbol:'',indent:6,numbered:true}
 };
 const PARAGRAPH_STYLE_TO_NATIVE_ILVL={level_1:0,level_2:1,level_4:2,level_3:3,level_5:4,level_6:5};
+// Template-native list geometry (twips).  The half-em hierarchy remains the
+// outer offset; the marker slot absorbs the difference up to Word's actual
+// marker/text positions instead of adding an unrelated grid gap.
+const PREVIEW_PARAGRAPH_GEOMETRY={
+  level_1:{markerStartTwips:0,textStartTwips:440,fontSizePt:12,fontWeight:700},
+  level_2:{markerStartTwips:340,textStartTwips:510,fontSizePt:10.5,fontWeight:400},
+  level_4:{markerStartTwips:510,textStartTwips:794,fontSizePt:10.5,fontWeight:700},
+  level_3:{markerStartTwips:510,textStartTwips:737,fontSizePt:10.5,fontWeight:400},
+  level_5:{markerStartTwips:794,textStartTwips:964,fontSizePt:10.5,fontWeight:400}
+};
 function getParagraphNativeIlvl(block){
   if(Number.isInteger(block&&block.native_ilvl)) return block.native_ilvl;
   return PARAGRAPH_STYLE_TO_NATIVE_ILVL[block&&block.paragraph_style]??null;
@@ -24539,9 +24551,14 @@ function ensureTextareaHeight(textarea,initial=false){
   const currentHeight=textarea.getBoundingClientRect().height;
   if(initial||requiredHeight>currentHeight) textarea.style.height=requiredHeight+'px';
 }
+function handleEditorNodeContextChange(nextNodeId){
+  if(nextNodeId&&expandedParagraphAiFixTarget&&expandedParagraphAiFixTarget.nodeId!==nextNodeId){
+    closeExpandedParagraphAiFix();
+  }
+}
 function activateEditTarget(target,options={}){
   const nextNodeId=target&&target.nodeId||null;
-  if(nextNodeId&&typeof expandedParagraphAiFixTarget!=='undefined'&&expandedParagraphAiFixTarget&&expandedParagraphAiFixTarget.nodeId!==nextNodeId) closeExpandedParagraphAiFix();
+  handleEditorNodeContextChange(nextNodeId);
   activeEditTarget=target ? {kind:target.kind,nodeId:target.nodeId,blockId:target.blockId||null} : null;
   document.querySelectorAll('#sectionsContainer .is-editing').forEach(el=>el.classList.remove('is-editing'));
   if(!activeEditTarget) return;
@@ -24562,7 +24579,7 @@ function activateEditTarget(target,options={}){
     if(input){ input.focus({preventScroll:true}); if(input.tagName==='TEXTAREA') input.setSelectionRange(input.value.length,input.value.length); }
   });
 }
-function queueNewItem(target){ activeEditTarget={kind:target.kind,nodeId:target.nodeId,blockId:target.blockId||null}; pendingHighlightTarget={...activeEditTarget}; }
+function queueNewItem(target){ handleEditorNodeContextChange(target&&target.nodeId); activeEditTarget={kind:target.kind,nodeId:target.nodeId,blockId:target.blockId||null}; pendingHighlightTarget={...activeEditTarget}; }
 function applyPendingEditorState(){
   activateEditTarget(activeEditTarget);
   if(!pendingHighlightTarget) return;
@@ -25903,7 +25920,7 @@ function previewTargetElement(root,target){
   return null;
 }
 function setActivePreviewTarget(nodeId,blockId,immediate){
-  if(nodeId) _activePreviewTarget={nodeId,blockId:blockId||null};
+  if(nodeId){ handleEditorNodeContextChange(nodeId); _activePreviewTarget={nodeId,blockId:blockId||null}; }
   if(immediate){ clearTimeout(_previewSyncTimer); scrollPreviewToActive(true); publishPreviewTarget(); }
   else debouncePreviewTarget();
 }
@@ -26079,7 +26096,9 @@ function blocksToHtml(blocks,nodeId,paragraphPrefixes){
         const cfg=getParagraphStyleConfig(b.paragraph_style), prefix=paragraphPrefixes.get(b.id)||'';
         const nativeLevel=getParagraphNativeIlvl(b);
         const previewLevel=nativeLevel==null?0:Math.max(0,nativeLevel);
-        return '<p class="word-paragraph'+(prefix?'':' no-prefix')+'"'+syncAttrs+' style="--preview-level:'+previewLevel+'"><span class="paragraph-prefix">'+escH(prefix)+'</span><span class="word-paragraph-text">'+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</span></p>';
+        const geometry=PREVIEW_PARAGRAPH_GEOMETRY[b.paragraph_style]||{markerStartTwips:0,textStartTwips:0,fontSizePt:10.5,fontWeight:400};
+        const paragraphGeometry='--preview-level:'+previewLevel+';--preview-hierarchy-offset:calc('+previewLevel+' * var(--preview-indent-unit));--preview-marker-start:'+(geometry.markerStartTwips/20)+'pt;--preview-text-start:'+(geometry.textStartTwips/20)+'pt;--preview-font-size:'+geometry.fontSizePt+'pt;--preview-font-weight:'+geometry.fontWeight;
+        return '<p class="word-paragraph'+(prefix?'':' no-prefix')+'"'+syncAttrs+' style="'+paragraphGeometry+'"><span class="paragraph-prefix">'+escH(prefix)+'</span><span class="word-paragraph-text">'+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</span></p>';
       }
       if(b.type==='table'){
         const caption=String(b.caption||'').trim();
