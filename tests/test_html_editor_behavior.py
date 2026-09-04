@@ -235,10 +235,32 @@ def test_preview_uses_word_like_headings_half_em_levels_and_hanging_layout():
 def test_step2_attention_is_pale_pink_and_has_no_exclamation_marker():
     nav = _function("renderNav")
     selector = _function("buildChapterSelectCard")
+    attention = _function("isStep2Attention")
     assert ".step2-attention{background:#fff3f5!important" in HTML
-    assert "classList.add('step2-attention')" in nav
-    assert "classList.add('step2-attention')" in selector
+    assert "phase===PHASE.CHAPTERS&&isStep2Attention(n)" in nav
+    assert "if(isStep2Attention(n))" in selector
+    assert "n.selected===false" in attention
+    assert "n.applicability==='confirm'" in attention
+    assert "n.applicability==='missing'" in attention
     assert "warning.textContent='!'" not in nav
+
+
+def test_step2_attention_uses_current_selection_and_ai_status():
+    attention = _function("isStep2Attention")
+    results = _run_node(
+        f"""
+{attention}
+const cases = [
+  {{selected:true, applicability:'applicable'}},
+  {{selected:true, applicability:'confirm'}},
+  {{selected:true, applicability:'missing'}},
+  {{selected:false, applicability:'not_applicable'}},
+  {{selected:false, applicability:'applicable'}},
+];
+console.log(JSON.stringify(cases.map(isStep2Attention)));
+"""
+    )
+    assert results == [False, True, True, True, True]
 
 
 def test_media_caption_ui_and_filename_default_are_consistent():
