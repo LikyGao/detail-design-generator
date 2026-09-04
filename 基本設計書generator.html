@@ -499,7 +499,7 @@
             <div class="fg"><div class="flabel">プロジェクト名</div><input type="text" id="cv-project" placeholder="例：〇〇システム導入プロジェクト"></div>
             <div class="fg"><div class="flabel">版数</div><input type="text" id="cv-version" placeholder="例：1.0"></div>
             <div class="fg"><div class="flabel">発行日</div><input type="date" id="cv-date"></div>
-            <div class="fg" style="grid-column:1/-1"><div class="flabel">ファイル名</div><input type="text" id="cv-filename" placeholder="例：基本設計書_1.0.docx"></div>
+            <div class="fg" style="grid-column:1/-1"><div class="flabel">ファイル名</div><input type="text" id="cv-filename" readonly aria-readonly="true" placeholder="顧客名_基本設計書_版数.docx"></div>
             <div class="fg"><div class="flabel">プロジェクトNo</div><input type="text" id="cv-projno" placeholder="例：PJ-2025-001"></div>
           </div>
         </div>
@@ -25797,6 +25797,7 @@ function bindCover(){
   if(_coverBound) return; _coverBound=true;
   Object.entries(COVER_IDS).forEach(([k,id])=>{
     const el=document.getElementById(id);
+    if(k==='file_name') return;
     el.addEventListener('input',()=>{
       doc.cover[k]=k==='issue_date' ? issueDateFromInput(el.value) : el.value;
       if(k==='client_name'||k==='version'){
@@ -26218,6 +26219,9 @@ async function exportDocxLocal(){
   try{
     renumber();
     const cv=doc.cover;
+    const outputFilename=canonicalWordOutputFilename(cv);
+    cv.file_name=outputFilename;
+    document.getElementById(COVER_IDS.file_name).value=outputFilename;
     const bdr={style:BorderStyle.SINGLE,size:8,color:'FFFFFF'}; const allBdr={top:bdr,bottom:bdr,left:bdr,right:bdr};
     function propRow(label,value){
       const cellStyle={shading:{fill:'F2F2F2',type:ShadingType.CLEAR},verticalAlign:VerticalAlign.CENTER,borders:allBdr,margins:{top:40,bottom:40,left:120,right:120}};
@@ -26298,8 +26302,7 @@ async function exportDocxLocal(){
     });
     const blob=await Packer.toBlob(document2);
     const url=URL.createObjectURL(blob); const a=document.createElement('a');
-    const d=new Date(); const fn=(cv.file_name&&cv.file_name.trim())||('基本設計書_'+d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate())+'.docx');
-    a.href=url; a.download=fn.endsWith('.docx')?fn:fn+'.docx'; document.body.appendChild(a); a.click();
+    a.href=url; a.download=outputFilename; document.body.appendChild(a); a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
     showToast('✓ Word ファイルを出力しました');
   }catch(e){ console.error(e); showToast('Word 出力に失敗：'+e.message,true); }
@@ -26320,15 +26323,14 @@ function sanitizeWordFilenamePart(value){
 
 function buildWordOutputFilename(cover){
   const clientName=sanitizeWordFilenamePart(String(cover?.client_name??'').replace(/\s*様\s*$/,''));
-  const version=sanitizeWordFilenamePart(cover?.version);
+  const version=sanitizeWordFilenamePart(cover?.version)||'1.0';
   const filenameParts=[clientName,'基本設計書'].filter(Boolean);
-  if(version && version!=='-') filenameParts.push(version);
+  filenameParts.push(version);
   return filenameParts.join('_').replace(/_+/g,'_')+'.docx';
 }
 
 function canonicalWordOutputFilename(cover){
-  const entered=sanitizeWordFilenamePart(String(cover?.file_name??'').replace(/\.docx$/i,''));
-  return (entered ? entered : buildWordOutputFilename(cover).replace(/\.docx$/i,''))+'.docx';
+  return buildWordOutputFilename(cover);
 }
 
 async function exportDocx(){

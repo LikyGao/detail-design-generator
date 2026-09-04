@@ -29,14 +29,27 @@ BODY_GROUP_SPACE_BEFORE_PT = 10.5
 
 
 def _replace_paragraph_text(paragraph, text: str) -> None:
-    """Replace visible text while retaining the first run's formatting."""
+    """Replace all inline content while retaining paragraph and first-run formatting.
+
+    Clearing only ``paragraph.runs`` is insufficient: field results, hyperlinks,
+    bookmarks, and content controls can own text outside that collection.  In
+    particular, the bundled cover template's filename cell contains a field, so
+    leaving it in place displays the generated filename followed by the stale
+    field result.
+    """
     text = str(text or "")
-    if not paragraph.runs:
-        paragraph.add_run(text)
-        return
-    paragraph.runs[0].text = text
-    for run in paragraph.runs[1:]:
-        run.text = ""
+    run_properties = None
+    if paragraph.runs and paragraph.runs[0]._r.rPr is not None:
+        run_properties = deepcopy(paragraph.runs[0]._r.rPr)
+
+    paragraph_element = paragraph._p
+    for child in list(paragraph_element):
+        if child.tag != qn("w:pPr"):
+            paragraph_element.remove(child)
+
+    run = paragraph.add_run(text)
+    if run_properties is not None:
+        run._r.insert(0, run_properties)
 
 
 def _replace_cell_text(cell, text: str) -> None:
