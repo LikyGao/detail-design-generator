@@ -12,6 +12,16 @@
     --text:#e8eaf6;--text-muted:#8892b0;--text-faint:#4a5275;
     --green:#43d9a2;--red:#ff6b6b;--amber:#f7c948;--number-badge:#2d3561;
     --heading1:#6fa3ff;--heading2:#a78bfa;--heading3:#43d9a2;--radius:10px;--tr:0.2s ease;
+    /* Standard Word template section dimensions (OOXML twips: 11906 x
+       16838, left/right 1134, top/bottom 567). Keep Preview geometry in
+       physical units so its line wrapping is independent of the viewport. */
+    --preview-page-width:210mm;
+    --preview-page-height:297mm;
+    --preview-margin-top:10mm;
+    --preview-margin-right:20mm;
+    --preview-margin-bottom:10mm;
+    --preview-margin-left:20mm;
+    --preview-content-width:calc(var(--preview-page-width) - var(--preview-margin-left) - var(--preview-margin-right));
     --preview-indent-unit:0.5em;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -258,7 +268,8 @@
   .preview-page-shell>.word-page{position:absolute;left:0;top:0;transform-origin:top left}
   .preview-sync-highlight{background:rgba(76,155,219,.10)!important;box-shadow:inset 0 0 0 1px rgba(76,155,219,.28);transition:background .25s,box-shadow .25s}
   @media print{.preview-sync-highlight{background:transparent!important;box-shadow:none!important}}
-  .word-page{box-sizing:border-box;background:#fff;color:#000;width:210mm;min-width:210mm;min-height:297mm;padding:20mm;font-family:Century,'ＭＳ 明朝','MS Mincho','Yu Mincho','游明朝',serif;font-size:10.5pt;line-height:1.75;box-shadow:0 4px 20px rgba(0,0,0,.4);border-radius:0;overflow:visible}
+  .word-page{box-sizing:border-box;background:#fff;color:#000;width:var(--preview-page-width);min-width:var(--preview-page-width);height:var(--preview-page-height);min-height:var(--preview-page-height);padding:var(--preview-margin-top) var(--preview-margin-right) var(--preview-margin-bottom) var(--preview-margin-left);font-family:Century,'ＭＳ 明朝','MS Mincho','Yu Mincho','游明朝',serif;font-size:10.5pt;line-height:1.75;box-shadow:0 4px 20px rgba(0,0,0,.4);border-radius:0;overflow:visible}
+  .word-page>.preview-unit,.word-page>.word-keep-together{width:var(--preview-content-width);max-width:var(--preview-content-width)}
   .word-cover{display:flex;flex-direction:column;justify-content:flex-start;align-items:center;text-align:center;gap:0;padding-top:42mm}
   .word-cover .wc-top{display:flex;flex-direction:column;align-items:center;gap:14px}
   .word-cover .wc-client,.word-cover .wc-title,.word-cover .wc-project{font-family:'ＭＳ ゴシック','MS Gothic',sans-serif}
@@ -23713,6 +23724,7 @@ let doc = emptyDoc();
 let _previewOpen = false, _previewTimer = null, _previewResizeFrame = null;
 let _activePreviewTarget = {nodeId:null, blockId:null}, _previewSyncTimer = null, _previewHighlightTimer = null;
 let activeEditTarget = null;
+let expandedParagraphAiFixTarget = null;
 let pendingHighlightTarget = null;
 let _highlightTimer = null;
 let _previewWindow = null, _previewRevision = 0;
@@ -24528,6 +24540,8 @@ function ensureTextareaHeight(textarea,initial=false){
   if(initial||requiredHeight>currentHeight) textarea.style.height=requiredHeight+'px';
 }
 function activateEditTarget(target,options={}){
+  const nextNodeId=target&&target.nodeId||null;
+  if(nextNodeId&&typeof expandedParagraphAiFixTarget!=='undefined'&&expandedParagraphAiFixTarget&&expandedParagraphAiFixTarget.nodeId!==nextNodeId) closeExpandedParagraphAiFix();
   activeEditTarget=target ? {kind:target.kind,nodeId:target.nodeId,blockId:target.blockId||null} : null;
   document.querySelectorAll('#sectionsContainer .is-editing').forEach(el=>el.classList.remove('is-editing'));
   if(!activeEditTarget) return;
@@ -24667,6 +24681,7 @@ function scrollToNode(id,navEl){
   }
   document.querySelectorAll('.navi.active').forEach(e=>e.classList.remove('active'));
   if(navEl) navEl.classList.add('active');
+  if(phase===PHASE.EDIT) activateEditTarget({kind:'node',nodeId:id},{focus:false});
   setActivePreviewTarget(id,null,true);
 }
 
@@ -25346,6 +25361,15 @@ function convertPlaceholder(n,b){
   afterStructureChange('変更');
 }
 
+function closeExpandedParagraphAiFix(){
+  document.querySelectorAll('#sectionsContainer .paragraph-aifix .aifix-panel:not([hidden])').forEach(panel=>{ panel.hidden=true; });
+  document.querySelectorAll('#sectionsContainer .paragraph-editor.ai-expanded').forEach(row=>{
+    row.classList.remove('ai-expanded');
+    const actions=row.querySelector('.paragraph-row-actions'); if(actions) actions.hidden=false;
+  });
+  expandedParagraphAiFixTarget=null;
+}
+
 function buildParagraphAiFix(n,b,editorRow,editorActions){
   const wrap=document.createElement('div'); wrap.className='aifix paragraph-aifix';
   const toggle=document.createElement('button'); toggle.type='button'; toggle.className='aifix-btn'; toggle.textContent='AI修正';
@@ -25360,10 +25384,10 @@ function buildParagraphAiFix(n,b,editorRow,editorActions){
   const fix=document.createElement('button'); fix.type='button'; fix.className='aifix-btn compact'; fix.textContent='AI修正';
   fix.addEventListener('click',()=>fixParagraphWithAi(n,b,fix));
   const close=document.createElement('button'); close.type='button'; close.className='aifix-close'; close.textContent='閉じる';
-  close.addEventListener('click',()=>{ panel.hidden=true; editorActions.hidden=false; editorRow.classList.remove('ai-expanded'); });
+  close.addEventListener('click',()=>{ panel.hidden=true; editorActions.hidden=false; editorRow.classList.remove('ai-expanded'); expandedParagraphAiFixTarget=null; });
   actions.appendChild(fix); actions.appendChild(close);
   panel.appendChild(label); panel.appendChild(row); panel.appendChild(actions);
-  toggle.addEventListener('click',()=>{ panel.hidden=false; editorActions.hidden=true; editorRow.classList.add('ai-expanded'); requestAnimationFrame(()=>ensureTextareaHeight(inp,true)); });
+  toggle.addEventListener('click',()=>{ closeExpandedParagraphAiFix(); panel.hidden=false; editorActions.hidden=true; editorRow.classList.add('ai-expanded'); expandedParagraphAiFixTarget={nodeId:n.id,blockId:b.id}; requestAnimationFrame(()=>ensureTextareaHeight(inp,true)); });
   editorActions.appendChild(toggle); wrap.appendChild(panel);
   return wrap;
 }
