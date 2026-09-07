@@ -70,6 +70,13 @@ class ProjectStageRequest(BaseModel):
     suggested_name: str = "案件.ddgproj"
 
 
+class DesktopSaveRequest(BaseModel):
+    token: str
+    suggested_name: str
+    file_kind: str
+    save_as: bool = False
+
+
 def _desktop_html() -> str:
     """Return the current HTML with desktop-only bridge scripts injected."""
     html = resource_path(HTML_FILENAME).read_text(encoding="utf-8")
@@ -146,6 +153,7 @@ def create_app(
     activate: Callable[[], None] | None = None,
     *,
     data_root: Path | None = None,
+    desktop_api: Any | None = None,
 ) -> FastAPI:
     app = FastAPI(title="基本設計書生成ツール local backend")
     callback_lock = Lock()
@@ -154,6 +162,7 @@ def create_app(
     words = WordService(root)
     app.state.template_service = templates
     app.state.word_service = words
+    app.state.desktop_api = desktop_api
 
     @app.middleware("http")
     async def identify_application(request, call_next):  # type: ignore[no-untyped-def]
@@ -171,6 +180,32 @@ def create_app(
             with callback_lock:
                 activate()
         return Response(status_code=204)
+
+    def require_desktop_api():
+        if desktop_api is None:
+            raise HTTPException(status_code=503, detail="デスクトップ機能を利用できません。")
+        return desktop_api
+
+    @app.post("/api/desktop/preview/open")
+    def desktop_preview_open() -> dict[str, object]:
+        return require_desktop_api().open_preview_window()
+
+    @app.post("/api/desktop/file/save")
+    def desktop_file_save(request: DesktopSaveRequest) -> dict[str, object]:
+        return require_desktop_api().save_staged_file(
+            request.token,
+            request.suggested_name,
+            request.file_kind,
+            request.save_as,
+        )
+
+    @app.post("/api/desktop/project/open")
+    def desktop_project_open() -> dict[str, object]:
+        return require_desktop_api().open_project_file()
+
+    @app.post("/api/desktop/project/clear-path")
+    def desktop_project_clear_path() -> dict[str, bool]:
+        return require_desktop_api().clear_current_project_path()
 
     @app.post("/api/templates/register")
     async def register_template(
