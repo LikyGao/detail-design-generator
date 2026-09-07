@@ -13,7 +13,10 @@ def test_primary_instance_starts_normally(monkeypatch):
 def test_duplicate_instance_activates_existing_app(monkeypatch):
     monkeypatch.setattr(desktop, "acquire_single_instance_mutex", lambda: False)
     monkeypatch.setattr(desktop, "activate_existing_instance", lambda: True)
-    assert desktop.prepare_single_instance_startup(wait_seconds=0) is False
+    # Production startup waits for an existing instance to become reachable.
+    # Give the helper a real polling window so this test exercises that path
+    # instead of intentionally skipping the loop with wait_seconds=0.
+    assert desktop.prepare_single_instance_startup(wait_seconds=1.0) is False
 
 
 def test_stale_primary_mutex_uses_recovery_lock_when_no_backend_or_window(monkeypatch):
