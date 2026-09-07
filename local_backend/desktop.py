@@ -96,8 +96,29 @@ class Backend:
 def start_backend() -> Backend:
     if port_is_in_use():
         raise DesktopStartupError(f"{HOST}:{PORT} は別のプログラムによって使用されています。")
-    server = uvicorn.Server(uvicorn.Config(create_app(bring_window_to_front), host=HOST, port=PORT, log_level="warning"))
-    thread = threading.Thread(target=server.run, name="local-backend", daemon=True)
+
+    # A PyInstaller windowed executable has no console and may expose
+    # sys.stdout/sys.stderr as None. Uvicorn's default logging configuration
+    # probes stderr during startup, so disable console logging here and let the
+    # desktop wrapper own user-visible error reporting.
+    config = uvicorn.Config(
+        create_app(bring_window_to_front),
+        host=HOST,
+        port=PORT,
+        log_level="warning",
+        log_config=None,
+        access_log=False,
+    )
+    server = uvicorn.Server(config)
+    thread_errors: list[BaseException] = []
+
+    def run_server() -> None:
+        try:
+            server.run()
+        except BaseException as exc:  # preserve the real packaged-startup failure for diagnostics
+            thread_errors.append(exc)
+
+    thread = threading.Thread(target=run_server, name="local-backend", daemon=True)
     thread.start()
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
@@ -107,6 +128,12 @@ def start_backend() -> Backend:
             break
         time.sleep(0.05)
     server.should_exit = True
+    thread.join(timeout=1)
+    if thread_errors:
+        exc = thread_errors[0]
+        raise DesktopStartupError(
+            f"ローカル Backend を起動できませんでした: {type(exc).__name__}: {exc}"
+        ) from exc
     raise DesktopStartupError("ローカル Backend を起動できませんでした。")
 
 def run_desktop() -> int:
