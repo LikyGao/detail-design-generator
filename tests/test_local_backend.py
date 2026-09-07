@@ -57,14 +57,17 @@ def test_root_injects_local_bridge_without_mutating_source():
     assert response.headers[APP_HEADER] == APP_HEADER_VALUE
 
 
-def test_local_bridge_routes_template_and_word_calls_to_local_apis():
+def test_local_bridge_routes_personal_dify_features_to_local_apis():
     response = TestClient(create_app()).get("/local-bridge.js")
     assert response.status_code == 200
     assert response.headers[APP_HEADER] == APP_HEADER_VALUE
     assert "/api/template-data" in response.text
+    assert "/api/templates/register" in response.text
     assert "/api/generate-word" in response.text
-    assert "window.difyCall" in response.text
-    assert "window.exportDocx" in response.text
+    assert "difyCall = async function localAwareDifyCall" in response.text
+    assert "exportDocx = async function exportDocxLocalBackend" in response.text
+    assert "標準テンプレート管理（ローカル）" in response.text
+    assert "個人Dify環境には送信されません" in response.text
 
 
 def test_activate_endpoint_calls_existing_window_callback():
