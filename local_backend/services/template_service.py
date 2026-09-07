@@ -17,12 +17,21 @@ if not getattr(sys, "frozen", False):
 from tools.template_store import (  # noqa: E402
     get_registered_master,
     get_registered_section_contents,
+    get_registered_template,
     infer_template_version,
     normalize_document_type,
     register_typed_template,
 )
 
 from .storage import FileStorage
+
+
+# Local desktop versions before the paragraph-style fixes reused the same
+# ~/.detail-design-generator/data directory. Their cached section_contents can
+# therefore survive an EXE upgrade and re-introduce old Style0-4 parsing bugs.
+# Bump this whenever the canonical template parser semantics change.
+LOCAL_TEMPLATE_PARSE_SCHEMA = 2
+LOCAL_TEMPLATE_PARSE_SCHEMA_FIELD = "local_template_parse_schema"
 
 
 class TemplateService:
@@ -32,6 +41,74 @@ class TemplateService:
         self.data_root = Path(data_root)
         self.storage = FileStorage(self.data_root)
 
+    def _directory(self, document_type: str) -> Path:
+        return self.data_root / normalize_document_type(document_type)
+
+    def _read_mirror_metadata(self, document_type: str) -> dict[str, Any]:
+        path = self._directory(document_type) / "metadata.json"
+        if not path.exists():
+            return {}
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    def _cache_is_current(self, document_type: str) -> bool:
+        metadata = self._read_mirror_metadata(document_type)
+        try:
+            schema = int(metadata.get(LOCAL_TEMPLATE_PARSE_SCHEMA_FIELD) or 0)
+        except (TypeError, ValueError):
+            schema = 0
+        return schema >= LOCAL_TEMPLATE_PARSE_SCHEMA
+
+    def _ensure_current_parse(self, document_type: str) -> bool:
+        """Reparse an old local cache with the current paragraph-style parser.
+
+        Old local builds (notably the pre-desktop branch based on the old plugin)
+        used the same data directory as the current EXE. The DOCX itself is still
+        correct, but cached master/section JSON can contain the pre-fix Style0-4
+        classification. Re-registering the same bytes is deterministic: the
+        template SHA/id and user-facing version remain unchanged while all parsed
+        paragraph metadata is refreshed.
+        """
+        normalized = normalize_document_type(document_type)
+        if self._cache_is_current(normalized):
+            return False
+
+        directory = self._directory(normalized)
+        metadata = self._read_mirror_metadata(normalized)
+        template_path = directory / "template.docx"
+
+        if template_path.exists():
+            try:
+                content = template_path.read_bytes()
+            except OSError as exc:
+                raise ValueError(f"{normalized} の標準テンプレートを再解析できません。") from exc
+        else:
+            try:
+                content, stored_metadata = get_registered_template(
+                    self.storage, document_type=normalized
+                )
+            except ValueError:
+                raise
+            except Exception as exc:
+                raise ValueError(f"{normalized} の標準テンプレートを再解析できません。") from exc
+            if isinstance(stored_metadata, dict):
+                merged = dict(stored_metadata)
+                merged.update(metadata)
+                metadata = merged
+
+        filename = str(metadata.get("filename") or f"{normalized}_template.docx")
+        version = str(metadata.get("template_version") or "").strip()
+        self.register(
+            normalized,
+            filename,
+            content,
+            version or infer_template_version(filename),
+        )
+        return True
+
     def register(
         self,
         document_type: str,
@@ -39,21 +116,24 @@ class TemplateService:
         content: bytes,
         version: str = "",
     ) -> dict[str, Any]:
+        normalized = normalize_document_type(document_type)
         result = register_typed_template(
             self.storage,
             template_bytes=content,
             filename=filename,
-            document_type=document_type,
+            document_type=normalized,
             template_version=version or infer_template_version(filename),
         )
         metadata = result["metadata"]
 
         # Keep human-readable mirrors next to the KV storage for support/debugging.
-        directory = self.data_root / document_type
+        directory = self._directory(normalized)
         directory.mkdir(parents=True, exist_ok=True)
         (directory / "template.docx").write_bytes(content)
+        mirror_metadata = dict(metadata)
+        mirror_metadata[LOCAL_TEMPLATE_PARSE_SCHEMA_FIELD] = LOCAL_TEMPLATE_PARSE_SCHEMA
         (directory / "metadata.json").write_text(
-            json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+            json.dumps(mirror_metadata, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         (directory / "master.json").write_text(
             json.dumps(result["master_json"], ensure_ascii=False, indent=2), encoding="utf-8"
@@ -64,7 +144,7 @@ class TemplateService:
         )
 
         sections = get_registered_section_contents(
-            self.storage, document_type=document_type
+            self.storage, document_type=normalized
         )["section_contents"]
         (directory / "section_contents.json").write_text(
             json.dumps(sections, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -72,9 +152,10 @@ class TemplateService:
 
         return {
             "success": True,
-            "document_type": document_type,
+            "document_type": normalized,
             "template_id": metadata["id"],
             "template_version": metadata["template_version"],
+            "local_template_parse_schema": LOCAL_TEMPLATE_PARSE_SCHEMA,
             **result,
         }
 
@@ -86,9 +167,12 @@ class TemplateService:
         WebView2 parse megabytes of JSON just to display version/count, temporarily
         making the desktop window appear hung. The local registration mirror already
         contains everything required for this status view.
+
+        Deliberately do not trigger a potentially expensive migration here; stale caches
+        are reparsed on the next real /api/template-data load instead.
         """
         normalized = normalize_document_type(document_type)
-        metadata_path = self.data_root / normalized / "metadata.json"
+        metadata_path = self._directory(normalized) / "metadata.json"
         if not metadata_path.exists():
             raise ValueError(f"{normalized} の標準テンプレートは未登録です。")
         try:
@@ -115,12 +199,15 @@ class TemplateService:
             "returned_section_count": int(section_count or 0),
             "updated_at": str(metadata.get("updated_at") or ""),
             "filename": str(metadata.get("filename") or ""),
+            "parser_cache_current": self._cache_is_current(normalized),
         }
 
     def get_data(self, document_type: str) -> dict[str, Any]:
-        master = get_registered_master(self.storage, document_type)
+        normalized = normalize_document_type(document_type)
+        reparsed = self._ensure_current_parse(normalized)
+        master = get_registered_master(self.storage, normalized)
         sections = get_registered_section_contents(
-            self.storage, document_type=document_type
+            self.storage, document_type=normalized
         )
         values = sections["section_contents"]
         reference = "\n\n".join(
@@ -129,7 +216,7 @@ class TemplateService:
             for item in values
         )
         return {
-            "document_type": document_type,
+            "document_type": normalized,
             "template_id": str(master["template"].get("id") or ""),
             "template_version": master["template_version"],
             "master_json": master["master_json"],
@@ -138,4 +225,6 @@ class TemplateService:
             "section_contents": values,
             "reference_text": reference,
             "returned_section_count": len(values),
+            "local_template_parse_schema": LOCAL_TEMPLATE_PARSE_SCHEMA,
+            "template_cache_reparsed": reparsed,
         }
