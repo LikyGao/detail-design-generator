@@ -46,14 +46,20 @@ def test_health_and_application_identity():
     assert response.headers[APP_HEADER] == APP_HEADER_VALUE
 
 
-def test_root_injects_local_bridge_without_mutating_source():
+def test_root_injects_desktop_scripts_without_mutating_source():
     response = TestClient(create_app()).get("/")
     assert response.status_code == 200
     source = (ROOT / "基本設計書generator.html").read_text(encoding="utf-8")
     bridge_tag = '<script src="/local-bridge.js"></script>'
+    patch_tag = '<script src="/template-manager-patch.js"></script>'
     assert bridge_tag not in source
+    assert patch_tag not in source
     assert bridge_tag in response.text
-    assert response.text.replace("  " + bridge_tag + "\n", "", 1) == source
+    assert patch_tag in response.text
+    restored = response.text.replace("  " + bridge_tag + "\n", "", 1)
+    restored = restored.replace("  " + patch_tag + "\n", "", 1)
+    assert restored == source
+    assert response.text.rfind(bridge_tag) < response.text.rfind(patch_tag) < response.text.rfind("</body>")
     assert response.headers[APP_HEADER] == APP_HEADER_VALUE
 
 
@@ -68,6 +74,15 @@ def test_local_bridge_routes_personal_dify_features_to_local_apis():
     assert "exportDocx = async function exportDocxLocalBackend" in response.text
     assert "標準テンプレート管理（ローカル）" in response.text
     assert "個人Dify環境には送信されません" in response.text
+
+
+def test_template_manager_patch_redirects_only_open_modal_status_requests():
+    response = TestClient(create_app()).get("/template-manager-patch.js")
+    assert response.status_code == 200
+    assert response.headers[APP_HEADER] == APP_HEADER_VALUE
+    assert "/api/template-data" in response.text
+    assert "/api/templates/status" in response.text
+    assert "managerOpen" in response.text
 
 
 def test_activate_endpoint_calls_existing_window_callback():
@@ -108,11 +123,35 @@ def test_second_instance_activates_without_starting_backend(monkeypatch):
     assert desktop.run_desktop() == 0
 
 
+def test_template_status_returns_404_before_registration(tmp_path):
+    client = TestClient(create_app(data_root=tmp_path))
+    response = client.post("/api/templates/status", json={"document_type": "server_storage"})
+    assert response.status_code == 404
+    assert "未登録" in response.json()["detail"]
+
+
 def test_template_data_returns_404_before_registration(tmp_path):
     client = TestClient(create_app(data_root=tmp_path))
     response = client.post("/api/template-data", json={"document_type": "server_storage"})
     assert response.status_code == 404
     assert "未登録" in response.json()["detail"]
+
+
+def test_register_template_and_read_lightweight_status(tmp_path):
+    client = TestClient(create_app(data_root=tmp_path))
+    registered = _register_template(client)
+    assert registered.status_code == 200, registered.text
+
+    response = client.post("/api/templates/status", json={"document_type": "server_storage"})
+    assert response.status_code == 200, response.text
+    status = response.json()
+    assert status["registered"] is True
+    assert status["document_type"] == "server_storage"
+    assert status["template_id"] == registered.json()["template_id"]
+    assert status["template_version"] == "1.2"
+    assert status["returned_section_count"] > 0
+    assert status["filename"].endswith(".docx")
+    assert set(status).isdisjoint({"master_json", "chapter_list_json", "section_contents", "reference_text"})
 
 
 def test_register_template_and_read_local_template_data(tmp_path):
