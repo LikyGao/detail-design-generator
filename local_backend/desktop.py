@@ -121,52 +121,8 @@ class Backend:
         self.thread.join(timeout=5)
 
 
-def start_backend() -> Backend:
-    if port_is_in_use():
-        raise DesktopStartupError(f"{HOST}:{PORT} は別のプログラムによって使用されています。")
-
-    # A PyInstaller windowed executable has no console and may expose
-    # sys.stdout/sys.stderr as None. Uvicorn's default logging configuration
-    # probes stderr during startup, so disable console logging here and let the
-    # desktop wrapper own user-visible error reporting.
-    config = uvicorn.Config(
-        create_app(bring_window_to_front),
-        host=HOST,
-        port=PORT,
-        log_level="warning",
-        log_config=None,
-        access_log=False,
-    )
-    server = uvicorn.Server(config)
-    thread_errors: list[BaseException] = []
-
-    def run_server() -> None:
-        try:
-            server.run()
-        except BaseException as exc:  # preserve the real packaged-startup failure for diagnostics
-            thread_errors.append(exc)
-
-    thread = threading.Thread(target=run_server, name="local-backend", daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 15
-    while time.monotonic() < deadline:
-        if is_existing_instance():
-            return Backend(server, thread)
-        if not thread.is_alive():
-            break
-        time.sleep(0.05)
-    server.should_exit = True
-    thread.join(timeout=1)
-    if thread_errors:
-        exc = thread_errors[0]
-        raise DesktopStartupError(
-            f"ローカル Backend を起動できませんでした: {type(exc).__name__}: {exc}"
-        ) from exc
-    raise DesktopStartupError("ローカル Backend を起動できませんでした。")
-
-
 class DesktopApi:
-    """Native desktop operations exposed to the editor via pywebview JS API."""
+    """Native desktop operations used by localhost HTTP routes and pywebview."""
 
     def __init__(self) -> None:
         self.main_window = None
@@ -198,6 +154,9 @@ class DesktopApi:
         """Create/focus a real second pywebview window for dual-monitor preview."""
         import webview
 
+        if self.main_window is None:
+            return {"opened": False, "error": "メインウィンドウがまだ準備できていません。"}
+
         with self._preview_lock:
             if self.preview_window is not None:
                 try:
@@ -206,14 +165,18 @@ class DesktopApi:
                 except Exception:
                     self.preview_window = None
 
-            preview = webview.create_window(
-                PREVIEW_WINDOW_TITLE,
-                BASE_URL + "/preview-window",
-                width=1000,
-                height=900,
-                min_size=(620, 480),
-                resizable=True,
-            )
+            try:
+                preview = webview.create_window(
+                    PREVIEW_WINDOW_TITLE,
+                    BASE_URL + "/preview-window",
+                    width=1000,
+                    height=900,
+                    min_size=(620, 480),
+                    resizable=True,
+                )
+            except Exception as exc:
+                return {"opened": False, "error": f"プレビューウィンドウを作成できませんでした: {exc}"}
+
             self.preview_window = preview
 
             def on_closed(*_args) -> None:
@@ -278,7 +241,11 @@ class DesktopApi:
             remove_staged_file(source)
             if file_kind == "project":
                 self.current_project_path = destination
-            return {"saved": True, "path": str(destination), "filename": destination.name}
+            return {
+                "saved": True,
+                "path": str(destination.resolve()),
+                "filename": destination.name,
+            }
         except OSError as exc:
             return {"saved": False, "error": f"ファイルを保存できませんでした: {exc}"}
 
@@ -315,9 +282,48 @@ class DesktopApi:
         return {"ok": True}
 
 
+def start_backend(desktop_api: DesktopApi | None = None) -> Backend:
+    if port_is_in_use():
+        raise DesktopStartupError(f"{HOST}:{PORT} は別のプログラムによって使用されています。")
+
+    config = uvicorn.Config(
+        create_app(bring_window_to_front, desktop_api=desktop_api),
+        host=HOST,
+        port=PORT,
+        log_level="warning",
+        log_config=None,
+        access_log=False,
+    )
+    server = uvicorn.Server(config)
+    thread_errors: list[BaseException] = []
+
+    def run_server() -> None:
+        try:
+            server.run()
+        except BaseException as exc:
+            thread_errors.append(exc)
+
+    thread = threading.Thread(target=run_server, name="local-backend", daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        if is_existing_instance():
+            return Backend(server, thread)
+        if not thread.is_alive():
+            break
+        time.sleep(0.05)
+    server.should_exit = True
+    thread.join(timeout=1)
+    if thread_errors:
+        exc = thread_errors[0]
+        raise DesktopStartupError(
+            f"ローカル Backend を起動できませんでした: {type(exc).__name__}: {exc}"
+        ) from exc
+    raise DesktopStartupError("ローカル Backend を起動できませんでした。")
+
+
 def run_desktop() -> int:
     if not acquire_single_instance_mutex():
-        # The first process may still be starting its HTTP server.
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
             if activate_existing_instance():
@@ -328,14 +334,15 @@ def run_desktop() -> int:
         if activate_existing_instance():
             return 0
         raise DesktopStartupError(f"{HOST}:{PORT} は別のプログラムによって使用されています。")
-    backend = start_backend()
+
+    api = DesktopApi()
+    backend = start_backend(api)
     try:
         if os.environ.get("DDG_HEADLESS_SMOKE") == "1":
             while True:
                 time.sleep(1)
         import webview
 
-        api = DesktopApi()
         main_window = webview.create_window(
             WINDOW_TITLE,
             BASE_URL + "/",
