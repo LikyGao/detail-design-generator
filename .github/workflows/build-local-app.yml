@@ -1,0 +1,76 @@
+name: Build Windows desktop app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/local-desktop-v2]
+  pull_request:
+    branches: [main, codex/local-desktop-v2]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r local_backend/requirements.txt
+      - name: Run tests
+        run: python -m pytest
+      - name: Check desktop bridge JavaScript
+        run: node --check local_backend/local_bridge.js
+      - name: Build one-file executable
+        run: pyinstaller --noconfirm "基本設計書生成ツール.spec"
+      - name: Smoke test packaged backend
+        shell: pwsh
+        run: |
+          $env:DDG_HEADLESS_SMOKE = "1"
+          $env:DDG_SMOKE_LOG = Join-Path $env:RUNNER_TEMP "detail-design-generator-smoke.log"
+          $env:DETAIL_DESIGN_DATA_DIR = Join-Path $env:RUNNER_TEMP "detail-design-generator-e2e-data"
+          Remove-Item $env:DDG_SMOKE_LOG -Force -ErrorAction SilentlyContinue
+          Remove-Item $env:DETAIL_DESIGN_DATA_DIR -Recurse -Force -ErrorAction SilentlyContinue
+          $process = Start-Process -FilePath "dist/基本設計書生成ツール.exe" -PassThru
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              $process.Refresh()
+              if ($process.HasExited) { break }
+              try {
+                $response = Invoke-WebRequest "http://127.0.0.1:8765/api/health" -UseBasicParsing -TimeoutSec 1
+                $body = $response.Content | ConvertFrom-Json
+                if ($body.status -eq "ok" -and $response.Headers["X-Detail-Design-Generator"] -eq "local-desktop-v2") {
+                  $ready = $true
+                  break
+                }
+              } catch {
+                Start-Sleep -Milliseconds 500
+              }
+            }
+            if (-not $ready) {
+              if (Test-Path $env:DDG_SMOKE_LOG) {
+                Write-Host "--- packaged startup diagnostics ---"
+                Get-Content $env:DDG_SMOKE_LOG
+              }
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "Packaged executable exited before backend became healthy (exit code $($process.ExitCode))"
+              }
+              throw "Packaged backend did not become healthy"
+            }
+            python tests/packaged_backend_smoke.py
+          } finally {
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 基本設計書生成ツール-windows
+          path: dist/基本設計書生成ツール.exe
+          if-no-files-found: error
