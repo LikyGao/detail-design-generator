@@ -77,12 +77,15 @@ def main() -> None:
         root.raise_for_status()
         require_identity(root)
         bridge_tag = '<script src="/local-bridge.js"></script>'
+        patch_tag = '<script src="/template-manager-patch.js"></script>'
         assert bridge_tag in root.text
-        bridge_end = root.text.rfind(bridge_tag) + len(bridge_tag)
+        assert patch_tag in root.text
+        bridge_pos = root.text.rfind(bridge_tag)
+        patch_end = root.text.rfind(patch_tag) + len(patch_tag)
         body_end = root.text.rfind("</body>")
         assert body_end != -1
-        assert bridge_end < body_end
-        assert root.text[bridge_end:body_end].strip() == ""
+        assert bridge_pos < patch_end < body_end
+        assert root.text[patch_end:body_end].strip() == ""
 
         bridge = client.get("/local-bridge.js")
         bridge.raise_for_status()
@@ -98,6 +101,12 @@ def main() -> None:
             "標準テンプレート管理（ローカル）",
         ):
             assert marker in bridge.text, marker
+
+        patch = client.get("/template-manager-patch.js")
+        patch.raise_for_status()
+        require_identity(patch)
+        assert "/api/templates/status" in patch.text
+        assert "managerOpen" in patch.text
 
         preview_shell = client.get("/preview-window")
         preview_shell.raise_for_status()
@@ -150,6 +159,18 @@ def main() -> None:
         assert registration["success"] is True
         assert registration["document_type"] == "server_storage"
         assert registration["template_id"]
+
+        template_status = client.post(
+            "/api/templates/status", json={"document_type": "server_storage"}
+        )
+        template_status.raise_for_status()
+        require_identity(template_status)
+        status_body = template_status.json()
+        assert status_body["registered"] is True
+        assert status_body["template_id"] == registration["template_id"]
+        assert status_body["returned_section_count"] > 0
+        assert "section_contents" not in status_body
+        assert "reference_text" not in status_body
 
         template_data = client.post(
             "/api/template-data", json={"document_type": "server_storage"}
