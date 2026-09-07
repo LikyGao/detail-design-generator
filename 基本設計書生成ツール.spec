@@ -13,6 +13,7 @@ a = Analysis(
     datas=[
         ("基本設計書generator.html", "."),
         ("local_backend/local_bridge.js", "local_backend"),
+        ("local_backend/template_manager_patch.js", "local_backend"),
     ] + webview_datas,
     hiddenimports=webview_hiddenimports + [
         "tools.chapter_parser",
