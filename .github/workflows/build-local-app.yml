@@ -32,7 +32,9 @@ jobs:
         run: |
           $env:DDG_HEADLESS_SMOKE = "1"
           $env:DDG_SMOKE_LOG = Join-Path $env:RUNNER_TEMP "detail-design-generator-smoke.log"
+          $env:DETAIL_DESIGN_DATA_DIR = Join-Path $env:RUNNER_TEMP "detail-design-generator-e2e-data"
           Remove-Item $env:DDG_SMOKE_LOG -Force -ErrorAction SilentlyContinue
+          Remove-Item $env:DETAIL_DESIGN_DATA_DIR -Recurse -Force -ErrorAction SilentlyContinue
           $process = Start-Process -FilePath "dist/基本設計書生成ツール.exe" -PassThru
           try {
             $ready = $false
@@ -61,6 +63,7 @@ jobs:
               }
               throw "Packaged backend did not become healthy"
             }
+            python tests/packaged_backend_smoke.py
           } finally {
             if (-not $process.HasExited) {
               Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
