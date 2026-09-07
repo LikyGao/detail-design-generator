@@ -27,6 +27,7 @@ jobs:
         run: |
           node --check local_backend/local_bridge.js
           node --check local_backend/template_manager_patch.js
+          node --check local_backend/desktop_http_api_patch.js
       - name: Build one-file executable
         run: pyinstaller --noconfirm "基本設計書生成ツール.spec"
       - name: Smoke test packaged backend
