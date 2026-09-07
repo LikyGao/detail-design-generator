@@ -40,7 +40,13 @@ def main() -> None:
         root = client.get("/")
         root.raise_for_status()
         require_identity(root)
-        assert '<script src="/local-bridge.js"></script>' in root.text
+        bridge_tag = '<script src="/local-bridge.js"></script>'
+        assert bridge_tag in root.text
+        bridge_end = root.text.rfind(bridge_tag) + len(bridge_tag)
+        body_end = root.text.rfind("</body>")
+        assert body_end != -1
+        assert bridge_end < body_end
+        assert root.text[bridge_end:body_end].strip() == ""
 
         bridge = client.get("/local-bridge.js")
         bridge.raise_for_status()
