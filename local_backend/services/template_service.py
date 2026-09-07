@@ -18,6 +18,7 @@ from tools.template_store import (  # noqa: E402
     get_registered_master,
     get_registered_section_contents,
     infer_template_version,
+    normalize_document_type,
     register_typed_template,
 )
 
@@ -75,6 +76,45 @@ class TemplateService:
             "template_id": metadata["id"],
             "template_version": metadata["template_version"],
             **result,
+        }
+
+    def get_status(self, document_type: str) -> dict[str, Any]:
+        """Return only small registration metadata for the template manager UI.
+
+        The template-manager modal previously called get_data(), which serializes the
+        complete master/section/reference payload. Large production templates can make
+        WebView2 parse megabytes of JSON just to display version/count, temporarily
+        making the desktop window appear hung. The local registration mirror already
+        contains everything required for this status view.
+        """
+        normalized = normalize_document_type(document_type)
+        metadata_path = self.data_root / normalized / "metadata.json"
+        if not metadata_path.exists():
+            raise ValueError(f"{normalized} の標準テンプレートは未登録です。")
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"{normalized} のテンプレート登録情報を読み込めません。") from exc
+        if not isinstance(metadata, dict):
+            raise ValueError(f"{normalized} のテンプレート登録情報が不正です。")
+
+        summary = metadata.get("section_content_summary")
+        if not isinstance(summary, dict):
+            summary = {}
+        section_count = summary.get("section_count")
+        if section_count is None:
+            chapter_summary = metadata.get("chapter_summary")
+            if isinstance(chapter_summary, dict):
+                section_count = chapter_summary.get("total_count")
+
+        return {
+            "registered": True,
+            "document_type": normalized,
+            "template_id": str(metadata.get("id") or ""),
+            "template_version": str(metadata.get("template_version") or ""),
+            "returned_section_count": int(section_count or 0),
+            "updated_at": str(metadata.get("updated_at") or ""),
+            "filename": str(metadata.get("filename") or ""),
         }
 
     def get_data(self, document_type: str) -> dict[str, Any]:
