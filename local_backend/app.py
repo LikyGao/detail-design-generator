@@ -23,11 +23,11 @@ APP_HEADER_VALUE = "local-desktop-v2"
 HTML_FILENAME = "基本設計書generator.html"
 LOCAL_BRIDGE_FILENAME = "local_backend/local_bridge.js"
 TEMPLATE_MANAGER_PATCH_FILENAME = "local_backend/template_manager_patch.js"
+DESKTOP_HTTP_API_PATCH_FILENAME = "local_backend/desktop_http_api_patch.js"
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 def resource_path(filename: str) -> Path:
-    """Locate data in a checkout and in a PyInstaller one-file app."""
     bundle_root = getattr(sys, "_MEIPASS", None)
     root = Path(bundle_root) if bundle_root else Path(__file__).resolve().parents[1]
     return root / filename
@@ -78,11 +78,11 @@ class DesktopSaveRequest(BaseModel):
 
 
 def _desktop_html() -> str:
-    """Return the current HTML with desktop-only bridge scripts injected."""
     html = resource_path(HTML_FILENAME).read_text(encoding="utf-8")
     script_tags = (
         '<script src="/local-bridge.js"></script>',
         '<script src="/template-manager-patch.js"></script>',
+        '<script src="/desktop-http-api-patch.js"></script>',
     )
     missing = [tag for tag in script_tags if tag not in html]
     if not missing:
@@ -95,7 +95,6 @@ def _desktop_html() -> str:
 
 
 def _preview_window_html() -> str:
-    """Standalone preview shell. Content is synchronized from the editor over localhost."""
     return """<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -303,6 +302,12 @@ def create_app(
     def template_manager_patch() -> FileResponse:
         return FileResponse(
             resource_path(TEMPLATE_MANAGER_PATCH_FILENAME), media_type="application/javascript"
+        )
+
+    @app.get("/desktop-http-api-patch.js", response_class=FileResponse)
+    def desktop_http_api_patch() -> FileResponse:
+        return FileResponse(
+            resource_path(DESKTOP_HTTP_API_PATCH_FILENAME), media_type="application/javascript"
         )
 
     @app.get("/", response_class=HTMLResponse)
