@@ -21,4 +21,5 @@ def test_template_status_uses_small_metadata_mirror_only(tmp_path: Path):
         "returned_section_count": 142,
         "updated_at": "now",
         "filename": "template.docx",
+        "parser_cache_current": False,
     }
