@@ -58,8 +58,9 @@ def _desktop_html() -> str:
     bridge_tag = '<script src="/local-bridge.js"></script>'
     if bridge_tag in html:
         return html
-    if "</body>" in html:
-        return html.replace("</body>", f"  {bridge_tag}\n</body>", 1)
+    body_end = html.rfind("</body>")
+    if body_end != -1:
+        return html[:body_end] + f"  {bridge_tag}\n" + html[body_end:]
     return html + "\n" + bridge_tag + "\n"
 
 
