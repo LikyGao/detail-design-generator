@@ -22,6 +22,7 @@ APP_HEADER = "X-Detail-Design-Generator"
 APP_HEADER_VALUE = "local-desktop-v2"
 HTML_FILENAME = "基本設計書generator.html"
 LOCAL_BRIDGE_FILENAME = "local_backend/local_bridge.js"
+TEMPLATE_MANAGER_PATCH_FILENAME = "local_backend/template_manager_patch.js"
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
@@ -70,15 +71,20 @@ class ProjectStageRequest(BaseModel):
 
 
 def _desktop_html() -> str:
-    """Return the current HTML with the desktop-only API bridge injected."""
+    """Return the current HTML with desktop-only bridge scripts injected."""
     html = resource_path(HTML_FILENAME).read_text(encoding="utf-8")
-    bridge_tag = '<script src="/local-bridge.js"></script>'
-    if bridge_tag in html:
+    script_tags = (
+        '<script src="/local-bridge.js"></script>',
+        '<script src="/template-manager-patch.js"></script>',
+    )
+    missing = [tag for tag in script_tags if tag not in html]
+    if not missing:
         return html
+    insertion = "".join(f"  {tag}\n" for tag in missing)
     body_end = html.rfind("</body>")
     if body_end != -1:
-        return html[:body_end] + f"  {bridge_tag}\n" + html[body_end:]
-    return html + "\n" + bridge_tag + "\n"
+        return html[:body_end] + insertion + html[body_end:]
+    return html + "\n" + insertion
 
 
 def _preview_window_html() -> str:
@@ -185,6 +191,13 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.post("/api/templates/status")
+    def template_status(request: DocumentTypeRequest):
+        try:
+            return templates.get_status(request.document_type)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @app.post("/api/template-data")
     def template_data(request: DocumentTypeRequest):
         try:
@@ -250,6 +263,12 @@ def create_app(
     @app.get("/local-bridge.js", response_class=FileResponse)
     def local_bridge() -> FileResponse:
         return FileResponse(resource_path(LOCAL_BRIDGE_FILENAME), media_type="application/javascript")
+
+    @app.get("/template-manager-patch.js", response_class=FileResponse)
+    def template_manager_patch() -> FileResponse:
+        return FileResponse(
+            resource_path(TEMPLATE_MANAGER_PATCH_FILENAME), media_type="application/javascript"
+        )
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
