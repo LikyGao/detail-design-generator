@@ -29,7 +29,9 @@ BASE_URL = f"http://{HOST}:{PORT}"
 WINDOW_TITLE = "基本設計書生成ツール"
 PREVIEW_WINDOW_TITLE = "基本設計書プレビュー"
 MUTEX_NAME = "Local\\DetailDesignGenerator-8765"
+RECOVERY_MUTEX_NAME = "Local\\DetailDesignGenerator-8765-Recovery"
 _mutex_handle = None
+_recovery_mutex_handle = None
 
 
 class DesktopStartupError(RuntimeError):
@@ -65,21 +67,46 @@ def port_is_in_use() -> bool:
         return probe.connect_ex((HOST, PORT)) == 0
 
 
-def acquire_single_instance_mutex() -> bool:
-    """Atomically claim the Windows application instance."""
-    global _mutex_handle
+def _create_named_mutex(name: str):
     if os.name != "nt":
-        return True
+        return object(), False
     create_mutex = ctypes.windll.kernel32.CreateMutexW
     create_mutex.argtypes = (ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p)
     create_mutex.restype = ctypes.c_void_p
-    handle = create_mutex(None, False, MUTEX_NAME)
+    handle = create_mutex(None, False, name)
     if not handle:
         raise DesktopStartupError("単一インスタンス制御を初期化できませんでした。")
-    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-        ctypes.windll.kernel32.CloseHandle(handle)
+    already_exists = ctypes.windll.kernel32.GetLastError() == 183  # ERROR_ALREADY_EXISTS
+    return handle, already_exists
+
+
+def acquire_single_instance_mutex() -> bool:
+    """Atomically claim the normal Windows application instance."""
+    global _mutex_handle
+    handle, already_exists = _create_named_mutex(MUTEX_NAME)
+    if already_exists:
+        if os.name == "nt":
+            ctypes.windll.kernel32.CloseHandle(handle)
         return False
     _mutex_handle = handle
+    return True
+
+
+def acquire_recovery_mutex() -> bool:
+    """Claim a secondary lock used only when an old process left a stale primary lock.
+
+    A previous EXE can remain alive after its WebView/backend has disappeared.  The
+    primary named mutex then still exists even though there is no usable application
+    to activate.  A separate recovery mutex lets exactly one replacement process start
+    on the now-free localhost port instead of permanently blocking the user.
+    """
+    global _recovery_mutex_handle
+    handle, already_exists = _create_named_mutex(RECOVERY_MUTEX_NAME)
+    if already_exists:
+        if os.name == "nt":
+            ctypes.windll.kernel32.CloseHandle(handle)
+        return False
+    _recovery_mutex_handle = handle
     return True
 
 
@@ -107,8 +134,74 @@ def bring_named_window_to_front(title_value: str) -> None:
     user32.EnumWindows(callback, 0)
 
 
+def activate_named_window_any_process(title_value: str) -> bool:
+    """Best-effort fallback when an older instance's HTTP activation is unavailable."""
+    if os.name != "nt":
+        return False
+    user32 = ctypes.windll.user32
+    matched = False
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    def callback(hwnd, _lparam):
+        nonlocal matched
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        length = user32.GetWindowTextLengthW(hwnd)
+        title = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, title, length + 1)
+        if title.value != title_value:
+            return True
+        user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+        user32.SetForegroundWindow(hwnd)
+        matched = True
+        return False
+
+    user32.EnumWindows(callback, 0)
+    return matched
+
+
 def bring_window_to_front() -> None:
     bring_named_window_to_front(WINDOW_TITLE)
+
+
+def prepare_single_instance_startup(wait_seconds: float = 5.0) -> bool:
+    """Return True when this process should start a window/backend, False when done.
+
+    Normal duplicate launches activate the existing app and exit.  If the primary
+    mutex exists but neither a healthy localhost backend nor a real app window can be
+    reached, treat it as a stale/ghost process and allow one recovery instance to start.
+    """
+    if acquire_single_instance_mutex():
+        return True
+
+    deadline = time.monotonic() + max(0.0, wait_seconds)
+    while time.monotonic() < deadline:
+        if activate_existing_instance():
+            return False
+        time.sleep(0.1)
+
+    # Some older builds may have a window but no usable activation endpoint.
+    if activate_named_window_any_process(WINDOW_TITLE):
+        return False
+
+    # Never bypass a live listener that is not this application.
+    if port_is_in_use():
+        if activate_existing_instance():
+            return False
+        raise DesktopStartupError(
+            f"{HOST}:{PORT} は使用中ですが、起動済みアプリを確認できませんでした。"
+        )
+
+    if acquire_recovery_mutex():
+        return True
+
+    # Another recovery process won the race. Give it a short window to become healthy.
+    deadline = time.monotonic() + max(2.0, wait_seconds)
+    while time.monotonic() < deadline:
+        if activate_existing_instance():
+            return False
+        time.sleep(0.1)
+    raise DesktopStartupError("起動済みのアプリケーションを復旧できませんでした。")
 
 
 @dataclass
@@ -323,13 +416,10 @@ def start_backend(desktop_api: DesktopApi | None = None) -> Backend:
 
 
 def run_desktop() -> int:
-    if not acquire_single_instance_mutex():
-        deadline = time.monotonic() + 15
-        while time.monotonic() < deadline:
-            if activate_existing_instance():
-                return 0
-            time.sleep(0.1)
-        raise DesktopStartupError("起動済みのアプリケーションをアクティブ化できませんでした。")
+    if not prepare_single_instance_startup():
+        return 0
+
+    # Recheck after lock/recovery resolution to close a final startup race.
     if port_is_in_use():
         if activate_existing_instance():
             return 0
