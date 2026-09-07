@@ -77,15 +77,18 @@ def main() -> None:
         root.raise_for_status()
         require_identity(root)
         bridge_tag = '<script src="/local-bridge.js"></script>'
-        patch_tag = '<script src="/template-manager-patch.js"></script>'
+        template_patch_tag = '<script src="/template-manager-patch.js"></script>'
+        desktop_patch_tag = '<script src="/desktop-http-api-patch.js"></script>'
         assert bridge_tag in root.text
-        assert patch_tag in root.text
+        assert template_patch_tag in root.text
+        assert desktop_patch_tag in root.text
         bridge_pos = root.text.rfind(bridge_tag)
-        patch_end = root.text.rfind(patch_tag) + len(patch_tag)
+        template_patch_pos = root.text.rfind(template_patch_tag)
+        desktop_patch_end = root.text.rfind(desktop_patch_tag) + len(desktop_patch_tag)
         body_end = root.text.rfind("</body>")
         assert body_end != -1
-        assert bridge_pos < patch_end < body_end
-        assert root.text[patch_end:body_end].strip() == ""
+        assert bridge_pos < template_patch_pos < desktop_patch_end < body_end
+        assert root.text[desktop_patch_end:body_end].strip() == ""
 
         bridge = client.get("/local-bridge.js")
         bridge.raise_for_status()
@@ -102,11 +105,23 @@ def main() -> None:
         ):
             assert marker in bridge.text, marker
 
-        patch = client.get("/template-manager-patch.js")
-        patch.raise_for_status()
-        require_identity(patch)
-        assert "/api/templates/status" in patch.text
-        assert "managerOpen" in patch.text
+        template_patch = client.get("/template-manager-patch.js")
+        template_patch.raise_for_status()
+        require_identity(template_patch)
+        assert "/api/templates/status" in template_patch.text
+        assert "managerOpen" in template_patch.text
+
+        desktop_patch = client.get("/desktop-http-api-patch.js")
+        desktop_patch.raise_for_status()
+        require_identity(desktop_patch)
+        for marker in (
+            "/api/desktop/preview/open",
+            "/api/desktop/file/save",
+            "/api/desktop/project/open",
+            "open_preview_window",
+            "save_staged_file",
+        ):
+            assert marker in desktop_patch.text, marker
 
         preview_shell = client.get("/preview-window")
         preview_shell.raise_for_status()
@@ -188,6 +203,22 @@ def main() -> None:
         require_identity(staged_word)
         assert staged_word.json()["token"]
         assert staged_word.json()["filename"] == "CI_基本設計書.docx"
+
+        # Headless CI has no native window, but the desktop routes must exist and
+        # fail explicitly instead of silently falling back to browser download.
+        native_save = client.post(
+            "/api/desktop/file/save",
+            json={
+                "token": staged_word.json()["token"],
+                "suggested_name": "CI_基本設計書.docx",
+                "file_kind": "word",
+                "save_as": True,
+            },
+        )
+        native_save.raise_for_status()
+        require_identity(native_save)
+        assert native_save.json()["saved"] is False
+        assert "メインウィンドウ" in native_save.json()["error"]
 
         generated = client.post("/api/generate-word", json=word_payload())
         generated.raise_for_status()
