@@ -51,15 +51,21 @@ def test_root_injects_desktop_scripts_without_mutating_source():
     assert response.status_code == 200
     source = (ROOT / "基本設計書generator.html").read_text(encoding="utf-8")
     bridge_tag = '<script src="/local-bridge.js"></script>'
-    patch_tag = '<script src="/template-manager-patch.js"></script>'
-    assert bridge_tag not in source
-    assert patch_tag not in source
-    assert bridge_tag in response.text
-    assert patch_tag in response.text
-    restored = response.text.replace("  " + bridge_tag + "\n", "", 1)
-    restored = restored.replace("  " + patch_tag + "\n", "", 1)
+    template_patch_tag = '<script src="/template-manager-patch.js"></script>'
+    desktop_patch_tag = '<script src="/desktop-http-api-patch.js"></script>'
+    for tag in (bridge_tag, template_patch_tag, desktop_patch_tag):
+        assert tag not in source
+        assert tag in response.text
+    restored = response.text
+    for tag in (bridge_tag, template_patch_tag, desktop_patch_tag):
+        restored = restored.replace("  " + tag + "\n", "", 1)
     assert restored == source
-    assert response.text.rfind(bridge_tag) < response.text.rfind(patch_tag) < response.text.rfind("</body>")
+    assert (
+        response.text.rfind(bridge_tag)
+        < response.text.rfind(template_patch_tag)
+        < response.text.rfind(desktop_patch_tag)
+        < response.text.rfind("</body>")
+    )
     assert response.headers[APP_HEADER] == APP_HEADER_VALUE
 
 
