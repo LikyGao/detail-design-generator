@@ -9,7 +9,7 @@ from typing import Any, Callable
 from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from .services.template_service import TemplateService
@@ -18,6 +18,7 @@ from .services.word_service import WordService
 APP_HEADER = "X-Detail-Design-Generator"
 APP_HEADER_VALUE = "local-desktop-v2"
 HTML_FILENAME = "基本設計書generator.html"
+LOCAL_BRIDGE_FILENAME = "local_backend/local_bridge.js"
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
@@ -49,6 +50,17 @@ class WordRequest(BaseModel):
     revision_history_json: Any = Field(default_factory=list)
     chapters_json: Any = Field(default_factory=list)
     output_filename: str = "基本設計書.docx"
+
+
+def _desktop_html() -> str:
+    """Return the current HTML with the desktop-only API bridge injected."""
+    html = resource_path(HTML_FILENAME).read_text(encoding="utf-8")
+    bridge_tag = '<script src="/local-bridge.js"></script>'
+    if bridge_tag in html:
+        return html
+    if "</body>" in html:
+        return html.replace("</body>", f"  {bridge_tag}\n</body>", 1)
+    return html + "\n" + bridge_tag + "\n"
 
 
 def create_app(
@@ -120,9 +132,13 @@ def create_app(
             headers={"Content-Disposition": disposition},
         )
 
-    @app.get("/", response_class=FileResponse)
-    def index() -> FileResponse:
-        return FileResponse(resource_path(HTML_FILENAME), media_type="text/html")
+    @app.get("/local-bridge.js", response_class=FileResponse)
+    def local_bridge() -> FileResponse:
+        return FileResponse(resource_path(LOCAL_BRIDGE_FILENAME), media_type="application/javascript")
+
+    @app.get("/", response_class=HTMLResponse)
+    def index() -> HTMLResponse:
+        return HTMLResponse(_desktop_html())
 
     return app
 

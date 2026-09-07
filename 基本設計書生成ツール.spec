@@ -10,7 +10,10 @@ a = Analysis(
     ["run_local.py"],
     pathex=[str(plugin_root)],
     binaries=webview_binaries,
-    datas=[("基本設計書generator.html", ".")] + webview_datas,
+    datas=[
+        ("基本設計書generator.html", "."),
+        ("local_backend/local_bridge.js", "local_backend"),
+    ] + webview_datas,
     hiddenimports=webview_hiddenimports + [
         "tools.chapter_parser",
         "tools.template_store",

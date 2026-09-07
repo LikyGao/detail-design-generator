@@ -46,11 +46,28 @@ def test_health_and_application_identity():
     assert response.headers[APP_HEADER] == APP_HEADER_VALUE
 
 
-def test_root_returns_current_html_verbatim():
+def test_root_injects_local_bridge_without_mutating_source():
     response = TestClient(create_app()).get("/")
     assert response.status_code == 200
-    assert response.content == (ROOT / "基本設計書generator.html").read_bytes()
+    source = (ROOT / "基本設計書generator.html").read_text(encoding="utf-8")
+    bridge_tag = '<script src="/local-bridge.js"></script>'
+    assert bridge_tag not in source
+    assert bridge_tag in response.text
+    assert response.text.replace("  " + bridge_tag + "\n", "", 1) == source
     assert response.headers[APP_HEADER] == APP_HEADER_VALUE
+
+
+def test_local_bridge_routes_personal_dify_features_to_local_apis():
+    response = TestClient(create_app()).get("/local-bridge.js")
+    assert response.status_code == 200
+    assert response.headers[APP_HEADER] == APP_HEADER_VALUE
+    assert "/api/template-data" in response.text
+    assert "/api/templates/register" in response.text
+    assert "/api/generate-word" in response.text
+    assert "difyCall = async function localAwareDifyCall" in response.text
+    assert "exportDocx = async function exportDocxLocalBackend" in response.text
+    assert "標準テンプレート管理（ローカル）" in response.text
+    assert "個人Dify環境には送信されません" in response.text
 
 
 def test_activate_endpoint_calls_existing_window_callback():
