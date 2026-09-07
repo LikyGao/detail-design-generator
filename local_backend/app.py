@@ -5,17 +5,20 @@ import os
 import sys
 from pathlib import Path
 from threading import Lock
-from typing import Callable
+from typing import Any, Callable
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .services.template_service import TemplateService
+from .services.word_service import WordService
 
 APP_HEADER = "X-Detail-Design-Generator"
 APP_HEADER_VALUE = "local-desktop-v2"
 HTML_FILENAME = "基本設計書generator.html"
+DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 def resource_path(filename: str) -> Path:
@@ -36,6 +39,18 @@ class DocumentTypeRequest(BaseModel):
     document_type: str
 
 
+class WordRequest(BaseModel):
+    document_type: str
+    client_name: str = ""
+    project_name: str = ""
+    version: str = "1.0"
+    issue_date: str = ""
+    project_no: str = "-"
+    revision_history_json: Any = Field(default_factory=list)
+    chapters_json: Any = Field(default_factory=list)
+    output_filename: str = "基本設計書.docx"
+
+
 def create_app(
     activate: Callable[[], None] | None = None,
     *,
@@ -43,8 +58,11 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="基本設計書生成ツール local backend")
     callback_lock = Lock()
-    templates = TemplateService(data_root or default_data_root())
+    root = data_root or default_data_root()
+    templates = TemplateService(root)
+    words = WordService(root)
     app.state.template_service = templates
+    app.state.word_service = words
 
     @app.middleware("http")
     async def identify_application(request, call_next):  # type: ignore[no-untyped-def]
@@ -88,6 +106,19 @@ def create_app(
             return templates.get_data(request.document_type)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/generate-word")
+    def generate_word(request: WordRequest) -> Response:
+        try:
+            content, filename = words.generate(request.model_dump())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        disposition = f"attachment; filename*=UTF-8''{quote(filename)}"
+        return Response(
+            content,
+            media_type=DOCX_MEDIA_TYPE,
+            headers={"Content-Disposition": disposition},
+        )
 
     @app.get("/", response_class=FileResponse)
     def index() -> FileResponse:

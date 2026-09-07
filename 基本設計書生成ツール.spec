@@ -11,7 +11,12 @@ a = Analysis(
     pathex=[str(plugin_root)],
     binaries=webview_binaries,
     datas=[("基本設計書generator.html", ".")] + webview_datas,
-    hiddenimports=webview_hiddenimports + ["tools.chapter_parser", "tools.template_store"],
+    hiddenimports=webview_hiddenimports + [
+        "tools.chapter_parser",
+        "tools.template_store",
+        "tools.docx_builder",
+        "tools.paragraph_numbering",
+    ],
     hookspath=[],
     runtime_hooks=[],
     excludes=[],

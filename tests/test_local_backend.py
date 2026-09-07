@@ -25,6 +25,20 @@ def _valid_template_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def _register_template(client: TestClient, content: bytes | None = None):
+    return client.post(
+        "/api/templates/register",
+        data={"document_type": "server_storage", "template_version": "1.2"},
+        files={
+            "template_file": (
+                "基本設計書_server_v1.2.docx",
+                content or _valid_template_bytes(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+
 def test_health_and_application_identity():
     response = TestClient(create_app()).get("/api/health")
     assert response.status_code == 200
@@ -88,17 +102,7 @@ def test_register_template_and_read_local_template_data(tmp_path):
     client = TestClient(create_app(data_root=tmp_path))
     content = _valid_template_bytes()
 
-    registered = client.post(
-        "/api/templates/register",
-        data={"document_type": "server_storage", "template_version": "1.2"},
-        files={
-            "template_file": (
-                "基本設計書_server_v1.2.docx",
-                content,
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            )
-        },
-    )
+    registered = _register_template(client, content)
     assert registered.status_code == 200, registered.text
     body = registered.json()
     assert body["success"] is True
@@ -135,3 +139,68 @@ def test_register_rejects_non_docx(tmp_path):
     )
     assert response.status_code == 400
     assert ".docx" in response.json()["detail"]
+
+
+def test_generate_word_requires_registered_template(tmp_path):
+    client = TestClient(create_app(data_root=tmp_path))
+    response = client.post(
+        "/api/generate-word",
+        json={"document_type": "server_storage", "chapters_json": []},
+    )
+    assert response.status_code == 400
+    assert "未登録" in response.json()["detail"]
+
+
+def test_generate_word_returns_docx_from_registered_template(tmp_path):
+    client = TestClient(create_app(data_root=tmp_path))
+    registered = _register_template(client)
+    assert registered.status_code == 200, registered.text
+
+    response = client.post(
+        "/api/generate-word",
+        json={
+            "document_type": "server_storage",
+            "client_name": "テスト株式会社 様",
+            "project_name": "ローカル生成確認",
+            "version": "2.0",
+            "issue_date": "2026/09/07",
+            "project_no": "P-001",
+            "revision_history_json": [
+                {
+                    "issue_date": "2026/09/07",
+                    "version": "2.0",
+                    "editor": "Tester",
+                    "description": "初版",
+                }
+            ],
+            "chapters_json": [
+                {
+                    "id": "chapter-1",
+                    "level": 1,
+                    "title": "生成章",
+                    "selected": True,
+                    "blocks": [
+                        {
+                            "type": "paragraph",
+                            "paragraph_style": "level_0",
+                            "text": "ローカルWord生成本文です。",
+                        }
+                    ],
+                    "children": [],
+                }
+            ],
+            "output_filename": "案件_基本設計書.docx",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    assert "filename*=UTF-8''" in response.headers["content-disposition"]
+
+    generated = Document(BytesIO(response.content))
+    paragraph_texts = [paragraph.text for paragraph in generated.paragraphs]
+    assert "テスト株式会社 様" in paragraph_texts
+    assert "ローカル生成確認" in paragraph_texts
+    assert "生成章" in paragraph_texts
+    assert "ローカルWord生成本文です。" in paragraph_texts
