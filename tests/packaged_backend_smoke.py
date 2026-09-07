@@ -30,6 +30,42 @@ def require_identity(response: httpx.Response) -> None:
     assert response.headers.get(APP_HEADER) == APP_HEADER_VALUE, response.headers
 
 
+def word_payload() -> dict:
+    return {
+        "document_type": "server_storage",
+        "client_name": "CIテスト株式会社 様",
+        "project_name": "パッケージ版E2E確認",
+        "version": "1.0",
+        "issue_date": "2026/09/07",
+        "project_no": "CI-001",
+        "revision_history_json": [
+            {
+                "issue_date": "2026/09/07",
+                "version": "1.0",
+                "editor": "CI",
+                "description": "E2E smoke",
+            }
+        ],
+        "chapters_json": [
+            {
+                "id": "chapter-ci",
+                "level": 1,
+                "title": "E2E生成章",
+                "selected": True,
+                "blocks": [
+                    {
+                        "type": "paragraph",
+                        "paragraph_style": "level_0",
+                        "text": "パッケージ済みEXEから生成した本文です。",
+                    }
+                ],
+                "children": [],
+            }
+        ],
+        "output_filename": "CI_基本設計書.docx",
+    }
+
+
 def main() -> None:
     with httpx.Client(base_url=BASE_URL, timeout=30.0) as client:
         health = client.get("/api/health")
@@ -54,10 +90,48 @@ def main() -> None:
         for marker in (
             "/api/templates/register",
             "/api/template-data",
-            "/api/generate-word",
+            "/api/generate-word/stage",
+            "/api/project/stage",
+            "/api/preview-state",
+            "open_preview_window",
+            "ddg-detached-preview",
             "標準テンプレート管理（ローカル）",
         ):
             assert marker in bridge.text, marker
+
+        preview_shell = client.get("/preview-window")
+        preview_shell.raise_for_status()
+        require_identity(preview_shell)
+        assert 'id="standalonePreview"' in preview_shell.text
+
+        preview_write = client.post(
+            "/api/preview-state",
+            json={"html": "<div>CI preview</div>", "css": "body{}", "revision": 501},
+        )
+        preview_write.raise_for_status()
+        require_identity(preview_write)
+        preview_read = client.get("/api/preview-state")
+        preview_read.raise_for_status()
+        require_identity(preview_read)
+        assert preview_read.json()["revision"] == 501
+        assert "CI preview" in preview_read.json()["html"]
+
+        project_stage = client.post(
+            "/api/project/stage",
+            json={
+                "project": {
+                    "format": "detail-design-generator-project",
+                    "schema_version": 1,
+                    "phase": "edit",
+                    "doc": {"document_type": "server_storage", "chapters": []},
+                },
+                "suggested_name": "CI.ddgproj",
+            },
+        )
+        project_stage.raise_for_status()
+        require_identity(project_stage)
+        assert project_stage.json()["token"]
+        assert project_stage.json()["filename"] == "CI.ddgproj"
 
         registered = client.post(
             "/api/templates/register",
@@ -88,42 +162,13 @@ def main() -> None:
         assert template_body["chapter_list_json"]
         assert template_body["section_contents_json"]
 
-        generated = client.post(
-            "/api/generate-word",
-            json={
-                "document_type": "server_storage",
-                "client_name": "CIテスト株式会社 様",
-                "project_name": "パッケージ版E2E確認",
-                "version": "1.0",
-                "issue_date": "2026/09/07",
-                "project_no": "CI-001",
-                "revision_history_json": [
-                    {
-                        "issue_date": "2026/09/07",
-                        "version": "1.0",
-                        "editor": "CI",
-                        "description": "E2E smoke",
-                    }
-                ],
-                "chapters_json": [
-                    {
-                        "id": "chapter-ci",
-                        "level": 1,
-                        "title": "E2E生成章",
-                        "selected": True,
-                        "blocks": [
-                            {
-                                "type": "paragraph",
-                                "paragraph_style": "level_0",
-                                "text": "パッケージ済みEXEから生成した本文です。",
-                            }
-                        ],
-                        "children": [],
-                    }
-                ],
-                "output_filename": "CI_基本設計書.docx",
-            },
-        )
+        staged_word = client.post("/api/generate-word/stage", json=word_payload())
+        staged_word.raise_for_status()
+        require_identity(staged_word)
+        assert staged_word.json()["token"]
+        assert staged_word.json()["filename"] == "CI_基本設計書.docx"
+
+        generated = client.post("/api/generate-word", json=word_payload())
         generated.raise_for_status()
         require_identity(generated)
         assert generated.content.startswith(b"PK")
