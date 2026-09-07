@@ -21,13 +21,16 @@
 
   const httpApi = {
     open_preview_window: () => call('/api/desktop/preview/open'),
-    save_staged_file: (token, suggestedName, fileKind, saveAs = false) =>
-      call('/api/desktop/file/save', {
+    save_staged_file: async (token, suggestedName, fileKind, saveAs = false) => {
+      const result = await call('/api/desktop/file/save', {
         token,
         suggested_name: suggestedName,
         file_kind: fileKind,
         save_as: !!saveAs
-      }),
+      });
+      if (result?.saved && result?.path) result.filename = result.path;
+      return result;
+    },
     open_project_file: () => call('/api/desktop/project/open'),
     clear_current_project_path: () => call('/api/desktop/project/clear-path')
   };
