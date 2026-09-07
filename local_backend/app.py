@@ -1,6 +1,7 @@
 """FastAPI application used by the local desktop wrapper."""
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -12,6 +13,8 @@ from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
+from .services.preview_state import get_preview_state, update_preview_state
+from .services.staging import build_project_archive, stage_bytes, staged_path
 from .services.template_service import TemplateService
 from .services.word_service import WordService
 
@@ -52,6 +55,20 @@ class WordRequest(BaseModel):
     output_filename: str = "基本設計書.docx"
 
 
+class PreviewStateRequest(BaseModel):
+    html: str = ""
+    css: str = ""
+    revision: int = 0
+    nodeId: str | None = None
+    blockId: str | None = None
+    updatedAt: int | float = 0
+
+
+class ProjectStageRequest(BaseModel):
+    project: dict[str, Any]
+    suggested_name: str = "案件.ddgproj"
+
+
 def _desktop_html() -> str:
     """Return the current HTML with the desktop-only API bridge injected."""
     html = resource_path(HTML_FILENAME).read_text(encoding="utf-8")
@@ -62,6 +79,61 @@ def _desktop_html() -> str:
     if body_end != -1:
         return html[:body_end] + f"  {bridge_tag}\n" + html[body_end:]
     return html + "\n" + bridge_tag + "\n"
+
+
+def _preview_window_html() -> str:
+    """Standalone preview shell. Content is synchronized from the editor over localhost."""
+    return """<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>基本設計書プレビュー</title>
+<style id="ddgSharedPreviewCss"></style>
+<style>
+html,body{margin:0;min-height:100%;background:#e5e7eb}
+body{overflow:auto}
+#ddgPreviewStatus{position:sticky;top:0;z-index:9999;padding:7px 14px;background:#fff;color:#65717d;font:12px/1.5 sans-serif;border-bottom:1px solid #ccd3da}
+#standalonePreview{padding:24px;min-height:calc(100vh - 31px);overflow:auto}
+#standalonePreview .word-page{margin:0 auto 24px}
+#standalonePreview .preview-page-shell{margin:0 auto 24px}
+</style>
+</head>
+<body>
+<div id="ddgPreviewStatus">基本設計書プレビュー</div>
+<div id="standalonePreview"></div>
+<script>
+(() => {
+  let revision = -1;
+  let busy = false;
+  const content = document.getElementById('standalonePreview');
+  const sharedCss = document.getElementById('ddgSharedPreviewCss');
+  const status = document.getElementById('ddgPreviewStatus');
+  async function sync(){
+    if(busy) return;
+    busy = true;
+    try{
+      const response = await fetch('/api/preview-state', {cache:'no-store'});
+      if(!response.ok) throw new Error('HTTP '+response.status);
+      const state = await response.json();
+      if(state.revision !== revision){
+        revision = state.revision;
+        if(state.css) sharedCss.textContent = state.css;
+        content.innerHTML = state.html || '<div style="padding:30px;color:#65717d">プレビューを準備しています…</div>';
+        status.textContent = '基本設計書プレビュー';
+      }
+    }catch(error){
+      status.textContent = 'プレビュー同期待ち…';
+    }finally{
+      busy = false;
+    }
+  }
+  sync();
+  setInterval(sync, 250);
+})();
+</script>
+</body>
+</html>"""
 
 
 def create_app(
@@ -132,6 +204,48 @@ def create_app(
             media_type=DOCX_MEDIA_TYPE,
             headers={"Content-Disposition": disposition},
         )
+
+    @app.post("/api/generate-word/stage")
+    def stage_word(request: WordRequest) -> dict[str, str]:
+        try:
+            content, filename = words.generate(request.model_dump())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        token, _path = stage_bytes(content, ".docx")
+        return {"token": token, "filename": filename}
+
+    @app.post("/api/project/stage")
+    def stage_project(request: ProjectStageRequest) -> dict[str, str]:
+        try:
+            content = build_project_archive(request.project)
+            token, _path = stage_bytes(content, ".ddgproj")
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        filename = request.suggested_name.strip() or "案件.ddgproj"
+        if not filename.lower().endswith(".ddgproj"):
+            filename += ".ddgproj"
+        return {"token": token, "filename": filename}
+
+    @app.get("/api/project/staged/{token}")
+    def staged_project(token: str) -> Response:
+        try:
+            path = staged_path(token, ".json")
+            content = path.read_bytes()
+        except (ValueError, FileNotFoundError) as exc:
+            raise HTTPException(status_code=404, detail="案件データが見つかりません。") from exc
+        return Response(content, media_type="application/json; charset=utf-8")
+
+    @app.post("/api/preview-state")
+    def set_preview_state(request: PreviewStateRequest) -> dict[str, Any]:
+        return update_preview_state(request.model_dump())
+
+    @app.get("/api/preview-state")
+    def preview_state() -> dict[str, Any]:
+        return get_preview_state()
+
+    @app.get("/preview-window", response_class=HTMLResponse)
+    def preview_window() -> HTMLResponse:
+        return HTMLResponse(_preview_window_html())
 
     @app.get("/local-bridge.js", response_class=FileResponse)
     def local_bridge() -> FileResponse:
