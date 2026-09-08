@@ -12,6 +12,10 @@ def _load_patch_temporarily():
     original_save = DesktopApi.save_staged_file
     original_open = DesktopApi.open_project_file
     patch = importlib.import_module("local_backend.native_dialog_patch")
+    # The module may already be cached from a previous test, so explicitly reapply
+    # the runtime bindings instead of relying on import side effects to run twice.
+    DesktopApi.save_staged_file = patch.save_staged_file_native
+    DesktopApi.open_project_file = patch.open_project_file_native
     return patch, original_save, original_open
 
 
