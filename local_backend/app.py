@@ -116,23 +116,93 @@ body{overflow:auto}
 <div id="standalonePreview"></div>
 <script>
 (() => {
+  const MAIN_CLOSED_SENTINEL = '__DDG_MAIN_WINDOW_CLOSED__';
   let revision = -1;
+  let targetSignature = '';
   let busy = false;
+  let closing = false;
+  let lastState = null;
   const content = document.getElementById('standalonePreview');
   const sharedCss = document.getElementById('ddgSharedPreviewCss');
   const status = document.getElementById('ddgPreviewStatus');
+
+  const selectorEscape = value => {
+    const text = String(value ?? '');
+    if (window.CSS && typeof CSS.escape === 'function') return CSS.escape(text);
+    return text.replace(/[\\\"]/g, '\\$&');
+  };
+
+  const findTarget = state => {
+    const nodeId = state?.nodeId;
+    const blockId = state?.blockId;
+    if (!nodeId) return null;
+    const node = selectorEscape(nodeId);
+    if (blockId) {
+      const block = selectorEscape(blockId);
+      const exact = content.querySelector(
+        `[data-preview-nodeid="${node}"][data-preview-block-id="${block}"]`
+      );
+      if (exact) return exact;
+      const byBlock = content.querySelector(`[data-preview-block-id="${block}"]`);
+      if (byBlock) return byBlock;
+    }
+    return content.querySelector(`[data-preview-nodeid="${node}"]`);
+  };
+
+  const scrollToStateTarget = (state, smooth = true) => {
+    if (!state || closing) return false;
+    const target = findTarget(state);
+    if (!target) return false;
+    target.scrollIntoView({
+      behavior: smooth ? 'smooth' : 'auto',
+      block: 'center',
+      inline: 'nearest'
+    });
+    return true;
+  };
+
+  const scheduleTargetScroll = (state, smooth) => {
+    requestAnimationFrame(() => {
+      scrollToStateTarget(state, smooth);
+      setTimeout(() => scrollToStateTarget(state, false), 120);
+    });
+  };
+
+  const observer = new MutationObserver(() => {
+    if (lastState?.nodeId) scheduleTargetScroll(lastState, false);
+  });
+  observer.observe(content, { childList: true, subtree: true });
+
   async function sync(){
-    if(busy) return;
+    if(busy || closing) return;
     busy = true;
     try{
       const response = await fetch('/api/preview-state', {cache:'no-store'});
       if(!response.ok) throw new Error('HTTP '+response.status);
       const state = await response.json();
-      if(state.revision !== revision){
+      if(state.nodeId === MAIN_CLOSED_SENTINEL){
+        closing = true;
+        status.textContent = 'メインウィンドウを終了しています…';
+        window.close();
+        return;
+      }
+
+      const nextTargetSignature = `${state.nodeId || ''}::${state.blockId || ''}`;
+      const contentChanged = state.revision !== revision;
+      const targetChanged = nextTargetSignature !== targetSignature;
+      lastState = state;
+
+      if(contentChanged){
         revision = state.revision;
         if(state.css) sharedCss.textContent = state.css;
         content.innerHTML = state.html || '<div style="padding:30px;color:#65717d">プレビューを準備しています…</div>';
         status.textContent = '基本設計書プレビュー';
+      }
+      if(targetChanged){
+        targetSignature = nextTargetSignature;
+      }
+      if((contentChanged || targetChanged) && state.nodeId){
+        scheduleTargetScroll(state, targetChanged);
       }
     }catch(error){
       status.textContent = 'プレビュー同期待ち…';
@@ -141,7 +211,7 @@ body{overflow:auto}
     }
   }
   sync();
-  setInterval(sync, 250);
+  setInterval(sync, 150);
 })();
 </script>
 </body>
