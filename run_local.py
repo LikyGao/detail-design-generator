@@ -5,7 +5,12 @@ import os
 import sys
 import traceback
 from pathlib import Path
+
+# Patch DesktopApi file dialogs before the app starts. The localhost FastAPI
+# handlers run on worker threads, so they must not call pywebview GUI dialog APIs.
+import local_backend.native_dialog_patch  # noqa: F401
 from local_backend.desktop import DesktopStartupError, run_desktop
+
 
 def _show_error(message: str, details: str = "") -> None:
     if os.environ.get("DDG_HEADLESS_SMOKE") == "1":
@@ -19,6 +24,7 @@ def _show_error(message: str, details: str = "") -> None:
     else:
         print(message, file=sys.stderr)
 
+
 def main() -> int:
     try:
         return run_desktop()
@@ -28,6 +34,7 @@ def main() -> int:
     except Exception as exc:
         _show_error(f"予期しない起動エラー: {exc}", traceback.format_exc())
         return 1
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
