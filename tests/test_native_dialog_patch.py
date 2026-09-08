@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from local_backend.desktop import DesktopApi
 from local_backend.services.staging import build_project_archive, stage_bytes, staged_path
@@ -19,15 +20,22 @@ def _load_patch_temporarily():
     return patch, original_save, original_open
 
 
+def _desktop_api_with_window() -> DesktopApi:
+    api = DesktopApi()
+    # A real desktop launch always binds a main window. The Win32 path chooser below
+    # is monkeypatched, so this sentinel proves the worker-thread path does not need
+    # or call pywebview.Window.create_file_dialog.
+    api.main_window = SimpleNamespace()
+    return api
+
+
 def test_word_save_uses_native_path_chooser_without_pywebview_dialog(monkeypatch, tmp_path):
     patch, original_save, original_open = _load_patch_temporarily()
     try:
         target = tmp_path / "generated.docx"
         monkeypatch.setattr(patch, "_choose_path", lambda *_args, **_kwargs: target)
 
-        api = DesktopApi()
-        # Intentionally leave main_window=None. The patched implementation must not
-        # depend on pywebview.Window.create_file_dialog from the FastAPI worker thread.
+        api = _desktop_api_with_window()
         token, source = stage_bytes(b"PK-native-word", ".docx")
         result = api.save_staged_file(token, "generated.docx", "word", True)
 
@@ -49,7 +57,7 @@ def test_project_open_uses_native_path_chooser_without_pywebview_dialog(monkeypa
         )
         monkeypatch.setattr(patch, "_choose_path", lambda *_args, **_kwargs: source)
 
-        api = DesktopApi()
+        api = _desktop_api_with_window()
         result = api.open_project_file()
         assert result["opened"] is True
         staged = staged_path(str(result["token"]), ".json")
