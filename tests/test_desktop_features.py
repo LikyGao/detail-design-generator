@@ -40,7 +40,7 @@ def test_preview_state_round_trip_and_detached_shell(tmp_path):
     assert shell.status_code == 200
     assert 'id="standalonePreview"' in shell.text
     assert "/api/preview-state" in shell.text
-    assert "setInterval(sync, 250)" in shell.text
+    assert "setInterval(sync, 150)" in shell.text
 
 
 def test_project_stage_preserves_image_data(tmp_path):
