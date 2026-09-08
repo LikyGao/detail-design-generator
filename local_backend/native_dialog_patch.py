@@ -159,6 +159,11 @@ def save_staged_file_native(
     save_as: bool = False,
 ) -> dict[str, object]:
     """Save staged content without calling pywebview GUI APIs from FastAPI threads."""
+    # Headless packaged smoke deliberately has no desktop window. Preserve the
+    # explicit noninteractive error contract instead of opening a real common dialog.
+    if self.main_window is None:
+        return {"saved": False, "error": "メインウィンドウが利用できません。"}
+
     suffix = ".docx" if file_kind == "word" else ".ddgproj"
     try:
         source = staged_path(token, suffix)
@@ -201,6 +206,8 @@ def save_staged_file_native(
 
 def open_project_file_native(self: DesktopApi) -> dict[str, object]:
     """Open a project through Win32 common dialog without touching pywebview UI APIs."""
+    if self.main_window is None:
+        return {"opened": False, "error": "メインウィンドウが利用できません。"}
     try:
         source = _choose_path(self, save=False, file_kind="project")
     except Exception as exc:
