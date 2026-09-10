@@ -29,6 +29,11 @@
   /* ── App shell ── */
   .app-shell{display:grid;grid-template-columns:240px 1fr;grid-template-rows:56px 1fr;grid-template-areas:"hd hd" "sb mn";height:100vh;overflow:hidden}
   .app-shell.preview-open{grid-template-columns:240px 1fr 45%;grid-template-areas:"hd hd hd" "sb mn pv"}
+  html.preview-only body{background:#525659}
+  html.preview-only .document-landing,html.preview-only #appShell>header,html.preview-only #appShell>.sidebar,html.preview-only #mainArea{display:none!important}
+  html.preview-only .app-shell{display:grid;grid-template-columns:1fr!important;grid-template-rows:1fr!important;grid-template-areas:"pv"!important}
+  html.preview-only .app-shell #previewArea{display:flex}
+  html.preview-only .preview-detach-button{display:none}
   .app-shell.chapter-select-mode{grid-template-columns:280px 1fr;grid-template-areas:"hd hd" "sb mn"}
   .app-shell.chapter-select-mode .sidebar{display:block}
   header{grid-area:hd;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 18px;gap:14px;z-index:10}
@@ -296,6 +301,7 @@
   .word-body p{margin:0 0 4pt;line-height:1.75}
   .word-paragraph{display:grid;grid-template-columns:calc(var(--preview-text-start) - var(--preview-hierarchy-offset)) minmax(0,1fr);column-gap:0;margin-left:var(--preview-hierarchy-offset)!important;text-align:justify;font-family:'Meiryo UI',Meiryo,sans-serif;font-size:var(--preview-font-size);font-weight:var(--preview-font-weight);letter-spacing:normal}
   .word-paragraph .paragraph-prefix{grid-column:1;box-sizing:border-box;padding-left:calc(var(--preview-marker-start) - var(--preview-hierarchy-offset));white-space:nowrap}
+  .word-paragraph.style-0-numbered{column-gap:.4em}
   .word-paragraph-text{grid-column:2;min-width:0;white-space:normal;overflow-wrap:anywhere}
   .word-paragraph.no-prefix{grid-template-columns:minmax(0,1fr);margin-left:0!important}
   .word-paragraph.no-prefix .word-paragraph-text{grid-column:1 / -1}
@@ -533,7 +539,7 @@
   </main>
 
   <div id="previewArea">
-    <div class="preview-pane-header"><span>プレビュー</span><div><button class="ebtn ghost" onclick="openPreviewWindow()" style="padding:5px 12px;font-size:12px">別ウィンドウで開く</button> <button class="ebtn ghost" onclick="printPreview()" style="padding:5px 12px;font-size:12px">🖨 印刷 / PDF</button></div></div>
+    <div class="preview-pane-header"><span>プレビュー</span><div><button class="ebtn ghost preview-detach-button" onclick="openPreviewWindow()" style="padding:5px 12px;font-size:12px">別ウィンドウで開く</button> <button class="ebtn ghost" onclick="printPreview()" style="padding:5px 12px;font-size:12px">🖨 印刷 / PDF</button></div></div>
     <div id="previewContent"></div>
   </div>
 </div>
@@ -23729,7 +23735,9 @@ let expandedParagraphAiFixTarget = null;
 document.documentElement.dataset.uiBuild='preview-width-ai-context-v2';
 let pendingHighlightTarget = null;
 let _highlightTimer = null;
-let _previewWindow = null, _previewRevision = 0;
+let _previewWindow = null, _previewWindowCloseTimer = null, _previewRevision = 0;
+const _previewOnly = new URLSearchParams(location.search).get('previewOnly')==='1';
+if(_previewOnly) document.documentElement.classList.add('preview-only');
 const PREVIEW_CHANNEL_NAME = 'detail-design-preview';
 function createPreviewChannel(){
   if(typeof BroadcastChannel==='undefined') return null;
@@ -23813,15 +23821,17 @@ function calculateParagraphNumbering(blocks,options={}){
     // Word restarts a child list after any shallower hierarchy level is seen.
     // Forget every deeper counter even when num_id/list_group_id is unchanged.
     for(const [counterLevel,keys] of counterKeysByLevel){
-      if(counterLevel>level){ keys.forEach(key=>counters.delete(key)); counterKeysByLevel.delete(counterLevel); }
+      // Explanatory body text has no Word list level and does not terminate a
+      // native list. Only an actual shallower list item restarts descendants.
+      if(level>=0&&counterLevel>level){ keys.forEach(key=>counters.delete(key)); counterKeysByLevel.delete(counterLevel); }
     }
     while(stack.length&&stack[stack.length-1].level>=level) stack.pop();
     const parent=stack.length?stack[stack.length-1].block:null;
     let counterKey='';
     if(cfg.numbered){
-      if(style==='level_1') counterKey='level-1:'+String(options.fallbackScope||'local');
-      else if(b.list_group_id) counterKey='group:'+String(b.list_group_id)+':'+level;
+      if(b.list_group_id) counterKey='group:'+String(b.list_group_id)+':'+level;
       else if(b.num_id!=null&&String(b.num_id)!=='') counterKey='num:'+String(b.num_id)+':'+level;
+      else if(style==='level_1') counterKey='level-1:'+String(options.fallbackScope||'local');
       else {
         const parentKey=parent&&parent.id?'parent:'+parent.id:'root';
         const runKey=level+':'+parentKey;
@@ -23829,7 +23839,8 @@ function calculateParagraphNumbering(blocks,options={}){
         counterKey='fallback:'+String(options.fallbackScope||'local')+':'+runKey+':'+fallbackRuns.get(runKey);
       }
       const previous=counters.get(counterKey);
-      counters.set(counterKey,previous==null?paragraphNumberStart(b):previous+1);
+      const explicitRestart=previous!=null&&b.start_override!=null;
+      counters.set(counterKey,previous==null||explicitRestart?paragraphNumberStart(b):previous+1);
       if(!counterKeysByLevel.has(level)) counterKeysByLevel.set(level,new Set());
       counterKeysByLevel.get(level).add(counterKey);
     }
@@ -23844,11 +23855,15 @@ function calculateParagraphNumbering(blocks,options={}){
 }
 function calculateDocumentParagraphNumbering(chapters){
   const prefixes=new Map();
+  // A Word numId/list_group_id identifies one concrete list even when normal
+  // paragraphs or section nodes occur between its items. Fallback groups stay
+  // node-scoped when the source contains no native numbering identity.
+  const counters=new Map();
   (chapters||[]).forEach(top=>{
     const visit=node=>{
       if(!node||node.selected===false) return;
-      // Every chapter/section node is an independent Word list scope.
-      calculateParagraphNumbering(node.blocks,{prefixes,counters:new Map(),fallbackScope:String(node.id||'')});
+      // The node id scopes only metadata-free fallback numbering.
+      calculateParagraphNumbering(node.blocks,{prefixes,counters,fallbackScope:String(node.id||'')});
       (node.children||[]).forEach(visit);
     };
     visit(top);
@@ -25947,41 +25962,35 @@ function sendPreviewMessage(message){
 }
 function publishPreviewState(){ sendPreviewMessage(currentPreviewState()); }
 function publishPreviewTarget(){ sendPreviewMessage({type:'preview-target',nodeId:_activePreviewTarget.nodeId,blockId:_activePreviewTarget.blockId,revision:_previewRevision,updatedAt:Date.now()}); }
+function setEmbeddedPreviewVisible(visible){
+  _previewOpen=visible;
+  const shell=document.getElementById('appShell'), btn=document.getElementById('previewToggleBtn');
+  shell.classList.toggle('preview-open',visible);
+  btn.classList.toggle('ghost',!visible);
+  if(visible){ buildPreview(); schedulePreviewScale(); }
+}
+function watchPreviewWindowClose(){
+  clearInterval(_previewWindowCloseTimer);
+  _previewWindowCloseTimer=setInterval(()=>{
+    if(_previewWindow&&!_previewWindow.closed) return;
+    clearInterval(_previewWindowCloseTimer); _previewWindowCloseTimer=null; _previewWindow=null;
+    setEmbeddedPreviewVisible(true);
+  },500);
+}
 function openPreviewWindow(){
   if(_previewWindow&&!_previewWindow.closed){ _previewWindow.focus(); publishPreviewState(); return; }
   buildPreview();
-  _previewWindow=window.open('','detail-design-preview-window');
+  const previewUrl=new URL(location.href); previewUrl.searchParams.set('previewOnly','1');
+  _previewWindow=window.open(previewUrl.href,'detail-design-preview-window');
   if(!_previewWindow){ showToast('ポップアップがブロックされました。ブラウザで許可してください。',true); return; }
-  const css=Array.from(document.querySelectorAll('style')).map(style=>style.textContent).join('\n');
-  const initial=JSON.stringify(currentPreviewState()).replace(/<\//g,'<\\/');
-  const childScript=`
-    const root=document.getElementById('standalonePreview');
-    let active={nodeId:null,blockId:null}, highlightTimer=null, openerSeen=true;
-    function findTarget(target){
-      const all=Array.from(root.querySelectorAll('[data-preview-nodeid]'));
-      if(target.blockId){const exact=all.find(el=>el.dataset.previewNodeid===target.nodeId&&el.dataset.previewBlockId===target.blockId);if(exact)return exact;}
-      const node=all.find(el=>el.dataset.previewNodeid===target.nodeId&&!el.dataset.previewBlockId);
-      return node||null;
-    }
-    function scroll(){const el=findTarget(active);if(!el)return;el.scrollIntoView({behavior:'smooth',block:'center'});root.querySelectorAll('.preview-sync-highlight').forEach(x=>x.classList.remove('preview-sync-highlight'));el.classList.add('preview-sync-highlight');clearTimeout(highlightTimer);highlightTimer=setTimeout(()=>el.classList.remove('preview-sync-highlight'),1500);}
-    function receive(data){if(!data||!/^preview-/.test(data.type||''))return;if(data.type==='preview-state')root.innerHTML=data.html||'';active={nodeId:data.nodeId||active.nodeId,blockId:data.blockId||null};requestAnimationFrame(scroll);}
-    const initial=${initial}; receive(initial);
-    if(typeof BroadcastChannel!=='undefined'){try{const channel=new BroadcastChannel('${PREVIEW_CHANNEL_NAME}');channel.onmessage=e=>receive(e.data);}catch(error){console.warn('BroadcastChannel unavailable; using postMessage fallback.',error);}}
-    addEventListener('message',e=>{if(e.source===opener)receive(e.data);});
-    setInterval(()=>{if(openerSeen&&(!opener||opener.closed)){openerSeen=false;document.getElementById('previewStatus').textContent='主ウィンドウは閉じられました';}},1000);
-  `;
-  _previewWindow.document.open();
-  _previewWindow.document.write('<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>基本設計書プレビュー</title><style>'+css+'body{margin:0;background:#e5e7eb}#previewStatus{position:sticky;top:0;z-index:10;padding:7px 14px;background:#fff;color:#65717d;font:12px sans-serif;border-bottom:1px solid #ccd3da}#standalonePreview{padding:24px;overflow:auto;min-height:100vh}#standalonePreview .word-page{margin:0 auto 24px}</style></head><body><div id="previewStatus">基本設計書プレビュー</div><div id="standalonePreview"></div><scr'+'ipt>'+childScript+'</scr'+'ipt></body></html>');
-  _previewWindow.document.close();
+  setEmbeddedPreviewVisible(false);
+  watchPreviewWindowClose();
   _previewWindow.focus();
 }
 function togglePreview(){
-  _previewOpen=!_previewOpen;
-  const shell=document.getElementById('appShell');
-  const btn=document.getElementById('previewToggleBtn');
-  shell.classList.toggle('preview-open',_previewOpen);
-  btn.classList.toggle('ghost',!_previewOpen);
-  if(_previewOpen){ buildPreview(); schedulePreviewScale(); requestAnimationFrame(()=>scrollPreviewToActive(true)); }
+  const nextOpen=!_previewOpen;
+  setEmbeddedPreviewVisible(nextOpen);
+  if(nextOpen) requestAnimationFrame(()=>scrollPreviewToActive(true));
 }
 function schedulePreviewScale(){
   cancelAnimationFrame(_previewResizeFrame);
@@ -26098,7 +26107,7 @@ function blocksToHtml(blocks,nodeId,paragraphPrefixes){
         const previewLevel=nativeLevel==null?0:Math.max(0,nativeLevel);
         const geometry=PREVIEW_PARAGRAPH_GEOMETRY[b.paragraph_style]||{markerStartTwips:0,textStartTwips:0,fontSizePt:10.5,fontWeight:400};
         const paragraphGeometry='--preview-level:'+previewLevel+';--preview-hierarchy-offset:calc('+previewLevel+' * var(--preview-indent-unit));--preview-marker-start:'+(geometry.markerStartTwips/20)+'pt;--preview-text-start:'+(geometry.textStartTwips/20)+'pt;--preview-font-size:'+geometry.fontSizePt+'pt;--preview-font-weight:'+geometry.fontWeight;
-        return '<p class="word-paragraph'+(prefix?'':' no-prefix')+'"'+syncAttrs+' style="'+paragraphGeometry+'"><span class="paragraph-prefix">'+escH(prefix)+'</span><span class="word-paragraph-text">'+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</span></p>';
+        return '<p class="word-paragraph'+(prefix?'':' no-prefix')+(b.paragraph_style==='level_1'?' style-0-numbered':'')+'"'+syncAttrs+' style="'+paragraphGeometry+'"><span class="paragraph-prefix">'+escH(prefix)+'</span><span class="word-paragraph-text">'+escH(String(b.text||'')).replace(/\r?\n/g,'<br>')+'</span></p>';
       }
       if(b.type==='table'){
         const caption=String(b.caption||'').trim();
@@ -26218,8 +26227,8 @@ body{margin:0;background:#fff;color:#000;font-family:'MS Mincho','Noto Serif JP'
 @page{size:A4;margin:16mm}
 `;
 function printPreview(){
-  if(!doc.chapters.length && !doc.cover.client_name && !doc.cover.project_name){ showToast('印刷する内容がありません。',true); return; }
-  let html; try{ const tmp=document.createElement('div'); tmp.innerHTML=buildPreviewHtml(); updateDocumentIndexes(tmp); html=tmp.innerHTML; }catch(e){ console.error(e); showToast('プレビュー生成に失敗しました。',true); return; }
+  if(!_previewOnly&&!doc.chapters.length && !doc.cover.client_name && !doc.cover.project_name){ showToast('印刷する内容がありません。',true); return; }
+  let html; try{ const tmp=document.createElement('div'); tmp.innerHTML=_previewOnly?document.getElementById('previewContent').innerHTML:buildPreviewHtml(); if(!_previewOnly) updateDocumentIndexes(tmp); html=tmp.innerHTML; }catch(e){ console.error(e); showToast('プレビュー生成に失敗しました。',true); return; }
   const w=window.open('','_blank');
   if(!w){ showToast('ポップアップがブロックされました。ブラウザで許可してください。',true); return; }
   const title=(doc.cover.file_name||'基本設計書').replace(/\.docx$/i,'');
@@ -26639,6 +26648,14 @@ function loadSampleGenerated(){
 
 /* ── init ── */
 window.addEventListener('DOMContentLoaded',()=>{
+  if(_previewOnly){
+    const shell=document.getElementById('appShell'); shell.hidden=false; shell.classList.add('preview-open'); _previewOpen=true;
+    const receive=data=>{ if(!data||!/^preview-/.test(data.type||'')) return; if(data.type==='preview-state') document.getElementById('previewContent').innerHTML=data.html||''; _activePreviewTarget={nodeId:data.nodeId||_activePreviewTarget.nodeId,blockId:data.blockId||null}; requestAnimationFrame(()=>scrollPreviewToActive(true)); };
+    if(_previewChannel) _previewChannel.onmessage=event=>receive(event.data);
+    addEventListener('message',event=>{ if(event.source===opener) receive(event.data); });
+    if(opener&&!opener.closed) opener.postMessage({type:'preview-ready'},'*');
+    return;
+  }
   buildPlanForm(); renderDocumentProfileOptions(); updateDocumentTypeDisplay();
   const editor=document.getElementById('sectionsContainer');
   const syncFromEditor=(event,immediate)=>{
@@ -26651,6 +26668,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   editor.addEventListener('focusin',event=>syncFromEditor(event,true));
   editor.addEventListener('input',event=>syncFromEditor(event,false));
 });
+window.addEventListener('message',event=>{ if(!_previewOnly&&event.data&&event.data.type==='preview-ready'&&event.source===_previewWindow) publishPreviewState(); });
 </script>
 </body>
 </html>
