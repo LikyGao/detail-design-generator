@@ -129,6 +129,58 @@ console.log(JSON.stringify(Object.fromEntries(result)));
     assert [prefixes[key] for key in ("ga1", "ga2", "gb1", "gb2", "gb3")] == ["①", "②", "①", "②", "③"]
 
 
+def test_style_zero_numbering_prefers_native_groups_and_keeps_fallback_scoped():
+    names = [
+        "getParagraphNativeIlvl", "getParagraphStyleConfig", "paragraphNumberStart",
+        "calculateParagraphNumbering", "calculateDocumentParagraphNumbering",
+    ]
+    functions = "\n".join(_function(name) for name in names)
+    source = f"""
+const PARAGRAPH_STYLE_CONFIGS={{
+ level_0:{{symbol:'',numbered:false}}, level_1:{{symbol:'',numbered:true}}
+}};
+const PARAGRAPH_STYLE_TO_NATIVE_ILVL={{level_1:0}};
+{functions}
+const p=(id,style,extra={{}})=>Object.assign({{id,type:'paragraph',paragraph_style:style}},extra);
+const chapters=[
+ {{id:'section-a',selected:true,blocks:[
+   p('native-1','level_1',{{num_id:'42',native_ilvl:0}}),
+   p('body','level_0'),
+   p('native-2','level_1',{{num_id:'42',native_ilvl:0}}),
+   p('other-1','level_1',{{num_id:'84',native_ilvl:0}}),
+   p('other-2','level_1',{{num_id:'84',native_ilvl:0}})
+ ],children:[{{id:'section-b',selected:true,blocks:[
+   p('native-3','level_1',{{num_id:'42',native_ilvl:0}}),
+   p('restart','level_1',{{num_id:'42',native_ilvl:0,start_override:1}}),
+   p('fallback-b','level_1')
+ ],children:[]}}]}},
+ {{id:'section-c',selected:true,blocks:[p('fallback-c','level_1')],children:[]}}
+];
+console.log(JSON.stringify(Object.fromEntries(calculateDocumentParagraphNumbering(chapters))));
+"""
+    prefixes = _run_node(source)
+    assert [prefixes[key] for key in ("native-1", "native-2", "native-3")] == ["（1）", "（2）", "（3）"]
+    assert [prefixes[key] for key in ("other-1", "other-2")] == ["（1）", "（2）"]
+    assert prefixes["restart"] == "（1）"
+    assert prefixes["fallback-b"] == prefixes["fallback-c"] == "（1）"
+
+
+def test_preview_style_zero_spacing_and_preview_only_window_lifecycle():
+    blocks = _function("blocksToHtml")
+    opener = _function("openPreviewWindow")
+    watcher = _function("watchPreviewWindowClose")
+
+    assert ".word-paragraph.style-0-numbered{column-gap:.4em}" in HTML
+    assert "b.paragraph_style==='level_1'?' style-0-numbered':''" in blocks
+    assert "searchParams.set('previewOnly','1')" in opener
+    assert "setEmbeddedPreviewVisible(false)" in opener
+    assert "_previewWindow.focus(); publishPreviewState(); return;" in opener
+    assert "clearInterval(_previewWindowCloseTimer)" in watcher
+    assert "setEmbeddedPreviewVisible(true)" in watcher
+    assert "html.preview-only .preview-detach-button{display:none}" in HTML
+    assert "event.data.type==='preview-ready'" in HTML
+
+
 
 def test_media_permissions_are_content_type_driven():
     functions = "\n".join(_function(name) for name in (
