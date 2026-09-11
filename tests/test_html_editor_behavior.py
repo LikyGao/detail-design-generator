@@ -100,7 +100,7 @@ console.log(JSON.stringify(snapshots));
 def test_document_numbering_restarts_level_one_for_every_node_and_hierarchy():
     names = [
         "getParagraphNativeIlvl", "getParagraphStyleConfig", "paragraphNumberStart",
-        "calculateParagraphNumbering", "calculateDocumentParagraphNumbering",
+        "paragraphNumberingGroupKey", "calculateParagraphNumbering", "calculateDocumentParagraphNumbering",
     ]
     functions = "\n".join(_function(name) for name in names)
     source = f"""
@@ -132,7 +132,7 @@ console.log(JSON.stringify(Object.fromEntries(result)));
 def test_style_zero_numbering_prefers_native_groups_and_keeps_fallback_scoped():
     names = [
         "getParagraphNativeIlvl", "getParagraphStyleConfig", "paragraphNumberStart",
-        "calculateParagraphNumbering", "calculateDocumentParagraphNumbering",
+        "paragraphNumberingGroupKey", "calculateParagraphNumbering", "calculateDocumentParagraphNumbering",
     ]
     functions = "\n".join(_function(name) for name in names)
     source = f"""
@@ -144,25 +144,27 @@ const PARAGRAPH_STYLE_TO_NATIVE_ILVL={{level_1:0}};
 const p=(id,style,extra={{}})=>Object.assign({{id,type:'paragraph',paragraph_style:style}},extra);
 const chapters=[
  {{id:'section-a',selected:true,blocks:[
-   p('native-1','level_1',{{num_id:'42',native_ilvl:0}}),
+   p('native-1','level_1',{{num_id:'42',native_ilvl:0,list_group_id:'word:42'}}),
    p('body','level_0'),
-   p('native-2','level_1',{{num_id:'42',native_ilvl:0}}),
-   p('other-1','level_1',{{num_id:'84',native_ilvl:0}}),
-   p('other-2','level_1',{{num_id:'84',native_ilvl:0}})
+   p('native-2','level_1',{{num_id:'42',native_ilvl:0,list_group_id:'word:42'}}),
+   p('other-1','level_1',{{numId:'84',native_ilvl:0}}),
+   p('other-2','level_1',{{numbering:{{numId:'84'}},native_ilvl:0}})
  ],children:[{{id:'section-b',selected:true,blocks:[
-   p('native-3','level_1',{{num_id:'42',native_ilvl:0}}),
-   p('restart','level_1',{{num_id:'42',native_ilvl:0,start_override:1}}),
-   p('fallback-b','level_1')
+   p('native-3','level_1',{{num_id:'42',native_ilvl:0,list_group_id:'word:42'}}),
+   p('restart','level_1',{{num_id:'42',native_ilvl:0,list_group_id:'word:42',start_override:1}}),
+   p('fallback-b','level_1'),
+   p('shared-1','level_1',{{list_group_id:'semantic-list'}})
  ],children:[]}}]}},
- {{id:'section-c',selected:true,blocks:[p('fallback-c','level_1')],children:[]}}
+ {{id:'section-c',selected:true,blocks:[p('fallback-c','level_1'),p('shared-2','level_1',{{listGroupId:'semantic-list'}})],children:[]}}
 ];
 console.log(JSON.stringify(Object.fromEntries(calculateDocumentParagraphNumbering(chapters))));
 """
     prefixes = _run_node(source)
-    assert [prefixes[key] for key in ("native-1", "native-2", "native-3")] == ["（1）", "（2）", "（3）"]
+    assert [prefixes[key] for key in ("native-1", "native-2", "native-3")] == ["（1）", "（2）", "（1）"]
     assert [prefixes[key] for key in ("other-1", "other-2")] == ["（1）", "（2）"]
     assert prefixes["restart"] == "（1）"
     assert prefixes["fallback-b"] == prefixes["fallback-c"] == "（1）"
+    assert [prefixes[key] for key in ("shared-1", "shared-2")] == ["（1）", "（2）"]
 
 
 def test_preview_style_zero_spacing_and_preview_only_window_lifecycle():
@@ -173,12 +175,28 @@ def test_preview_style_zero_spacing_and_preview_only_window_lifecycle():
     assert ".word-paragraph.style-0-numbered{column-gap:.4em}" in HTML
     assert "b.paragraph_style==='level_1'?' style-0-numbered':''" in blocks
     assert "searchParams.set('previewOnly','1')" in opener
-    assert "setEmbeddedPreviewVisible(false)" in opener
+    assert "_previewOpen=false; updatePreviewUIState();" in opener
     assert "_previewWindow.focus(); publishPreviewState(); return;" in opener
     assert "clearInterval(_previewWindowCloseTimer)" in watcher
-    assert "setEmbeddedPreviewVisible(true)" in watcher
+    assert "_previewOpen=false; updatePreviewUIState();" in watcher
     assert "html.preview-only .preview-detach-button{display:none}" in HTML
     assert "event.data.type==='preview-ready'" in HTML
+
+
+def test_preview_ui_is_centralized_and_restricted_to_step_three():
+    state = _function("updatePreviewUIState")
+    phase = _function("setPhase")
+    toggle = _function("togglePreview")
+    opener = _function("openPreviewWindow")
+
+    assert "phase===PHASE.EDIT&&!detached" in state
+    assert "btn.hidden=!available" in state
+    assert "shell.classList.toggle('preview-open',visible)" in state
+    assert "shell.classList.toggle('detached-preview',detached)" in state
+    assert "updatePreviewUIState();" in phase
+    assert "phase!==PHASE.EDIT" in toggle
+    assert "(_previewWindow&&!_previewWindow.closed)" in toggle
+    assert "_previewWindow.focus(); publishPreviewState(); return;" in opener
 
 
 

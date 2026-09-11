@@ -29,6 +29,7 @@
   /* ── App shell ── */
   .app-shell{display:grid;grid-template-columns:240px 1fr;grid-template-rows:56px 1fr;grid-template-areas:"hd hd" "sb mn";height:100vh;overflow:hidden}
   .app-shell.preview-open{grid-template-columns:240px 1fr 45%;grid-template-areas:"hd hd hd" "sb mn pv"}
+  .app-shell.detached-preview{grid-template-areas:"hd hd" "sb mn"}
   html.preview-only body{background:#525659}
   html.preview-only .document-landing,html.preview-only #appShell>header,html.preview-only #appShell>.sidebar,html.preview-only #mainArea{display:none!important}
   html.preview-only .app-shell{display:grid;grid-template-columns:1fr!important;grid-template-rows:1fr!important;grid-template-areas:"pv"!important}
@@ -23795,6 +23796,8 @@ const PREVIEW_PARAGRAPH_GEOMETRY={
 };
 function getParagraphNativeIlvl(block){
   if(Number.isInteger(block&&block.native_ilvl)) return block.native_ilvl;
+  if(Number.isInteger(block&&block.ilvl)) return block.ilvl;
+  if(Number.isInteger(block&&block.numbering&&block.numbering.ilvl)) return block.numbering.ilvl;
   return PARAGRAPH_STYLE_TO_NATIVE_ILVL[block&&block.paragraph_style]??null;
 }
 function getParagraphContentType(block){
@@ -23811,6 +23814,20 @@ function getParagraphStyleConfig(style){ return PARAGRAPH_STYLE_CONFIGS[style]||
 function paragraphNumberStart(block){
   const raw=block&&block.start_override!=null?block.start_override:block&&block.numbering_start;
   const value=Number(raw); return Number.isInteger(value)&&value>0?value:1;
+}
+function paragraphNumberingGroupKey(block,level,fallbackScope){
+  const explicitGroup=block.list_group_id??block.listGroupId??block.numbering_group_id??block.numberingGroupId??block.list_id??block.listId;
+  if(explicitGroup!=null&&String(explicitGroup)!==''){
+    // The template parser's "word:<numId>" value describes a Word numbering
+    // definition, not necessarily one semantic list across every section.
+    // Scope that generic value to its owning node; richer group ids remain
+    // authoritative across nodes.
+    const value=String(explicitGroup);
+    return (value.startsWith('word:')?'word:'+String(fallbackScope||'local')+':'+value:'group:'+value)+':'+level;
+  }
+  const numbering=block.numbering&&typeof block.numbering==='object'?block.numbering:null;
+  const nativeId=block.num_id??block.numId??block.numbering_id??block.numberingId??(numbering&&(numbering.num_id??numbering.numId??numbering.id));
+  return nativeId!=null&&String(nativeId)!==''?'num:'+String(fallbackScope||'local')+':'+String(nativeId)+':'+level:'';
 }
 function calculateParagraphNumbering(blocks,options={}){
   const prefixes=options.prefixes||new Map(), counters=options.counters||new Map();
@@ -23829,8 +23846,8 @@ function calculateParagraphNumbering(blocks,options={}){
     const parent=stack.length?stack[stack.length-1].block:null;
     let counterKey='';
     if(cfg.numbered){
-      if(b.list_group_id) counterKey='group:'+String(b.list_group_id)+':'+level;
-      else if(b.num_id!=null&&String(b.num_id)!=='') counterKey='num:'+String(b.num_id)+':'+level;
+      counterKey=paragraphNumberingGroupKey(b,level,options.fallbackScope);
+      if(counterKey) { /* Native Word/list metadata selected the group. */ }
       else if(style==='level_1') counterKey='level-1:'+String(options.fallbackScope||'local');
       else {
         const parentKey=parent&&parent.id?'parent:'+parent.id:'root';
@@ -24209,6 +24226,7 @@ function setPhase(p){
   document.getElementById('navAddChapter').style.display = p===PHASE.CHAPTERS ? '' : 'none';
   const shell=document.getElementById('appShell');
   if(shell) shell.classList.toggle('chapter-select-mode', p===PHASE.CHAPTERS);
+  updatePreviewUIState();
   const cur = p===PHASE.INPUT ? 1 : (p===PHASE.CHAPTERS ? 2 : 3);
   [1,2,3].forEach(i=>{
     const el=document.getElementById('step-'+i);
@@ -25962,32 +25980,43 @@ function sendPreviewMessage(message){
 }
 function publishPreviewState(){ sendPreviewMessage(currentPreviewState()); }
 function publishPreviewTarget(){ sendPreviewMessage({type:'preview-target',nodeId:_activePreviewTarget.nodeId,blockId:_activePreviewTarget.blockId,revision:_previewRevision,updatedAt:Date.now()}); }
-function setEmbeddedPreviewVisible(visible){
-  _previewOpen=visible;
+function updatePreviewUIState(){
+  if(_previewOnly) return;
+  const detached=!!(_previewWindow&&!_previewWindow.closed);
+  const available=phase===PHASE.EDIT&&!detached;
+  if(!available) _previewOpen=false;
+  const visible=available&&_previewOpen;
   const shell=document.getElementById('appShell'), btn=document.getElementById('previewToggleBtn');
-  shell.classList.toggle('preview-open',visible);
-  btn.classList.toggle('ghost',!visible);
+  if(shell){ shell.classList.toggle('preview-open',visible); shell.classList.toggle('detached-preview',detached); }
+  if(btn){ btn.hidden=!available; btn.classList.toggle('ghost',!visible); }
   if(visible){ buildPreview(); schedulePreviewScale(); }
+}
+function setEmbeddedPreviewVisible(visible){
+  _previewOpen=!!visible;
+  updatePreviewUIState();
 }
 function watchPreviewWindowClose(){
   clearInterval(_previewWindowCloseTimer);
   _previewWindowCloseTimer=setInterval(()=>{
     if(_previewWindow&&!_previewWindow.closed) return;
     clearInterval(_previewWindowCloseTimer); _previewWindowCloseTimer=null; _previewWindow=null;
-    setEmbeddedPreviewVisible(true);
+    // Keep the editor full width. The user can explicitly reopen inline preview.
+    _previewOpen=false; updatePreviewUIState();
   },500);
 }
 function openPreviewWindow(){
+  if(_previewOnly||phase!==PHASE.EDIT) return;
   if(_previewWindow&&!_previewWindow.closed){ _previewWindow.focus(); publishPreviewState(); return; }
   buildPreview();
   const previewUrl=new URL(location.href); previewUrl.searchParams.set('previewOnly','1');
   _previewWindow=window.open(previewUrl.href,'detail-design-preview-window');
   if(!_previewWindow){ showToast('ポップアップがブロックされました。ブラウザで許可してください。',true); return; }
-  setEmbeddedPreviewVisible(false);
+  _previewOpen=false; updatePreviewUIState();
   watchPreviewWindowClose();
   _previewWindow.focus();
 }
 function togglePreview(){
+  if(_previewOnly||phase!==PHASE.EDIT||(_previewWindow&&!_previewWindow.closed)) return;
   const nextOpen=!_previewOpen;
   setEmbeddedPreviewVisible(nextOpen);
   if(nextOpen) requestAnimationFrame(()=>scrollPreviewToActive(true));
