@@ -100,7 +100,9 @@ console.log(JSON.stringify(snapshots));
 def test_document_numbering_restarts_level_one_for_every_node_and_hierarchy():
     names = [
         "getParagraphNativeIlvl", "getParagraphStyleConfig", "paragraphNumberStart",
-        "paragraphNumberingGroupKey", "calculateParagraphNumbering", "calculateDocumentParagraphNumbering",
+        "paragraphNumberingGroupKey", "paragraphProvidedOrdinal", "paragraphProvidedDisplayNumber",
+        "formatParagraphNumber", "resolveParagraphNumbering", "calculateParagraphNumbering",
+        "calculateDocumentParagraphNumbering",
     ]
     functions = "\n".join(_function(name) for name in names)
     source = f"""
@@ -126,13 +128,15 @@ console.log(JSON.stringify(Object.fromEntries(result)));
     prefixes = _run_node(source)
     assert [prefixes[key] for key in ("a1", "a2", "a3", "a4")] == ["（1）", "（2）", "（1）", "（1）"]
     assert prefixes["b1"] == "（1）"
-    assert [prefixes[key] for key in ("ga1", "ga2", "gb1", "gb2", "gb3")] == ["①", "②", "①", "②", "③"]
+    assert [prefixes[key] for key in ("ga1", "ga2", "gb1", "gb2", "gb3")] == ["①", "②", "③", "④", "⑤"]
 
 
 def test_style_zero_numbering_prefers_native_groups_and_keeps_fallback_scoped():
     names = [
         "getParagraphNativeIlvl", "getParagraphStyleConfig", "paragraphNumberStart",
-        "paragraphNumberingGroupKey", "calculateParagraphNumbering", "calculateDocumentParagraphNumbering",
+        "paragraphNumberingGroupKey", "paragraphProvidedOrdinal", "paragraphProvidedDisplayNumber",
+        "formatParagraphNumber", "resolveParagraphNumbering", "calculateParagraphNumbering",
+        "calculateDocumentParagraphNumbering",
     ]
     functions = "\n".join(_function(name) for name in names)
     source = f"""
@@ -160,11 +164,32 @@ const chapters=[
 console.log(JSON.stringify(Object.fromEntries(calculateDocumentParagraphNumbering(chapters))));
 """
     prefixes = _run_node(source)
-    assert [prefixes[key] for key in ("native-1", "native-2", "native-3")] == ["（1）", "（2）", "（1）"]
+    assert [prefixes[key] for key in ("native-1", "native-2", "native-3")] == ["（1）", "（2）", "（3）"]
     assert [prefixes[key] for key in ("other-1", "other-2")] == ["（1）", "（2）"]
     assert prefixes["restart"] == "（1）"
     assert prefixes["fallback-b"] == prefixes["fallback-c"] == "（1）"
     assert [prefixes[key] for key in ("shared-1", "shared-2")] == ["（1）", "（2）"]
+
+
+def test_plugin_final_numbering_fields_override_frontend_inference():
+    names = [
+        "getParagraphNativeIlvl", "getParagraphStyleConfig", "paragraphNumberStart",
+        "paragraphNumberingGroupKey", "paragraphProvidedOrdinal", "paragraphProvidedDisplayNumber",
+        "formatParagraphNumber", "resolveParagraphNumbering", "calculateParagraphNumbering",
+    ]
+    functions = "\n".join(_function(name) for name in names)
+    source = f"""
+const PARAGRAPH_STYLE_CONFIGS={{level_0:{{symbol:'',numbered:false}},level_1:{{symbol:'',numbered:true}}}};
+const PARAGRAPH_STYLE_TO_NATIVE_ILVL={{level_1:0}};
+{functions}
+const blocks=[
+ {{id:'a',type:'paragraph',paragraph_style:'level_1',list_group_id:'13-7',ordinal:1}},
+ {{id:'b',type:'paragraph',paragraph_style:'level_1',list_group_id:'13-7',list_index:2}},
+ {{id:'c',type:'paragraph',paragraph_style:'level_1',list_group_id:'13-7',display_number:'（3）',ordinal:99}}
+];
+console.log(JSON.stringify(Object.fromEntries(calculateParagraphNumbering(blocks))));
+"""
+    assert _run_node(source) == {"a": "（1）", "b": "（2）", "c": "（3）"}
 
 
 def test_preview_style_zero_spacing_and_preview_only_window_lifecycle():

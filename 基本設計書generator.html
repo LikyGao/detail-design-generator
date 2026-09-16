@@ -23640,8 +23640,8 @@ const DIFY_GEN_API_KEY         = "app-PecG4x3wwEsUmVIjYH2vC6YE"; // Stage② ②
 const DOCUMENT_PROFILES = {
   server_storage: { label: "サーバー・ストレージ版", description: "サーバー、ストレージ、仮想化基盤を中心とする基本設計書", enabled: true },
   network: { label: "ネットワーク版", description: "LAN、WAN、ルーティング、ファイアウォール等を中心とする基本設計書", enabled: true },
-  cloud: { label: "クラウド版", description: "AWS、Azure等のクラウド基盤を中心とする基本設計書", enabled: false, statusLabel: "準備中" },
-  full: { label: "完整版", description: "ネットワーク、サーバー・ストレージ、クラウドを含む大規模・複合案件向けの基本設計書", enabled: true }
+  cloud: { label: "クラウド版", description: "AWS、Azure等のクラウド基盤を中心とする基本設計書", enabled: true },
+  full: { label: "完全版", description: "ネットワーク、サーバー・ストレージ、クラウドを含む大規模・複合案件向けの基本設計書", enabled: true }
 };
 
 const BULK_TEST_TEXTS = {
@@ -23755,6 +23755,9 @@ function emptyDoc(){
     document_type:'',
     template_id:'',
     template_version:'',
+    template_name:'',
+    template_source_type:'',
+    template_fallback:false,
     master_json:'',
     chapter_list_json:'',
     section_contents_json:'',
@@ -23818,16 +23821,39 @@ function paragraphNumberStart(block){
 function paragraphNumberingGroupKey(block,level,fallbackScope){
   const explicitGroup=block.list_group_id??block.listGroupId??block.numbering_group_id??block.numberingGroupId??block.list_id??block.listId;
   if(explicitGroup!=null&&String(explicitGroup)!==''){
-    // The template parser's "word:<numId>" value describes a Word numbering
-    // definition, not necessarily one semantic list across every section.
-    // Scope that generic value to its owning node; richer group ids remain
-    // authoritative across nodes.
     const value=String(explicitGroup);
-    return (value.startsWith('word:')?'word:'+String(fallbackScope||'local')+':'+value:'group:'+value)+':'+level;
+    return 'group:'+value+':'+level;
   }
   const numbering=block.numbering&&typeof block.numbering==='object'?block.numbering:null;
   const nativeId=block.num_id??block.numId??block.numbering_id??block.numberingId??(numbering&&(numbering.num_id??numbering.numId??numbering.id));
-  return nativeId!=null&&String(nativeId)!==''?'num:'+String(fallbackScope||'local')+':'+String(nativeId)+':'+level:'';
+  const abstractId=block.abstract_num_id??block.abstractNumId??(numbering&&(numbering.abstract_num_id??numbering.abstractNumId));
+  return nativeId!=null&&String(nativeId)!==''?'num:'+String(nativeId)+':abstract:'+String(abstractId??'')+':'+level:'';
+}
+function paragraphProvidedOrdinal(block){
+  const numbering=block&&block.numbering&&typeof block.numbering==='object'?block.numbering:null;
+  const raw=block&&(block.ordinal??block.list_index??block.listIndex??(numbering&&(numbering.ordinal??numbering.list_index??numbering.listIndex)));
+  const value=Number(raw); return Number.isInteger(value)&&value>0?value:null;
+}
+function paragraphProvidedDisplayNumber(block){
+  const numbering=block&&block.numbering&&typeof block.numbering==='object'?block.numbering:null;
+  const value=block&&(block.display_number??block.displayNumber??(numbering&&(numbering.display_number??numbering.displayNumber)));
+  return value==null?'':String(value).trim();
+}
+function formatParagraphNumber(style,ordinal){
+  if(style==='level_1') return '（'+ordinal+'）';
+  if(style==='level_4'||style==='level_6') return ordinal>=1&&ordinal<=20?String.fromCodePoint(0x2460+ordinal-1):'('+ordinal+')';
+  return getParagraphStyleConfig(style).symbol;
+}
+function resolveParagraphNumbering(block,state){
+  const style=PARAGRAPH_STYLE_CONFIGS[block.paragraph_style]?block.paragraph_style:'level_0', cfg=getParagraphStyleConfig(style);
+  const level=getParagraphNativeIlvl(block)??-1;
+  if(!cfg.numbered) return {groupKey:'',ordinal:null,displayText:cfg.symbol,level};
+  const groupKey=paragraphNumberingGroupKey(block,level,state.fallbackScope) || state.fallbackGroupKey;
+  const providedOrdinal=paragraphProvidedOrdinal(block);
+  const previous=state.counters.get(groupKey);
+  const ordinal=providedOrdinal??(previous==null||block.start_override!=null?paragraphNumberStart(block):previous+1);
+  state.counters.set(groupKey,ordinal);
+  return {groupKey,ordinal,displayText:paragraphProvidedDisplayNumber(block)||formatParagraphNumber(style,ordinal),level};
 }
 function calculateParagraphNumbering(blocks,options={}){
   const prefixes=options.prefixes||new Map(), counters=options.counters||new Map();
@@ -23840,7 +23866,12 @@ function calculateParagraphNumbering(blocks,options={}){
     for(const [counterLevel,keys] of counterKeysByLevel){
       // Explanatory body text has no Word list level and does not terminate a
       // native list. Only an actual shallower list item restarts descendants.
-      if(level>=0&&counterLevel>level){ keys.forEach(key=>counters.delete(key)); counterKeysByLevel.delete(counterLevel); }
+      if(level>=0&&counterLevel>level){
+        // Plugin-provided groups are authoritative and must not restart merely
+        // because another paragraph style/level appeared between their items.
+        keys.forEach(key=>{ if(key.startsWith('fallback:')) counters.delete(key); });
+        counterKeysByLevel.delete(counterLevel);
+      }
     }
     while(stack.length&&stack[stack.length-1].level>=level) stack.pop();
     const parent=stack.length?stack[stack.length-1].block:null;
@@ -23855,15 +23886,13 @@ function calculateParagraphNumbering(blocks,options={}){
         if(!fallbackRuns.has(runKey)) fallbackRuns.set(runKey,index);
         counterKey='fallback:'+String(options.fallbackScope||'local')+':'+runKey+':'+fallbackRuns.get(runKey);
       }
-      const previous=counters.get(counterKey);
-      const explicitRestart=previous!=null&&b.start_override!=null;
-      counters.set(counterKey,previous==null||explicitRestart?paragraphNumberStart(b):previous+1);
+      const resolved=resolveParagraphNumbering(b,{counters,fallbackScope:options.fallbackScope,fallbackGroupKey:counterKey});
+      counterKey=resolved.groupKey;
       if(!counterKeysByLevel.has(level)) counterKeysByLevel.set(level,new Set());
       counterKeysByLevel.get(level).add(counterKey);
     }
-    let prefix=cfg.symbol, number=counterKey?counters.get(counterKey):0;
-    if(style==='level_1') prefix='（'+number+'）';
-    if(style==='level_4'||style==='level_6') prefix=number>=1&&number<=20?String.fromCodePoint(0x2460+number-1):'('+number+')';
+    let prefix=cfg.symbol;
+    if(cfg.numbered) prefix=paragraphProvidedDisplayNumber(b)||formatParagraphNumber(style,counters.get(counterKey));
     prefixes.set(b.id,prefix);
     if(style==='level_0') { stack.length=0; fallbackRuns.clear(); }
     else stack.push({level,block:b});
@@ -24186,7 +24215,12 @@ function updateDocumentTypeDisplay(){
   const display=document.getElementById('documentTypeDisplay'); if(!display) return;
   const profile=DOCUMENT_PROFILES[doc.document_type];
   display.textContent=profile ? '文書種別：'+profile.label : '';
-  if(doc.template_id){ display.textContent += '　使用テンプレート：'+doc.template_id+(doc.template_version ? ' v'+doc.template_version : ''); }
+  const sourceType=doc.template_source_type || (doc.document_type==='cloud'&&doc.template_fallback?'full':'');
+  const templateName=doc.template_name || (sourceType&&DOCUMENT_PROFILES[sourceType]?.label) || '';
+  if(templateName || doc.template_version){
+    display.textContent += '　使用テンプレート：'+(templateName||profile?.label||'')+(doc.template_version ? ' v'+doc.template_version : '');
+    if(doc.template_fallback || (doc.document_type==='cloud'&&doc.template_source_type==='full')) display.textContent += '（Cloud fallback）';
+  }
 }
 function isEnabledDocumentType(type){ return !!(DOCUMENT_PROFILES[type] && DOCUMENT_PROFILES[type].enabled); }
 function setBulkTestText(documentType){
@@ -24194,7 +24228,7 @@ function setBulkTestText(documentType){
   if(!bulkInput) return;
   bulkInput.value=BULK_TEST_TEXTS[documentType] || '';
 }
-function startWithDocumentType(){
+async function startWithDocumentType(){
   const selected=document.querySelector('input[name="document_type"]:checked'); const status=document.getElementById('documentTypeStatus');
   if(!selected){ status.textContent='基本設計書の種類を選択してください。'; return; }
   if(!isEnabledDocumentType(selected.value)){ status.textContent='この文書種別は準備中です。'; return; }
@@ -24202,15 +24236,47 @@ function startWithDocumentType(){
   const typeActuallyChanged=previousType!==selected.value;
   const changingGeneratedType=!!previousType && previousType!==selected.value && (doc.chapters.length>0 || doc.missing_items.length>0);
   if(changingGeneratedType && !window.confirm('文書種別を変更すると、生成済みの章節と本文がクリアされます。続行しますか？')) return;
-  if(changingGeneratedType) clearGeneratedDocumentState();
+  if(typeActuallyChanged) clearGeneratedDocumentState();
   doc.document_type=selected.value;
   if(typeActuallyChanged){ buildPlanForm(); setBulkTestText(selected.value); }
   document.getElementById('documentLanding').hidden=true; document.getElementById('appShell').hidden=false;
   updateDocumentTypeDisplay(); setPhase(PHASE.INPUT);
+  status.textContent='内蔵テンプレートを読み込んでいます…';
+  try{ await ensureBundledTemplateData(true); status.textContent='文書種別を変更しました'; }
+  catch(error){ status.textContent=error.message; status.style.color='var(--red)'; }
 }
 function clearGeneratedDocumentState(){
-  doc.chapters=[]; doc.missing_items=[]; doc.template_id=''; doc.template_version='';
+  doc.chapters=[]; doc.missing_items=[]; doc.template_id=''; doc.template_version=''; doc.template_name=''; doc.template_source_type=''; doc.template_fallback=false;
   doc.master_json=''; doc.chapter_list_json=''; doc.section_contents_json=''; doc.reference_text=''; doc.returned_section_count='';
+}
+function applyBundledTemplateMetadata(outputs){
+  let metadata=outputs&&outputs.metadata&&typeof outputs.metadata==='object'?outputs.metadata:{};
+  const metadataText=outputs&&(outputs.metadata_json??outputs.metadataJson);
+  if(metadataText&&typeof metadataText==='string'){
+    try{ metadata=JSON.parse(metadataText); }catch(error){ console.warn('Bundled template metadata_json could not be parsed.',error); }
+  }
+  doc.template_id=String(outputs.template_id??metadata.template_id??'');
+  doc.template_version=String(outputs.template_version??metadata.template_version??'');
+  doc.template_name=String(outputs.template_name??metadata.template_name??metadata.display_name??'');
+  doc.template_source_type=String(outputs.template_source_type??metadata.template_source_type??metadata.source_document_type??'');
+  doc.template_fallback=Boolean(outputs.fallback??metadata.fallback??false);
+}
+async function ensureBundledTemplateData(force=false){
+  if(!DOCUMENT_PROFILES[doc.document_type]) throw new Error('Unsupported document_type: '+doc.document_type);
+  if(!force&&doc.master_json&&doc.chapter_list_json&&doc.section_contents_json) return null;
+  const outputs=await difyCall(DIFY_TEMPLATE_API_KEY,{document_type:doc.document_type},DIFY_WORKFLOW_API_URL,true);
+  const required=['master_json','chapter_list_json','section_contents_json'];
+  const isEmpty=value=>value===undefined||value===null||(typeof value==='string'&&!value.trim());
+  const missing=required.filter(key=>isEmpty(outputs[key]));
+  if(missing.length) throw new Error('内蔵テンプレートの必須フィールド不足: '+missing.join(', '));
+  // document_type is selected by the user. In particular, cloud remains cloud;
+  // the plugin reports full separately as template_source_type.
+  applyBundledTemplateMetadata(outputs);
+  doc.master_json=outputs.master_json; doc.chapter_list_json=outputs.chapter_list_json;
+  doc.section_contents_json=outputs.section_contents_json; doc.reference_text=outputs.reference_text??'';
+  doc.returned_section_count=outputs.returned_section_count??'';
+  updateDocumentTypeDisplay();
+  return outputs;
 }
 function changeDocumentType(){
   document.getElementById('appShell').hidden=true; document.getElementById('documentLanding').hidden=false;
@@ -24437,22 +24503,12 @@ async function callDifyPlan(){
     status.style.color='var(--text-muted)'; status.textContent='標準テンプレートデータを取得しています…';
     let templateOutputs;
     try{
-      templateOutputs=await difyCall(
-        DIFY_TEMPLATE_API_KEY,
-        { document_type: doc.document_type },
-        DIFY_WORKFLOW_API_URL,
-        true
-      );
-      const required=['template_id','template_version','master_json','chapter_list_json'];
-      const isEmpty=value=>value===undefined || value===null ||
-        (typeof value==='string' && !value.trim()) ||
-        (Array.isArray(value) && !value.length) ||
-        (typeof value==='object' && !Array.isArray(value) && !Object.keys(value).length);
-      const missing=required.filter(key=>isEmpty(templateOutputs[key]));
-      if(missing.length){
-        console.error('[標準テンプレートデータ取得] 必須フィールド不足:', missing);
-        throw new Error('必須フィールド不足: '+missing.join(', '));
-      }
+      templateOutputs=await ensureBundledTemplateData(false) || {
+        template_id:doc.template_id, template_version:doc.template_version,
+        master_json:doc.master_json, chapter_list_json:doc.chapter_list_json,
+        section_contents_json:doc.section_contents_json, reference_text:doc.reference_text,
+        returned_section_count:doc.returned_section_count
+      };
     }catch(e){
       status.style.color='var(--red)'; status.textContent='標準テンプレートデータの取得に失敗しました。';
       console.error(e);
@@ -24466,7 +24522,7 @@ async function callDifyPlan(){
         DIFY_CHAPTER_API_KEY,
         {
           input_json: JSON.stringify(casePayload),
-          document_type: templateOutputs.document_type || doc.document_type,
+          document_type: doc.document_type,
           template_id: String(templateOutputs.template_id),
           template_version: String(templateOutputs.template_version),
           master_json: toJsonString(templateOutputs.master_json),
@@ -24491,9 +24547,9 @@ function importPlanJson(){
 }
 function applyPlan(data, templateOutputs){
   const ing=ingestPayload(data, { forceSelectTopLevel: true });
-  doc.document_type=(templateOutputs && templateOutputs.document_type) || ing.document_type || doc.document_type || 'server_storage';
-  doc.template_id=(templateOutputs && templateOutputs.template_id) || ing.template_id || '';
-  doc.template_version=(templateOutputs && templateOutputs.template_version) || ing.template_version || '';
+  doc.document_type=doc.document_type || ing.document_type || 'server_storage';
+  doc.template_id=(templateOutputs && templateOutputs.template_id) ?? ing.template_id ?? '';
+  doc.template_version=(templateOutputs && templateOutputs.template_version) ?? ing.template_version ?? '';
   if(templateOutputs){
     doc.master_json=templateOutputs.master_json;
     doc.chapter_list_json=templateOutputs.chapter_list_json;
@@ -25592,12 +25648,6 @@ async function runGenerate(scopeNode,btn,status,enterEditAfter){
   if(!String(doc.document_type || '').trim()){
     missingTemplateFields.push('document_type');
   }
-  if(!String(doc.template_id || '').trim()){
-    missingTemplateFields.push('template_id');
-  }
-  if(!String(doc.template_version || '').trim()){
-    missingTemplateFields.push('template_version');
-  }
   const hasSectionContents =
     doc.section_contents_json !== undefined &&
     doc.section_contents_json !== null &&
@@ -25729,7 +25779,7 @@ async function loadTemplateBodyByChapter(btn,status){
     status.textContent='⚠ Generate用 Dify APIキー未設定。APIキーを設定してください。';
     return;
   }
-  const required=['document_type','template_id','template_version','section_contents_json'];
+  const required=['document_type','section_contents_json'];
   const missing=required.filter(key=>doc[key] == null || (typeof doc[key]==='string' && !doc[key].trim()));
   if(missing.length){
     console.error('[Dify Generate] 標準テンプレート情報不足:', missing);
